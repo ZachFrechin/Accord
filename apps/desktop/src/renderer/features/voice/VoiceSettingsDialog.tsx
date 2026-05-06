@@ -212,6 +212,17 @@ export function VoiceSettingsDialog({
             />
           </label>
 
+          <label>
+            Seuil du noise gate ({settings.noiseGateThreshold}%)
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={settings.noiseGateThreshold}
+              onChange={(e) => onSave({ noiseGateThreshold: Number(e.target.value) })}
+            />
+          </label>
+
           <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
             Les réglages de traitement s’appliquent au prochain salon vocal rejoint.
           </p>

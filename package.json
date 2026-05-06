@@ -38,8 +38,5 @@
     "typescript-eslint": "^8.46.4",
     "vite-plugin-wasm": "^3.6.0",
     "vitest": "^4.0.8"
-  },
-  "dependencies": {
-    "@jitsi/rnnoise-wasm": "^0.2.1"
   }
 }
