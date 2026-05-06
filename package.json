@@ -1,0 +1,41 @@
+{
+  "name": "discord2",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/tsconfig",
+    "packages/eslint-config",
+    "packages/shared",
+    "packages/config",
+    "packages/domain",
+    "packages/db",
+    "packages/e2ee",
+    "apps/api",
+    "apps/gateway",
+    "apps/desktop"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "build:packages": "npm run build -w @discord2/shared && npm run build -w @discord2/config && npm run build -w @discord2/domain && npm run build -w @discord2/db && npm run build -w @discord2/e2ee",
+    "dev:api": "npm run dev -w @discord2/api",
+    "dev:gateway": "npm run dev -w @discord2/gateway",
+    "dev:desktop": "npm run dev -w @discord2/desktop",
+    "lint": "eslint .",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "electron": "39.2.7",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vitest": "^4.0.8"
+  }
+}
