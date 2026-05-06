@@ -22,6 +22,7 @@ import { MessageTimeline } from '../features/messages/MessageTimeline';
 import { CreateServerDialog } from '../features/servers/CreateServerDialog';
 import { ServerSettingsDialog } from '../features/servers/ServerSettingsDialog';
 import { ServerRail } from '../features/servers/ServerRail';
+import { ThemePickerDialog } from '../features/theme/ThemePickerDialog';
 import { ProfileSettingsDialog } from '../features/users/ProfileSettingsDialog';
 import { ApiClient } from '../lib/api-client';
 import { createRealtimeSocket } from '../lib/realtime';
@@ -42,6 +43,8 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   const [isJoinServerOpen, setIsJoinServerOpen] = useState(false);
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
+  const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
+  const [composerError, setComposerError] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [inviteCodeId, setInviteCodeId] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -52,6 +55,8 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
     setActiveServerId,
     setActiveChannelId,
     setRealtimeStatus,
+    theme,
+    setTheme,
   } = useUiStore();
 
   const profileQuery = useQuery({
@@ -229,6 +234,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
         privacy: MessagePrivacy.Public,
       }),
     onMutate: async (content) => {
+      setComposerError(null);
       const channelId = activeChannelId!;
       await queryClient.cancelQueries({ queryKey: ['messages', channelId] });
       const previous = queryClient.getQueryData<MessageRecord[]>(['messages', channelId]) ?? [];
@@ -277,6 +283,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
       <ServerRail
         servers={servers}
         activeServerId={activeServerId}
+        isLoading={serversQuery.isLoading}
         onSelect={setActiveServerId}
         onCreate={() => setIsCreateServerOpen(true)}
         onJoin={() => setIsJoinServerOpen(true)}
@@ -286,6 +293,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
           server={activeServer}
           channels={channels}
           activeChannelId={activeChannelId}
+          isLoading={channelsQuery.isLoading}
           canManageServer={canManageActiveServer}
           onSelect={setActiveChannelId}
           onCreateChannel={() => setIsCreateChannelOpen(true)}
@@ -295,6 +303,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
           profile={profileQuery.data}
           realtimeStatus={realtimeStatus}
           onOpenSettings={() => setIsProfileSettingsOpen(true)}
+          onOpenThemePicker={() => setIsThemePickerOpen(true)}
         />
       </div>
       <section className="chat-panel">
@@ -320,8 +329,27 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
             </IconButton>
           </div>
         </header>
+        {realtimeStatus !== 'connected' ? (
+          <div className="realtime-banner" data-status={realtimeStatus}>
+            {realtimeStatus === 'connecting'
+              ? 'Connexion temps réel en cours...'
+              : 'Temps réel déconnecté. Les nouveaux messages peuvent arriver en retard.'}
+          </div>
+        ) : null}
         {serversQuery.isLoading ? (
-          <div className="center-state">Chargement de l’espace...</div>
+          <div className="messages-wrapper">
+            <div className="message-list">
+              {Array.from({ length: 6 }, (_, index) => (
+                <div className="message-row skeleton-message" key={index}>
+                  <div className="avatar skeleton-dot" />
+                  <div className="message-body">
+                    <div className="skeleton-line short" />
+                    <div className="skeleton-line" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : servers.length === 0 ? (
           <div className="center-state">
             <h2>Crée ton premier serveur</h2>
@@ -339,8 +367,16 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
             />
             <MessageComposer
               disabled={!activeChannelId || sendMessageMutation.isPending}
+              error={composerError}
               onSend={async (content) => {
-                await sendMessageMutation.mutateAsync(content);
+                try {
+                  await sendMessageMutation.mutateAsync(content);
+                } catch (error) {
+                  const message =
+                    error instanceof Error ? error.message : 'Impossible d’envoyer le message.';
+                  setComposerError(message);
+                  throw error;
+                }
               }}
             />
           </>
@@ -409,6 +445,16 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
           onClose={() => setIsServerSettingsOpen(false)}
           onSave={async (input) => {
             await updateServerMutation.mutateAsync(input);
+          }}
+        />
+      ) : null}
+      {isThemePickerOpen ? (
+        <ThemePickerDialog
+          currentTheme={theme}
+          onClose={() => setIsThemePickerOpen(false)}
+          onSelect={(nextTheme) => {
+            setTheme(nextTheme);
+            setIsThemePickerOpen(false);
           }}
         />
       ) : null}

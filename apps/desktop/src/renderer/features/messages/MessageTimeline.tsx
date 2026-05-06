@@ -30,7 +30,21 @@ export function MessageTimeline({
   }, [messages.length]);
 
   if (isLoading) {
-    return <div className="center-state">Chargement des messages...</div>;
+    return (
+      <div className="messages-wrapper">
+        <div className="message-list">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div className="message-row skeleton-message" key={index}>
+              <div className="avatar skeleton-dot" />
+              <div className="message-body">
+                <div className="skeleton-line short" />
+                <div className="skeleton-line" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (messages.length === 0) {
@@ -47,7 +61,10 @@ export function MessageTimeline({
       <div className="messages-wrapper">
         <div className="message-list" ref={listRef}>
           {messages.map((message) => (
-            <article className="message-row" key={message.id}>
+            <article
+              className={`message-row${message.id.startsWith('pending-') ? ' pending' : ''}`}
+              key={message.id}
+            >
               <AvatarImage
                 label={message.author?.displayName ?? 'Utilisateur'}
                 src={message.author?.avatarUrl}
@@ -67,7 +84,11 @@ export function MessageTimeline({
                   >
                     {message.author?.displayName ?? 'Utilisateur'}
                   </strong>
-                  <span>{formatMessageTime(message.createdAt)}</span>
+                  <span>
+                    {message.id.startsWith('pending-')
+                      ? 'Envoi...'
+                      : formatMessageTime(message.createdAt)}
+                  </span>
                 </div>
                 <p>{message.content}</p>
               </div>

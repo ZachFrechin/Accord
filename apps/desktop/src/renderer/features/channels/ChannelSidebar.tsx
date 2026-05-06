@@ -6,6 +6,7 @@ interface ChannelSidebarProps {
   server: ServerSummary | null;
   channels: ChannelSummary[];
   activeChannelId: string | null;
+  isLoading: boolean;
   canManageServer: boolean;
   onSelect: (channelId: string) => void;
   onCreateChannel: () => void;
@@ -16,6 +17,7 @@ export function ChannelSidebar({
   server,
   channels,
   activeChannelId,
+  isLoading,
   canManageServer,
   onSelect,
   onCreateChannel,
@@ -45,6 +47,11 @@ export function ChannelSidebar({
           </IconButton>
         </div>
         <nav className="channel-list" aria-label="Salons texte">
+          {isLoading
+            ? Array.from({ length: 5 }, (_, index) => (
+                <div className="channel skeleton-line" key={index} />
+              ))
+            : null}
           {textChannels.map((channel) => (
             <button
               className={`channel${channel.id === activeChannelId ? ' active' : ''}`}
@@ -56,7 +63,9 @@ export function ChannelSidebar({
               <span>{channel.name}</span>
             </button>
           ))}
-          {textChannels.length === 0 ? <p className="muted">Aucun salon texte.</p> : null}
+          {!isLoading && textChannels.length === 0 ? (
+            <p className="muted">Aucun salon texte.</p>
+          ) : null}
         </nav>
       </section>
       <section className="channel-section">

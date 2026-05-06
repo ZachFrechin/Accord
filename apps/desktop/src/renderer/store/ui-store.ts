@@ -1,21 +1,20 @@
 import { create } from 'zustand';
-
-type Theme = 'dark' | 'light';
+import { isThemeName, type ThemeName } from '../lib/themes';
 
 interface UiState {
   activeServerId: string | null;
   activeChannelId: string | null;
   realtimeStatus: 'disconnected' | 'connecting' | 'connected';
-  theme: Theme;
+  theme: ThemeName;
   setActiveServerId: (serverId: string | null) => void;
   setActiveChannelId: (channelId: string | null) => void;
   setRealtimeStatus: (status: UiState['realtimeStatus']) => void;
-  toggleTheme: () => void;
+  setTheme: (theme: ThemeName) => void;
 }
 
-function getInitialTheme(): Theme {
+function getInitialTheme(): ThemeName {
   const stored = typeof window !== 'undefined' ? localStorage.getItem('discord2-theme') : null;
-  if (stored === 'light' || stored === 'dark') return stored;
+  if (isThemeName(stored)) return stored;
   return 'dark';
 }
 
@@ -27,10 +26,9 @@ export const useUiStore = create<UiState>((set) => ({
   setActiveServerId: (activeServerId) => set({ activeServerId, activeChannelId: null }),
   setActiveChannelId: (activeChannelId) => set({ activeChannelId }),
   setRealtimeStatus: (realtimeStatus) => set({ realtimeStatus }),
-  toggleTheme: () =>
-    set((state) => {
-      const next = state.theme === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('discord2-theme', next);
-      return { theme: next };
+  setTheme: (theme) =>
+    set(() => {
+      localStorage.setItem('discord2-theme', theme);
+      return { theme };
     }),
 }));

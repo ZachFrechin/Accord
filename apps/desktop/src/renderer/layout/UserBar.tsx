@@ -1,24 +1,22 @@
-import { LogOut, Moon, Settings, Sun } from 'lucide-react';
+import { LogOut, Palette, Settings } from 'lucide-react';
 import type { UserProfile } from '@discord2/shared';
 import { AvatarImage } from '../components/AvatarImage';
 import { IconButton } from '../components/IconButton';
 import { supabase } from '../lib/supabase';
-import { useUiStore } from '../store/ui-store';
 
 interface UserBarProps {
   profile: UserProfile | undefined;
   realtimeStatus: string;
   onOpenSettings: () => void;
+  onOpenThemePicker: () => void;
 }
 
 export function UserBar({
   profile,
   realtimeStatus,
   onOpenSettings,
+  onOpenThemePicker,
 }: UserBarProps): React.JSX.Element {
-  const theme = useUiStore((s) => s.theme);
-  const toggleTheme = useUiStore((s) => s.toggleTheme);
-
   return (
     <footer className="user-bar">
       <AvatarImage
@@ -34,8 +32,8 @@ export function UserBar({
         <IconButton label="Paramètres profil" disabled={!profile} onClick={onOpenSettings}>
           <Settings size={18} />
         </IconButton>
-        <IconButton label={theme === 'dark' ? 'Mode clair' : 'Mode sombre'} onClick={toggleTheme}>
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        <IconButton label="Changer de thème" onClick={onOpenThemePicker}>
+          <Palette size={18} />
         </IconButton>
         <IconButton label="Déconnexion" onClick={() => void supabase.auth.signOut()}>
           <LogOut size={18} />

@@ -16,7 +16,7 @@ export function IconButton({
       className="icon-button"
       type="button"
       aria-label={label}
-      title={label}
+      data-tooltip={label}
       disabled={disabled}
       onClick={onClick}
     >
