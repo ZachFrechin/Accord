@@ -46,7 +46,7 @@ export async function createProcessedAudioTrack(
   lastNode.connect(lowPass);
   lastNode = lowPass;
 
-  // 3. Compresseur : écrête les pics et monte le niveau global
+  // 3. Compresseur : écrête les pics et normalise le niveau
   const compressor = audioContext.createDynamicsCompressor();
   compressor.threshold.value = -24;
   compressor.knee.value = 10;
@@ -56,13 +56,10 @@ export async function createProcessedAudioTrack(
   lastNode.connect(compressor);
   lastNode = compressor;
 
-  // 4. Noise gate (AudioWorklet) : coupe tout ce qui passe sous le seuil
+  // 4. Noise gate (ScriptProcessorNode, buffer 256 = 5ms, sans ring buffer)
   const gateThreshold = (settings.noiseGateThreshold / 100) * 0.03;
   if (gateThreshold > 0.0005) {
-    await ensureNoiseGateWorklet(audioContext);
-    const gateNode = new AudioWorkletNode(audioContext, 'noise-gate', {
-      processorOptions: { threshold: gateThreshold },
-    });
+    const gateNode = createNoiseGateNode(audioContext, gateThreshold);
     lastNode.connect(gateNode);
     lastNode = gateNode;
   }
@@ -92,73 +89,55 @@ export async function createProcessedAudioTrack(
   };
 }
 
-/* ── AudioWorklet Noise Gate ─────────────────────────── */
+/* ── Noise Gate (ScriptProcessorNode, buffer 256) ────── */
 
-let workletRegistered = false;
+function createNoiseGateNode(audioContext: AudioContext, threshold = 0.006): ScriptProcessorNode {
+  // Buffer 256 = ~5.3 ms @ 48 kHz — latence minimale
+  const processor = audioContext.createScriptProcessor(256, 1, 1);
 
-async function ensureNoiseGateWorklet(ctx: AudioContext): Promise<void> {
-  if (workletRegistered) return;
+  // Enveloppe exponentielle avec hold
+  let gain = 0;
+  const sampleRate = audioContext.sampleRate;
+  const attackCoef = Math.exp(-1 / (0.005 * sampleRate));   // 5 ms attack
+  const releaseCoef = Math.exp(-1 / (0.08 * sampleRate));   // 80 ms release
+  const holdSamples = Math.round(0.12 * sampleRate);        // 120 ms hold
+  let holdCounter = 0;
 
-  const code = `
-class NoiseGateProcessor extends AudioWorkletProcessor {
-  constructor(options) {
-    super();
-    this.threshold = options.processorOptions?.threshold ?? 0.006;
-    this.gain = 0;
-    this.holdSamples = Math.round(0.15 * sampleRate); // 150 ms hold
-    this.holdCounter = 0;
-    this.attackCoef = Math.exp(-1 / (0.005 * sampleRate));   // 5 ms
-    this.releaseCoef = Math.exp(-1 / (0.05 * sampleRate));   // 50 ms
-    this.rmsWindow = Math.round(0.01 * sampleRate);          // 10 ms RMS
-    this.rmsBuffer = new Float32Array(this.rmsWindow);
-    this.rmsIndex = 0;
-  }
+  // RMS glissant sur 10 ms
+  const rmsWindow = Math.round(0.01 * sampleRate);
+  const rmsBuffer = new Float32Array(rmsWindow);
+  let rmsIndex = 0;
 
-  process(inputs, outputs) {
-    const input = inputs[0];
-    const output = outputs[0];
-    if (!input || !input[0]) return true;
+  processor.onaudioprocess = (event) => {
+    const input = event.inputBuffer.getChannelData(0);
+    const output = event.outputBuffer.getChannelData(0);
 
-    const inCh = input[0];
-    const outCh = output[0] ?? inCh;
-
-    for (let i = 0; i < inCh.length; i++) {
-      const sample = inCh[i];
+    for (let i = 0; i < input.length; i++) {
+      const sample = input[i]!;
 
       // RMS circulaire
-      this.rmsBuffer[this.rmsIndex] = sample * sample;
-      this.rmsIndex = (this.rmsIndex + 1) % this.rmsWindow;
+      rmsBuffer[rmsIndex] = sample * sample;
+      rmsIndex = (rmsIndex + 1) % rmsWindow;
       let sum = 0;
-      for (let j = 0; j < this.rmsWindow; j++) sum += this.rmsBuffer[j];
-      const rms = Math.sqrt(sum / this.rmsWindow);
+      for (let j = 0; j < rmsWindow; j++) {
+        sum += rmsBuffer[j]!;
+      }
+      const rms = Math.sqrt(sum / rmsWindow);
 
       // Enveloppe avec hold
-      if (rms > this.threshold) {
-        this.holdCounter = this.holdSamples;
-        this.gain = this.attackCoef * this.gain + (1 - this.attackCoef) * 1;
-      } else if (this.holdCounter > 0) {
-        this.holdCounter--;
-        this.gain = this.attackCoef * this.gain + (1 - this.attackCoef) * 1;
+      if (rms > threshold) {
+        holdCounter = holdSamples;
+        gain = attackCoef * gain + (1 - attackCoef) * 1;
+      } else if (holdCounter > 0) {
+        holdCounter--;
+        gain = attackCoef * gain + (1 - attackCoef) * 1;
       } else {
-        this.gain = this.releaseCoef * this.gain + (1 - this.releaseCoef) * 0;
+        gain = releaseCoef * gain + (1 - releaseCoef) * 0;
       }
 
-      const out = sample * this.gain;
-      if (outCh !== inCh) outCh[i] = out;
-      else inCh[i] = out;
+      output[i] = sample * gain;
     }
-    return true;
-  }
-}
-registerProcessor('noise-gate', NoiseGateProcessor);
-`;
+  };
 
-  const blob = new Blob([code], { type: 'application/javascript' });
-  const url = URL.createObjectURL(blob);
-  try {
-    await ctx.audioWorklet.addModule(url);
-    workletRegistered = true;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  return processor;
 }
