@@ -158,6 +158,14 @@ export function ProfileSettingsDialog({
 
         <form className="settings-section" onSubmit={(event) => void submitPassword(event)}>
           <h3>Mot de passe</h3>
+          <input
+            className="visually-hidden"
+            type="email"
+            autoComplete="username"
+            value={session.user.email ?? ''}
+            readOnly
+            tabIndex={-1}
+          />
           <label>
             Mot de passe actuel
             <input
