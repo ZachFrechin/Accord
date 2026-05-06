@@ -1,8 +1,16 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ServersRepository } from '@discord2/db';
-import type { AuthUser, ServerId, ServerSummary } from '@discord2/shared';
-import type { CreateServerDto } from './dto';
+import { canManageServer } from '@discord2/domain';
+import type { AuthUser, ServerId, ServerSummary, UpdateServerInput } from '@discord2/shared';
+import { assertPublicStorageUrl } from '../common/storage-url.validator';
+import type { CreateServerDto, UpdateServerDto } from './dto';
 
 @Injectable()
 export class ServersService {
@@ -30,5 +38,46 @@ export class ServersService {
     }
 
     return server;
+  }
+
+  async updateServer(
+    user: AuthUser,
+    serverId: ServerId,
+    dto: UpdateServerDto,
+  ): Promise<ServerSummary> {
+    const membership = await this.repository.findMembership(serverId, user.id);
+    if (!membership) {
+      throw new NotFoundException('Server not found.');
+    }
+
+    if (!canManageServer(membership)) {
+      throw new ForbiddenException('You cannot manage this server.');
+    }
+
+    const name = dto.name?.trim();
+    if (name === undefined && dto.avatarUrl === undefined) {
+      throw new BadRequestException('At least one server setting is required.');
+    }
+
+    if (name !== undefined && !name) {
+      throw new BadRequestException('Server name is required.');
+    }
+
+    assertPublicStorageUrl(dto.avatarUrl, 'server-icons');
+    const input: UpdateServerInput = {};
+    if (name !== undefined) {
+      input.name = name;
+    }
+
+    if (dto.avatarUrl !== undefined) {
+      input.avatarUrl = dto.avatarUrl;
+    }
+
+    const updated = await this.repository.update(serverId, input);
+
+    return {
+      ...updated,
+      role: membership.role,
+    };
   }
 }

@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChannelType, MessagePrivacy, type AuthUser } from '@discord2/shared';
@@ -16,12 +16,18 @@ const repositoryMocks = vi.hoisted(() => ({
     insert: vi.fn(),
     listByChannel: vi.fn(),
   },
+  profiles: {
+    findByUserId: vi.fn(),
+    updateForUser: vi.fn(),
+    upsertFromAuthUser: vi.fn(),
+  },
   servers: {
     addMember: vi.fn(),
     create: vi.fn(),
     findByIdForUser: vi.fn(),
     findMembership: vi.fn(),
     listForUser: vi.fn(),
+    update: vi.fn(),
   },
 }));
 
@@ -35,6 +41,9 @@ vi.mock('@discord2/db', () => ({
   MessagesRepository: vi.fn(function MessagesRepository() {
     return repositoryMocks.messages;
   }),
+  ProfilesRepository: vi.fn(function ProfilesRepository() {
+    return repositoryMocks.profiles;
+  }),
   ServersRepository: vi.fn(function ServersRepository() {
     return repositoryMocks.servers;
   }),
@@ -46,6 +55,12 @@ const user: AuthUser = { id: 'user-1', email: 'user@example.com' };
 describe('api service behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.SUPABASE_URL = 'https://supabase.test';
+    process.env.SUPABASE_ANON_KEY = 'anon';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
+    process.env.LIVEKIT_URL = 'https://livekit.test';
+    process.env.LIVEKIT_API_KEY = 'livekit-key';
+    process.env.LIVEKIT_API_SECRET = 'livekit-secret';
   });
 
   it('creates a server owned by the authenticated user', async () => {
@@ -55,6 +70,7 @@ describe('api service behavior', () => {
       id: 'server-1',
       name: 'Core',
       ownerId: user.id,
+      avatarUrl: null,
       role: 'owner',
       createdAt: '2026-05-06T00:00:00.000Z',
     };
@@ -65,6 +81,92 @@ describe('api service behavior', () => {
       name: 'Core',
       ownerId: user.id,
     });
+  });
+
+  it('updates only the authenticated user profile', async () => {
+    const { UsersService } = await import('./users/users.service');
+    const service = new UsersService(supabase);
+    const profile = {
+      id: user.id,
+      email: user.email,
+      displayName: 'New Name',
+      avatarUrl: 'https://supabase.test/storage/v1/object/public/profile-avatars/user-1/a.png',
+    };
+    repositoryMocks.profiles.upsertFromAuthUser.mockResolvedValue(profile);
+    repositoryMocks.profiles.updateForUser.mockResolvedValue(profile);
+
+    await expect(
+      service.updateMe(user, {
+        displayName: ' New Name ',
+        avatarUrl: profile.avatarUrl,
+      }),
+    ).resolves.toEqual(profile);
+    expect(repositoryMocks.profiles.updateForUser).toHaveBeenCalledWith(user, {
+      displayName: 'New Name',
+      avatarUrl: profile.avatarUrl,
+    });
+  });
+
+  it('allows owners and admins to update server settings', async () => {
+    const { ServersService } = await import('./servers/servers.service');
+    const service = new ServersService(supabase);
+    const updated = {
+      id: 'server-1',
+      name: 'Core Team',
+      ownerId: user.id,
+      avatarUrl: 'https://supabase.test/storage/v1/object/public/server-icons/server-1/icon.webp',
+      role: 'member',
+      createdAt: '2026-05-06T00:00:00.000Z',
+    };
+    repositoryMocks.servers.findMembership.mockResolvedValue({
+      serverId: 'server-1',
+      userId: user.id,
+      role: 'admin',
+    });
+    repositoryMocks.servers.update.mockResolvedValue(updated);
+
+    await expect(
+      service.updateServer(user, 'server-1', {
+        name: ' Core Team ',
+        avatarUrl: updated.avatarUrl,
+      }),
+    ).resolves.toEqual({ ...updated, role: 'admin' });
+    expect(repositoryMocks.servers.update).toHaveBeenCalledWith('server-1', {
+      name: 'Core Team',
+      avatarUrl: updated.avatarUrl,
+    });
+  });
+
+  it('rejects server settings updates from regular members', async () => {
+    const { ServersService } = await import('./servers/servers.service');
+    const service = new ServersService(supabase);
+    repositoryMocks.servers.findMembership.mockResolvedValue({
+      serverId: 'server-1',
+      userId: user.id,
+      role: 'member',
+    });
+
+    await expect(
+      service.updateServer(user, 'server-1', { name: 'Blocked' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repositoryMocks.servers.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects avatar URLs outside the expected Supabase Storage bucket', async () => {
+    const { ServersService } = await import('./servers/servers.service');
+    const service = new ServersService(supabase);
+    repositoryMocks.servers.findMembership.mockResolvedValue({
+      serverId: 'server-1',
+      userId: user.id,
+      role: 'owner',
+    });
+
+    await expect(
+      service.updateServer(user, 'server-1', {
+        avatarUrl: 'https://supabase.test/storage/v1/object/public/profile-avatars/user-1/a.png',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repositoryMocks.servers.update).not.toHaveBeenCalled();
   });
 
   it('publishes a message.created event after persisting a public text message', async () => {
@@ -158,6 +260,7 @@ describe('api service behavior', () => {
       id: 'server-1',
       name: 'Core',
       ownerId: 'owner-1',
+      avatarUrl: null,
       role: 'member',
       createdAt: '2026-05-06T00:00:00.000Z',
     };

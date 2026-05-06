@@ -48,6 +48,7 @@ export interface ServerSummary {
   id: ServerId;
   name: string;
   ownerId: UserId;
+  avatarUrl: string | null;
   role: ServerMember['role'];
   createdAt: string;
 }
@@ -69,6 +70,16 @@ export interface ChannelSummary {
 
 export interface CreateServerInput {
   name: string;
+}
+
+export interface UpdateProfileInput {
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+export interface UpdateServerInput {
+  name?: string;
+  avatarUrl?: string | null;
 }
 
 export interface CreateChannelInput {

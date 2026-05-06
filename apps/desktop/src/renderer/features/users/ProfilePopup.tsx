@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import type { UserProfile } from '@discord2/shared';
+import { AvatarImage } from '../../components/AvatarImage';
 import { ApiClient } from '../../lib/api-client';
 import type { Session } from '@supabase/supabase-js';
 
@@ -47,15 +48,24 @@ export function ProfilePopup({ userId, session, onClose }: ProfilePopupProps): R
 
   return (
     <div className="profile-popup-backdrop" onClick={handleBackdropClick} role="presentation">
-      <section className="profile-popup" role="dialog" aria-modal="true" aria-label="Profil utilisateur">
+      <section
+        className="profile-popup"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Profil utilisateur"
+      >
         <div className="profile-popup-banner" />
         <div className="profile-popup-avatar-wrap">
-          <div className="profile-popup-avatar">
-            {(profile?.displayName ?? '?').slice(0, 1).toUpperCase()}
-          </div>
+          <AvatarImage
+            className="profile-popup-avatar"
+            label={profile?.displayName ?? 'Utilisateur'}
+            src={profile?.avatarUrl}
+          />
         </div>
         <div className="profile-popup-body">
-          <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <header
+            style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}
+          >
             <div>
               {loading ? (
                 <p className="profile-popup-name">Chargement…</p>
@@ -86,12 +96,12 @@ export function ProfilePopup({ userId, session, onClose }: ProfilePopupProps): R
                 marginTop: 2,
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = '#e8e8e8';
-                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.color = '#e8e8e8';
+                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = '#505050';
-                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                e.currentTarget.style.color = '#505050';
+                e.currentTarget.style.background = 'transparent';
               }}
             >
               <X size={18} />

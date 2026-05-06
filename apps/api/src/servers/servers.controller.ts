@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import type { AuthUser } from '@discord2/shared';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { CreateServerDto } from './dto';
+import { CreateServerDto, UpdateServerDto } from './dto';
 import { ServersService } from './servers.service';
 
 @Controller('servers')
@@ -16,5 +16,14 @@ export class ServersController {
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() body: CreateServerDto) {
     return this.serversService.createServer(user, body);
+  }
+
+  @Patch(':serverId')
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('serverId') serverId: string,
+    @Body() body: UpdateServerDto,
+  ) {
+    return this.serversService.updateServer(user, serverId, body);
   }
 }

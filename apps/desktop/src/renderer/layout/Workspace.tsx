@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { Session } from '@supabase/supabase-js';
 import type { Socket } from 'socket.io-client';
-import { Hash, Link2, Plus } from 'lucide-react';
+import { Hash, Link2, Plus, Settings } from 'lucide-react';
 import {
   ChannelType,
   ClientToServerEvent,
@@ -20,7 +20,9 @@ import { JoinServerDialog } from '../features/invites/JoinServerDialog';
 import { MessageComposer } from '../features/messages/MessageComposer';
 import { MessageTimeline } from '../features/messages/MessageTimeline';
 import { CreateServerDialog } from '../features/servers/CreateServerDialog';
+import { ServerSettingsDialog } from '../features/servers/ServerSettingsDialog';
 import { ServerRail } from '../features/servers/ServerRail';
+import { ProfileSettingsDialog } from '../features/users/ProfileSettingsDialog';
 import { ApiClient } from '../lib/api-client';
 import { createRealtimeSocket } from '../lib/realtime';
 import { queryClient } from '../app/query-client';
@@ -38,6 +40,8 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isJoinServerOpen, setIsJoinServerOpen] = useState(false);
+  const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
+  const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [inviteCodeId, setInviteCodeId] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -73,6 +77,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   const channels = channelsQuery.data ?? [];
   const activeServer = servers.find((server) => server.id === activeServerId) ?? null;
   const activeChannel = channels.find((channel) => channel.id === activeChannelId) ?? null;
+  const canManageActiveServer = activeServer?.role === 'owner' || activeServer?.role === 'admin';
 
   useEffect(() => {
     if (!activeServerId && servers.length > 0) {
@@ -179,6 +184,44 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
     onError: (error: Error) => setJoinError(error.message),
   });
 
+  const updateProfileMutation = useMutation({
+    mutationFn: api.users.updateMe,
+    onSuccess: (profile) => {
+      queryClient.setQueryData(['me'], profile);
+      queryClient.setQueriesData<MessageRecord[]>({ queryKey: ['messages'] }, (current) => {
+        if (!current) {
+          return current;
+        }
+
+        return current.map((message) => {
+          if (message.authorId !== profile.id) {
+            return message;
+          }
+
+          return {
+            ...message,
+            author: {
+              id: profile.id,
+              displayName: profile.displayName,
+              avatarUrl: profile.avatarUrl,
+            },
+          };
+        });
+      });
+    },
+  });
+
+  const updateServerMutation = useMutation({
+    mutationFn: (input: { name: string; avatarUrl: string | null }) =>
+      api.servers.update(activeServerId!, input),
+    onSuccess: (server) => {
+      queryClient.setQueryData<ServerSummary[]>(['servers'], (current = []) =>
+        current.map((item) => (item.id === server.id ? server : item)),
+      );
+      setIsServerSettingsOpen(false);
+    },
+  });
+
   const sendMessageMutation = useMutation({
     mutationFn: (content: string) =>
       api.messages.create(activeChannelId!, {
@@ -246,7 +289,11 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
           onSelect={setActiveChannelId}
           onCreateChannel={() => setIsCreateChannelOpen(true)}
         />
-        <UserBar profile={profileQuery.data} realtimeStatus={realtimeStatus} />
+        <UserBar
+          profile={profileQuery.data}
+          realtimeStatus={realtimeStatus}
+          onOpenSettings={() => setIsProfileSettingsOpen(true)}
+        />
       </div>
       <section className="chat-panel">
         <header className="chat-topbar">
@@ -262,6 +309,11 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
             >
               <Link2 size={18} />
             </IconButton>
+            {canManageActiveServer ? (
+              <IconButton label="Paramètres serveur" onClick={() => setIsServerSettingsOpen(true)}>
+                <Settings size={18} />
+              </IconButton>
+            ) : null}
             <IconButton
               label="Nouveau salon"
               disabled={!activeServerId}
@@ -339,6 +391,27 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
           onJoin={async (code) => {
             setJoinError(null);
             await redeemInviteMutation.mutateAsync(code);
+          }}
+        />
+      ) : null}
+      {isProfileSettingsOpen && profileQuery.data ? (
+        <ProfileSettingsDialog
+          profile={profileQuery.data}
+          session={session}
+          isSavingProfile={updateProfileMutation.isPending}
+          onClose={() => setIsProfileSettingsOpen(false)}
+          onSaveProfile={async (input) => {
+            await updateProfileMutation.mutateAsync(input);
+          }}
+        />
+      ) : null}
+      {isServerSettingsOpen && activeServer && canManageActiveServer ? (
+        <ServerSettingsDialog
+          server={activeServer}
+          isSaving={updateServerMutation.isPending}
+          onClose={() => setIsServerSettingsOpen(false)}
+          onSave={async (input) => {
+            await updateServerMutation.mutateAsync(input);
           }}
         />
       ) : null}

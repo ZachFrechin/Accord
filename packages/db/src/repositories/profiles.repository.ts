@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AuthUser, UserProfile } from '@discord2/shared';
+import type { AuthUser, UpdateProfileInput, UserProfile } from '@discord2/shared';
 
 interface ProfileRow {
   id: string;
@@ -45,6 +45,24 @@ export class ProfilesRepository {
     }
 
     return data ? mapProfileRow(data, null) : null;
+  }
+
+  async updateForUser(user: AuthUser, input: UpdateProfileInput): Promise<UserProfile> {
+    const { data, error } = await this.supabase
+      .from('profiles')
+      .update({
+        display_name: input.displayName,
+        avatar_url: input.avatarUrl,
+      })
+      .eq('id', user.id)
+      .select('id, display_name, avatar_url')
+      .single<ProfileRow>();
+
+    if (error) {
+      throw error;
+    }
+
+    return mapProfileRow(data, user.email);
   }
 
   private async findByAuthUser(user: AuthUser): Promise<UserProfile | null> {

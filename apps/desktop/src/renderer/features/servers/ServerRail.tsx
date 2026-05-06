@@ -1,5 +1,6 @@
 import { LogIn, Plus } from 'lucide-react';
 import type { ServerSummary } from '@discord2/shared';
+import { AvatarImage } from '../../components/AvatarImage';
 import { IconButton } from '../../components/IconButton';
 
 interface ServerRailProps {
@@ -28,11 +29,11 @@ export function ServerRail({
             title={server.name}
             onClick={() => onSelect(server.id)}
           >
-            {server.name.slice(0, 2).toUpperCase()}
+            <AvatarImage className="server-avatar" label={server.name} src={server.avatarUrl} />
           </button>
         ))}
       </div>
-      <div style={{ display: 'grid', gap: 10, padding: '0 10px' }}>
+      <div className="server-actions">
         <IconButton label="Créer un serveur" onClick={onCreate}>
           <Plus size={20} />
         </IconButton>

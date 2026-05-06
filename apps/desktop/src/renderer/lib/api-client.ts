@@ -8,6 +8,8 @@ import type {
   MessageRecord,
   RedeemInviteResult,
   ServerSummary,
+  UpdateProfileInput,
+  UpdateServerInput,
   UserProfile,
 } from '@discord2/shared';
 import { env } from './env';
@@ -18,6 +20,11 @@ export class ApiClient {
   readonly users = {
     me: () => this.request<UserProfile>('/users/me'),
     getById: (id: string) => this.request<UserProfile>(`/users/${encodeURIComponent(id)}`),
+    updateMe: (input: UpdateProfileInput) =>
+      this.request<UserProfile>('/users/me', {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
   };
 
   readonly servers = {
@@ -25,6 +32,11 @@ export class ApiClient {
     create: (input: CreateServerInput) =>
       this.request<ServerSummary>('/servers', {
         method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    update: (serverId: string, input: UpdateServerInput) =>
+      this.request<ServerSummary>(`/servers/${serverId}`, {
+        method: 'PATCH',
         body: JSON.stringify(input),
       }),
   };

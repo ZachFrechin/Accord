@@ -1,10 +1,17 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ServerId, ServerMember, ServerSummary, UserId } from '@discord2/shared';
+import type {
+  ServerId,
+  ServerMember,
+  ServerSummary,
+  UpdateServerInput,
+  UserId,
+} from '@discord2/shared';
 
 interface ServerRow {
   id: string;
   name: string;
   owner_id: string;
+  avatar_url: string | null;
   created_at: string;
   server_members?: Array<{
     role: ServerMember['role'];
@@ -23,7 +30,7 @@ export class ServersRepository {
   async listForUser(userId: UserId): Promise<ServerSummary[]> {
     const { data, error } = await this.supabase
       .from('servers')
-      .select('id, name, owner_id, created_at, server_members!inner(role)')
+      .select('id, name, owner_id, avatar_url, created_at, server_members!inner(role)')
       .eq('server_members.user_id', userId)
       .order('created_at', { ascending: true })
       .returns<ServerRow[]>();
@@ -42,7 +49,7 @@ export class ServersRepository {
         name: input.name,
         owner_id: input.ownerId,
       })
-      .select('id, name, owner_id, created_at')
+      .select('id, name, owner_id, avatar_url, created_at')
       .single<ServerRow>();
 
     if (serverError) {
@@ -104,6 +111,31 @@ export class ServersRepository {
     const servers = await this.listForUser(userId);
     return servers.find((server) => server.id === serverId) ?? null;
   }
+
+  async update(serverId: ServerId, input: UpdateServerInput): Promise<ServerSummary> {
+    const patch: Record<string, string | null> = {};
+
+    if (input.name !== undefined) {
+      patch.name = input.name;
+    }
+
+    if (input.avatarUrl !== undefined) {
+      patch.avatar_url = input.avatarUrl;
+    }
+
+    const { data, error } = await this.supabase
+      .from('servers')
+      .update(patch)
+      .eq('id', serverId)
+      .select('id, name, owner_id, avatar_url, created_at')
+      .single<ServerRow>();
+
+    if (error) {
+      throw error;
+    }
+
+    return mapServerRow(data, 'member');
+  }
 }
 
 function mapServerRow(row: ServerRow, role: ServerMember['role']): ServerSummary {
@@ -111,6 +143,7 @@ function mapServerRow(row: ServerRow, role: ServerMember['role']): ServerSummary
     id: row.id,
     name: row.name,
     ownerId: row.owner_id,
+    avatarUrl: row.avatar_url,
     role,
     createdAt: row.created_at,
   };
