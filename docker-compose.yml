@@ -10,6 +10,7 @@ services:
     image: livekit/livekit-server:latest
     restart: unless-stopped
     command: ['--config', '/etc/livekit.yaml']
+    env_file: .env
     expose:
       - '7880'
       - '7881'
