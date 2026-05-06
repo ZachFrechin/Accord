@@ -3,7 +3,7 @@ import { env } from './env';
 
 export function createRealtimeSocket(accessToken: string): Socket {
   return io(env.VITE_GATEWAY_URL, {
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],
     auth: {
       token: `Bearer ${accessToken}`,
     },

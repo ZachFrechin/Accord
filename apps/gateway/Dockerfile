@@ -12,6 +12,7 @@ RUN npm run build -w @discord2/gateway
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+EXPOSE 4001
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages ./packages
