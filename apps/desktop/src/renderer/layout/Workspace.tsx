@@ -11,10 +11,12 @@ import {
   type ChannelSummary,
   type MessageCreatedEvent,
   type MessageRecord,
+  type ServerSummary,
 } from '@discord2/shared';
 import { CreateChannelDialog } from '../features/channels/CreateChannelDialog';
 import { ChannelSidebar } from '../features/channels/ChannelSidebar';
 import { InviteDialog } from '../features/invites/InviteDialog';
+import { JoinServerDialog } from '../features/invites/JoinServerDialog';
 import { MessageComposer } from '../features/messages/MessageComposer';
 import { MessageTimeline } from '../features/messages/MessageTimeline';
 import { CreateServerDialog } from '../features/servers/CreateServerDialog';
@@ -35,6 +37,8 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   const [isCreateServerOpen, setIsCreateServerOpen] = useState(false);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isJoinServerOpen, setIsJoinServerOpen] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [inviteCodeId, setInviteCodeId] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const {
@@ -161,6 +165,20 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
       ? createInviteMutation.data
       : null;
 
+  const redeemInviteMutation = useMutation({
+    mutationFn: (code: string) => api.invites.redeem(code),
+    onSuccess: (result) => {
+      queryClient.setQueryData<ServerSummary[]>(['servers'], (current = []) => {
+        if (current.some((s) => s.id === result.server.id)) return current;
+        return [...current, result.server];
+      });
+      setActiveServerId(result.server.id);
+      setJoinError(null);
+      setIsJoinServerOpen(false);
+    },
+    onError: (error: Error) => setJoinError(error.message),
+  });
+
   const sendMessageMutation = useMutation({
     mutationFn: (content: string) =>
       api.messages.create(activeChannelId!, {
@@ -215,6 +233,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
         activeServerId={activeServerId}
         onSelect={setActiveServerId}
         onCreate={() => setIsCreateServerOpen(true)}
+        onJoin={() => setIsJoinServerOpen(true)}
       />
       <div className="workspace-sidebar">
         <ChannelSidebar
@@ -302,6 +321,21 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
             setIsInviteOpen(false);
             setInviteCodeId(null);
             createInviteMutation.reset();
+          }}
+        />
+      ) : null}
+      {isJoinServerOpen ? (
+        <JoinServerDialog
+          isSubmitting={redeemInviteMutation.isPending}
+          error={joinError}
+          onClose={() => {
+            setIsJoinServerOpen(false);
+            setJoinError(null);
+            redeemInviteMutation.reset();
+          }}
+          onJoin={async (code) => {
+            setJoinError(null);
+            await redeemInviteMutation.mutateAsync(code);
           }}
         />
       ) : null}

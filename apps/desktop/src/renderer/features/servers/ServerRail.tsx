@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { LogIn, Plus } from 'lucide-react';
 import type { ServerSummary } from '@discord2/shared';
 import { IconButton } from '../../components/IconButton';
 
@@ -7,6 +7,7 @@ interface ServerRailProps {
   activeServerId: string | null;
   onSelect: (serverId: string) => void;
   onCreate: () => void;
+  onJoin: () => void;
 }
 
 export function ServerRail({
@@ -14,6 +15,7 @@ export function ServerRail({
   activeServerId,
   onSelect,
   onCreate,
+  onJoin,
 }: ServerRailProps): React.JSX.Element {
   return (
     <aside className="server-rail" aria-label="Serveurs">
@@ -30,9 +32,14 @@ export function ServerRail({
           </button>
         ))}
       </div>
-      <IconButton label="Créer un serveur" onClick={onCreate}>
-        <Plus size={20} />
-      </IconButton>
+      <div style={{ display: 'grid', gap: 10, padding: '0 10px' }}>
+        <IconButton label="Créer un serveur" onClick={onCreate}>
+          <Plus size={20} />
+        </IconButton>
+        <IconButton label="Rejoindre un serveur" onClick={onJoin}>
+          <LogIn size={20} />
+        </IconButton>
+      </div>
     </aside>
   );
 }

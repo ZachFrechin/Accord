@@ -85,11 +85,7 @@ jobs:
         with:
           name: desktop-${{ runner.os }}
           path: |
-            apps/desktop/release/**/*.exe
-            apps/desktop/release/**/*.dmg
-            apps/desktop/release/**/*.zip
-            apps/desktop/release/**/*.deb
-            apps/desktop/release/**/*.AppImage
+            apps/desktop/release/*/*.{exe,dmg,zip,deb,AppImage}
           if-no-files-found: error
 
   publish-release:
@@ -109,9 +105,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release-artifacts/**/*.exe
-            release-artifacts/**/*.dmg
-            release-artifacts/**/*.zip
-            release-artifacts/**/*.deb
-            release-artifacts/**/*.AppImage
+            release-artifacts/*/*.{exe,dmg,zip,deb,AppImage}
           generate_release_notes: true
