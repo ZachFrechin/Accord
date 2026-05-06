@@ -67,11 +67,6 @@
         "AppImage",
         "deb"
       ]
-    },
-    "publish": [
-      {
-        "provider": "github"
-      }
-    ]
+    }
   }
 }
