@@ -10,10 +10,9 @@ services:
     image: livekit/livekit-server:latest
     restart: unless-stopped
     command: ['--config', '/etc/livekit.yaml']
-    ports:
-      - '7880:7880'
-      - '7881:7881'
-      - '50000-50100:50000-50100/udp'
+    expose:
+      - '7880'
+      - '7881'
     volumes:
       - ./infra/livekit/livekit.yaml:/etc/livekit.yaml:ro
 
@@ -25,8 +24,8 @@ services:
     env_file: .env
     depends_on:
       - redis
-    ports:
-      - '4000:4000'
+    expose:
+      - '4000'
 
   gateway:
     build:
@@ -36,8 +35,8 @@ services:
     env_file: .env
     depends_on:
       - redis
-    ports:
-      - '4001:4001'
+    expose:
+      - '4001'
 
 volumes:
   redis-data:

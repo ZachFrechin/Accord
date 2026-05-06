@@ -50,6 +50,14 @@ npm run dev:gateway
 npm run dev:desktop
 ```
 
+## Coolify / Traefik
+
+`docker-compose.yml` uses `expose` instead of host `ports` for `api`, `gateway`, and LiveKit HTTP/TCP listeners. Coolify/Traefik should publish the public routes, so the compose file does not reserve host ports by default.
+
+Redis is internal only and must not be exposed publicly.
+
+LiveKit is the exception to plan carefully: WebRTC media requires UDP connectivity. If Traefik/Coolify does not handle your LiveKit UDP port range, publish the LiveKit RTC UDP range separately at the infrastructure level and keep API/gateway ports behind Traefik.
+
 ## Security Baseline
 
 - The server stores encrypted private messages as ciphertext only.
