@@ -1,10 +1,11 @@
 import { useEffect, useRef, type MutableRefObject } from 'react';
 import type { Socket } from 'socket.io-client';
-import { Room, RoomEvent, Track, type RemoteTrack } from 'livekit-client';
+import { LocalAudioTrack, LocalTrack, Room, RoomEvent, Track, type RemoteTrack } from 'livekit-client';
 import { ClientToServerEvent, type ChannelId } from '@discord2/shared';
 import type { ApiClient } from '../../lib/api-client';
 import { env } from '../../lib/env';
 import { useUiStore } from '../../store/ui-store';
+import { createProcessedAudioTrack } from './audio-processing';
 
 interface UseVoiceRoomInput {
   api: ApiClient;
@@ -24,6 +25,8 @@ export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomContr
   const audioRootRef = useRef<HTMLDivElement | null>(null);
   const attachedElementsRef = useRef<Set<HTMLMediaElement>>(new Set());
   const isLeavingRef = useRef(false);
+  const localTrackRef = useRef<LocalAudioTrack | null>(null);
+  const disposeTrackRef = useRef<(() => void) | null>(null);
 
   const applyDeafen = (deafened: boolean): void => {
     const volume = deafened ? 0 : 1;
@@ -67,6 +70,10 @@ export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomContr
     attachedElementsRef.current.clear();
     audioRootRef.current?.remove();
     audioRootRef.current = null;
+
+    disposeTrackRef.current?.();
+    disposeTrackRef.current = null;
+    localTrackRef.current = null;
   }
 
   const leaveVoiceChannel = async (): Promise<void> => {
@@ -113,7 +120,13 @@ export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomContr
       isDeafened: false,
     });
 
-    const room = new Room();
+    const room = new Room({
+      audioCaptureDefaults: {
+        noiseSuppression: true,
+        echoCancellation: true,
+        autoGainControl: true,
+      },
+    });
     roomRef.current = room;
     room.on(RoomEvent.TrackSubscribed, attachRemoteAudio);
     room.on(RoomEvent.TrackUnsubscribed, detachRemoteAudio);
@@ -141,7 +154,17 @@ export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomContr
       const { token } = await api.voice.createToken(channelId);
       await room.connect(env.VITE_LIVEKIT_URL, token);
       await room.startAudio();
-      await room.localParticipant.setMicrophoneEnabled(true);
+
+      // Créer une track audio traitée (noise gate + RNNoise)
+      const { track, dispose } = await createProcessedAudioTrack({
+        enableRnnoise: true,
+        enableNoiseGate: true,
+        noiseGateThreshold: 0.006,
+      });
+      localTrackRef.current = track;
+      disposeTrackRef.current = dispose;
+
+      await room.localParticipant.publishTrack(track as LocalTrack);
       socket?.emit(ClientToServerEvent.VoiceJoin, { channelId });
       useUiStore.getState().setVoiceState({ voiceStatus: 'connected', voiceError: null });
     } catch (error) {
@@ -157,12 +180,16 @@ export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomContr
   };
 
   const setMuted = async (muted: boolean): Promise<void> => {
-    const room = roomRef.current;
-    if (!room) {
+    const track = localTrackRef.current;
+    if (!track) {
       return;
     }
 
-    await room.localParticipant.setMicrophoneEnabled(!muted);
+    if (muted) {
+      await track.mute();
+    } else {
+      await track.unmute();
+    }
     useUiStore.getState().setVoiceState({ isMuted: muted });
   };
 
