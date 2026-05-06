@@ -3,11 +3,13 @@ import type {
   ChannelSummary,
   CreateChannelInput,
   CreateServerInput,
+  DeleteChannelResult,
   InviteRecord,
   MessagePrivacy,
   MessageRecord,
   RedeemInviteResult,
   ServerSummary,
+  UpdateChannelInput,
   UpdateProfileInput,
   UpdateServerInput,
   UserProfile,
@@ -48,6 +50,15 @@ export class ApiClient {
       this.request<ChannelSummary>(`/servers/${serverId}/channels`, {
         method: 'POST',
         body: JSON.stringify(input),
+      }),
+    update: (serverId: string, channelId: string, input: UpdateChannelInput) =>
+      this.request<ChannelSummary>(`/servers/${serverId}/channels/${channelId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
+    delete: (serverId: string, channelId: string) =>
+      this.request<DeleteChannelResult>(`/servers/${serverId}/channels/${channelId}`, {
+        method: 'DELETE',
       }),
   };
 

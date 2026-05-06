@@ -60,6 +60,31 @@ export class ChannelsRepository {
     });
   }
 
+  async update(channelId: ChannelId, input: { name: string }): Promise<ChannelSummary> {
+    const { data, error } = await this.supabase
+      .from('channels')
+      .update({
+        name: input.name,
+      })
+      .eq('id', channelId)
+      .select('id, server_id, type, name, is_private, created_at')
+      .single<ChannelRow>();
+
+    if (error) {
+      throw error;
+    }
+
+    return mapChannelRow(data);
+  }
+
+  async delete(channelId: ChannelId): Promise<void> {
+    const { error } = await this.supabase.from('channels').delete().eq('id', channelId);
+
+    if (error) {
+      throw error;
+    }
+  }
+
   private async createServerChannel(input: {
     serverId: ServerId;
     name: string;

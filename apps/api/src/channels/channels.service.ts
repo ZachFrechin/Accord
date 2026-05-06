@@ -1,10 +1,23 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ChannelsRepository } from '@discord2/db';
 import { canManageServer } from '@discord2/domain';
-import { ChannelType, type AuthUser, type ChannelSummary, type ServerId } from '@discord2/shared';
+import {
+  ChannelType,
+  type AuthUser,
+  type ChannelId,
+  type ChannelSummary,
+  type DeleteChannelResult,
+  type ServerId,
+} from '@discord2/shared';
 import { ServersService } from '../servers/servers.service';
-import type { CreateChannelDto } from './dto';
+import type { CreateChannelDto, UpdateChannelDto } from './dto';
 
 @Injectable()
 export class ChannelsService {
@@ -53,5 +66,53 @@ export class ChannelsService {
     }
 
     throw new BadRequestException('Unsupported channel type.');
+  }
+
+  async updateChannel(
+    user: AuthUser,
+    serverId: ServerId,
+    channelId: ChannelId,
+    dto: UpdateChannelDto,
+  ): Promise<ChannelSummary> {
+    await this.requireManageableServerChannel(user, serverId, channelId);
+    const name = dto.name.trim();
+
+    if (!name) {
+      throw new BadRequestException('Channel name is required.');
+    }
+
+    return this.repository.update(channelId, { name });
+  }
+
+  async deleteChannel(
+    user: AuthUser,
+    serverId: ServerId,
+    channelId: ChannelId,
+  ): Promise<DeleteChannelResult> {
+    await this.requireManageableServerChannel(user, serverId, channelId);
+    await this.repository.delete(channelId);
+    return { channelId };
+  }
+
+  private async requireManageableServerChannel(
+    user: AuthUser,
+    serverId: ServerId,
+    channelId: ChannelId,
+  ): Promise<ChannelSummary> {
+    const channel = await this.repository.findById(channelId);
+    if (
+      !channel ||
+      channel.serverId !== serverId ||
+      (channel.type !== ChannelType.Text && channel.type !== ChannelType.Voice)
+    ) {
+      throw new NotFoundException('Channel not found.');
+    }
+
+    const membership = await this.serversService.requireMembership(user, serverId);
+    if (!canManageServer({ serverId, userId: user.id, role: membership.role })) {
+      throw new ForbiddenException('You cannot manage channels for this server.');
+    }
+
+    return channel;
   }
 }

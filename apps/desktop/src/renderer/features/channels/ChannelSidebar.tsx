@@ -1,5 +1,11 @@
-import { Hash, Lock, Mic, Plus, Settings } from 'lucide-react';
-import { ChannelType, type ChannelId, type ChannelSummary, type ServerSummary, type UserId } from '@discord2/shared';
+import { Hash, Lock, Mic, Pencil, Plus, Settings, Trash2 } from 'lucide-react';
+import {
+  ChannelType,
+  type ChannelId,
+  type ChannelSummary,
+  type ServerSummary,
+  type UserId,
+} from '@discord2/shared';
 import { IconButton } from '../../components/IconButton';
 import type { ApiClient } from '../../lib/api-client';
 import { VoiceChannelParticipants } from './VoiceChannelParticipants';
@@ -17,6 +23,8 @@ interface ChannelSidebarProps {
   onSelect: (channelId: string) => void;
   onCreateChannel: () => void;
   onCreateVoiceChannel: () => void;
+  onEditChannel: (channel: ChannelSummary) => void;
+  onDeleteChannel: (channel: ChannelSummary) => void;
   onJoinVoiceChannel: (channelId: string) => void;
   onOpenServerSettings: () => void;
 }
@@ -34,11 +42,24 @@ export function ChannelSidebar({
   onSelect,
   onCreateChannel,
   onCreateVoiceChannel,
+  onEditChannel,
+  onDeleteChannel,
   onJoinVoiceChannel,
   onOpenServerSettings,
 }: ChannelSidebarProps): React.JSX.Element {
   const textChannels = channels.filter((channel) => channel.type === ChannelType.Text);
   const voiceChannels = channels.filter((channel) => channel.type === ChannelType.Voice);
+  const renderChannelActions = (channel: ChannelSummary) =>
+    canManageServer ? (
+      <div className="channel-actions" aria-label={`Actions du salon ${channel.name}`}>
+        <IconButton label="Modifier le salon" onClick={() => onEditChannel(channel)}>
+          <Pencil size={14} />
+        </IconButton>
+        <IconButton label="Supprimer le salon" onClick={() => onDeleteChannel(channel)}>
+          <Trash2 size={14} />
+        </IconButton>
+      </div>
+    ) : null;
 
   return (
     <aside className="channel-sidebar">
@@ -67,15 +88,17 @@ export function ChannelSidebar({
               ))
             : null}
           {textChannels.map((channel) => (
-            <button
-              className={`channel${channel.id === activeChannelId ? ' active' : ''}`}
-              key={channel.id}
-              type="button"
-              onClick={() => onSelect(channel.id)}
-            >
-              {channel.isPrivate ? <Lock size={16} /> : <Hash size={16} />}
-              <span>{channel.name}</span>
-            </button>
+            <div className="channel-row" key={channel.id}>
+              <button
+                className={`channel${channel.id === activeChannelId ? ' active' : ''}`}
+                type="button"
+                onClick={() => onSelect(channel.id)}
+              >
+                {channel.isPrivate ? <Lock size={16} /> : <Hash size={16} />}
+                <span>{channel.name}</span>
+              </button>
+              {renderChannelActions(channel)}
+            </div>
           ))}
           {!isLoading && textChannels.length === 0 ? (
             <p className="muted">Aucun salon texte.</p>
@@ -98,17 +121,20 @@ export function ChannelSidebar({
         <nav className="channel-list" aria-label="Salons vocaux">
           {voiceChannels.map((channel) => (
             <div key={channel.id} className="voice-channel-wrapper">
-              <button
-                className={`channel voice-channel${channel.id === activeVoiceChannelId ? ' active' : ''}`}
-                type="button"
-                onClick={() => onJoinVoiceChannel(channel.id)}
-              >
-                <Mic size={16} />
-                <span>{channel.name}</span>
-                {channel.id === activeVoiceChannelId ? (
-                  <small>{voiceStatus === 'connected' ? 'live' : voiceStatus}</small>
-                ) : null}
-              </button>
+              <div className="channel-row">
+                <button
+                  className={`channel voice-channel${channel.id === activeVoiceChannelId ? ' active' : ''}`}
+                  type="button"
+                  onClick={() => onJoinVoiceChannel(channel.id)}
+                >
+                  <Mic size={16} />
+                  <span>{channel.name}</span>
+                  {channel.id === activeVoiceChannelId ? (
+                    <small>{voiceStatus === 'connected' ? 'live' : voiceStatus}</small>
+                  ) : null}
+                </button>
+                {renderChannelActions(channel)}
+              </div>
               <VoiceChannelParticipants
                 api={api}
                 userIds={voiceParticipantsByChannel[channel.id] ?? []}

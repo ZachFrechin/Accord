@@ -87,6 +87,14 @@ export interface CreateChannelInput {
   type: typeof ChannelType.Text | typeof ChannelType.Voice;
 }
 
+export interface UpdateChannelInput {
+  name: string;
+}
+
+export interface DeleteChannelResult {
+  channelId: ChannelId;
+}
+
 export interface VoiceTokenResponse {
   room: string;
   token: string;

@@ -9,3 +9,9 @@ export class CreateChannelDto {
   @IsEnum(ChannelType)
   type!: typeof ChannelType.Text | typeof ChannelType.Voice;
 }
+
+export class UpdateChannelDto {
+  @IsString()
+  @Length(1, 80)
+  name!: string;
+}

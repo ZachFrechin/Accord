@@ -7,7 +7,9 @@ const repositoryMocks = vi.hoisted(() => ({
   channels: {
     createTextChannel: vi.fn(),
     createVoiceChannel: vi.fn(),
+    delete: vi.fn(),
     findById: vi.fn(),
+    update: vi.fn(),
   },
   invites: {
     create: vi.fn(),
@@ -157,6 +159,106 @@ describe('api service behavior', () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(repositoryMocks.channels.createVoiceChannel).not.toHaveBeenCalled();
+  });
+
+  it('allows owners and admins to rename server channels', async () => {
+    const { ChannelsService } = await import('./channels/channels.service');
+    const serversService = {
+      requireMembership: vi.fn().mockResolvedValue({
+        id: 'server-1',
+        role: 'admin',
+      }),
+    };
+    const service = new ChannelsService(supabase, serversService as never);
+    const channel = {
+      id: 'channel-1',
+      serverId: 'server-1',
+      type: ChannelType.Text,
+      name: 'general',
+      isPrivate: false,
+      createdAt: null,
+    };
+    const updated = { ...channel, name: 'annonces' };
+    repositoryMocks.channels.findById.mockResolvedValue(channel);
+    repositoryMocks.channels.update.mockResolvedValue(updated);
+
+    await expect(
+      service.updateChannel(user, 'server-1', 'channel-1', { name: ' annonces ' }),
+    ).resolves.toEqual(updated);
+    expect(repositoryMocks.channels.update).toHaveBeenCalledWith('channel-1', {
+      name: 'annonces',
+    });
+  });
+
+  it('rejects channel updates from regular members', async () => {
+    const { ChannelsService } = await import('./channels/channels.service');
+    const serversService = {
+      requireMembership: vi.fn().mockResolvedValue({
+        id: 'server-1',
+        role: 'member',
+      }),
+    };
+    const service = new ChannelsService(supabase, serversService as never);
+    repositoryMocks.channels.findById.mockResolvedValue({
+      id: 'channel-1',
+      serverId: 'server-1',
+      type: ChannelType.Text,
+      name: 'general',
+      isPrivate: false,
+      createdAt: null,
+    });
+
+    await expect(
+      service.updateChannel(user, 'server-1', 'channel-1', { name: 'annonces' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repositoryMocks.channels.update).not.toHaveBeenCalled();
+  });
+
+  it('deletes manageable server channels', async () => {
+    const { ChannelsService } = await import('./channels/channels.service');
+    const serversService = {
+      requireMembership: vi.fn().mockResolvedValue({
+        id: 'server-1',
+        role: 'owner',
+      }),
+    };
+    const service = new ChannelsService(supabase, serversService as never);
+    repositoryMocks.channels.findById.mockResolvedValue({
+      id: 'channel-1',
+      serverId: 'server-1',
+      type: ChannelType.Voice,
+      name: 'Vocal',
+      isPrivate: false,
+      createdAt: null,
+    });
+    repositoryMocks.channels.delete.mockResolvedValue(undefined);
+
+    await expect(service.deleteChannel(user, 'server-1', 'channel-1')).resolves.toEqual({
+      channelId: 'channel-1',
+    });
+    expect(repositoryMocks.channels.delete).toHaveBeenCalledWith('channel-1');
+  });
+
+  it('returns not found when a channel does not belong to the requested server', async () => {
+    const { ChannelsService } = await import('./channels/channels.service');
+    const serversService = {
+      requireMembership: vi.fn(),
+    };
+    const service = new ChannelsService(supabase, serversService as never);
+    repositoryMocks.channels.findById.mockResolvedValue({
+      id: 'channel-1',
+      serverId: 'server-2',
+      type: ChannelType.Text,
+      name: 'general',
+      isPrivate: false,
+      createdAt: null,
+    });
+
+    await expect(service.deleteChannel(user, 'server-1', 'channel-1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(serversService.requireMembership).not.toHaveBeenCalled();
+    expect(repositoryMocks.channels.delete).not.toHaveBeenCalled();
   });
 
   it('allows owners and admins to update server settings', async () => {

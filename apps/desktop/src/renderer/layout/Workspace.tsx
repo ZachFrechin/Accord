@@ -16,6 +16,8 @@ import {
 } from '@discord2/shared';
 import { CreateChannelDialog } from '../features/channels/CreateChannelDialog';
 import { ChannelSidebar } from '../features/channels/ChannelSidebar';
+import { DeleteChannelDialog } from '../features/channels/DeleteChannelDialog';
+import { EditChannelDialog } from '../features/channels/EditChannelDialog';
 import { InviteDialog } from '../features/invites/InviteDialog';
 import { JoinServerDialog } from '../features/invites/JoinServerDialog';
 import { MessageComposer } from '../features/messages/MessageComposer';
@@ -52,6 +54,8 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
   const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
+  const [editingChannel, setEditingChannel] = useState<ChannelSummary | null>(null);
+  const [deletingChannel, setDeletingChannel] = useState<ChannelSummary | null>(null);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [inviteCodeId, setInviteCodeId] = useState<string | null>(null);
@@ -215,6 +219,42 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
     },
   });
 
+  const updateChannelMutation = useMutation({
+    mutationFn: (input: { serverId: string; channelId: string; name: string }) =>
+      api.channels.update(input.serverId, input.channelId, { name: input.name }),
+    onSuccess: (channel, input) => {
+      queryClient.setQueryData<ChannelSummary[]>(['channels', input.serverId], (current = []) =>
+        current.map((item) => (item.id === channel.id ? channel : item)),
+      );
+      setEditingChannel(null);
+    },
+  });
+
+  const deleteChannelMutation = useMutation({
+    mutationFn: async (channel: ChannelSummary) => {
+      const serverId = channel.serverId ?? activeServerId!;
+      if (channel.id === activeVoiceChannelId) {
+        await voice.leaveVoiceChannel();
+      }
+
+      const result = await api.channels.delete(serverId, channel.id);
+      return { ...result, channel, serverId };
+    },
+    onSuccess: ({ channel, channelId, serverId }) => {
+      queryClient.setQueryData<ChannelSummary[]>(['channels', serverId], (current = []) => {
+        const nextChannels = current.filter((item) => item.id !== channelId);
+        if (channel.id === activeChannelId) {
+          const nextTextChannel = nextChannels.find((item) => item.type === ChannelType.Text);
+          setActiveChannelId(nextTextChannel?.id ?? null);
+        }
+
+        return nextChannels;
+      });
+      queryClient.removeQueries({ queryKey: ['messages', channelId] });
+      setDeletingChannel(null);
+    },
+  });
+
   const createInviteMutation = useMutation({
     mutationFn: () => api.invites.create(activeServerId!),
     onSuccess: (invite) => setInviteCodeId(invite.id),
@@ -357,6 +397,8 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
             setCreateChannelType(ChannelType.Voice);
             setIsCreateChannelOpen(true);
           }}
+          onEditChannel={setEditingChannel}
+          onDeleteChannel={setDeletingChannel}
           onJoinVoiceChannel={(channelId) => {
             void voice.joinVoiceChannel(channelId);
           }}
@@ -481,6 +523,30 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
           onClose={() => setIsCreateChannelOpen(false)}
           onCreate={async (name, type) => {
             await createChannelMutation.mutateAsync({ name, type });
+          }}
+        />
+      ) : null}
+      {editingChannel ? (
+        <EditChannelDialog
+          channel={editingChannel}
+          isSubmitting={updateChannelMutation.isPending}
+          onClose={() => setEditingChannel(null)}
+          onSave={async (name) => {
+            await updateChannelMutation.mutateAsync({
+              serverId: editingChannel.serverId ?? activeServerId!,
+              channelId: editingChannel.id,
+              name,
+            });
+          }}
+        />
+      ) : null}
+      {deletingChannel ? (
+        <DeleteChannelDialog
+          channel={deletingChannel}
+          isDeleting={deleteChannelMutation.isPending}
+          onClose={() => setDeletingChannel(null)}
+          onDelete={async () => {
+            await deleteChannelMutation.mutateAsync(deletingChannel);
           }}
         />
       ) : null}
