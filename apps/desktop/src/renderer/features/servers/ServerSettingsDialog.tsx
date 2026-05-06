@@ -61,13 +61,17 @@ export function ServerSettingsDialog({
       <form className="settings-section" onSubmit={(event) => void submit(event)}>
         <div className="avatar-field">
           <AvatarImage className="settings-avatar" label={name} src={previewUrl ?? avatarUrl} />
-          <label>
-            Photo du serveur
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
-            />
+          <label className="file-field">
+            <span>Photo du serveur</span>
+            <span className="file-picker">
+              <span className="file-picker-button">Choisir une image</span>
+              <span className="file-picker-name">{avatarFile?.name ?? 'Aucune image choisie'}</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+              />
+            </span>
           </label>
         </div>
         <label>

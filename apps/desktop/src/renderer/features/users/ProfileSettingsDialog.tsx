@@ -124,13 +124,19 @@ export function ProfileSettingsDialog({
               label={displayName}
               src={previewUrl ?? avatarUrl}
             />
-            <label>
-              Photo de profil
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
-              />
+            <label className="file-field">
+              <span>Photo de profil</span>
+              <span className="file-picker">
+                <span className="file-picker-button">Choisir une image</span>
+                <span className="file-picker-name">
+                  {avatarFile?.name ?? 'Aucune image choisie'}
+                </span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+                />
+              </span>
             </label>
           </div>
           <label>

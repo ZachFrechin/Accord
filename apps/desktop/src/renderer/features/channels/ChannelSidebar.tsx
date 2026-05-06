@@ -1,4 +1,4 @@
-import { Hash, Lock, Mic, Plus } from 'lucide-react';
+import { Hash, Lock, Mic, Plus, Settings } from 'lucide-react';
 import { ChannelType, type ChannelSummary, type ServerSummary } from '@discord2/shared';
 import { IconButton } from '../../components/IconButton';
 
@@ -6,16 +6,20 @@ interface ChannelSidebarProps {
   server: ServerSummary | null;
   channels: ChannelSummary[];
   activeChannelId: string | null;
+  canManageServer: boolean;
   onSelect: (channelId: string) => void;
   onCreateChannel: () => void;
+  onOpenServerSettings: () => void;
 }
 
 export function ChannelSidebar({
   server,
   channels,
   activeChannelId,
+  canManageServer,
   onSelect,
   onCreateChannel,
+  onOpenServerSettings,
 }: ChannelSidebarProps): React.JSX.Element {
   const textChannels = channels.filter((channel) => channel.type === ChannelType.Text);
   const voiceChannels = channels.filter((channel) => channel.type === ChannelType.Voice);
@@ -27,6 +31,11 @@ export function ChannelSidebar({
           <span className="eyebrow">Serveur</span>
           <h1>{server?.name ?? 'Aucun serveur'}</h1>
         </div>
+        {canManageServer ? (
+          <IconButton label="Paramètres serveur" onClick={onOpenServerSettings}>
+            <Settings size={17} />
+          </IconButton>
+        ) : null}
       </header>
       <section className="channel-section">
         <div className="section-title">

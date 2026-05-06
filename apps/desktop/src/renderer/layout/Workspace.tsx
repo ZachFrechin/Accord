@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { Session } from '@supabase/supabase-js';
 import type { Socket } from 'socket.io-client';
-import { Hash, Link2, Plus, Settings } from 'lucide-react';
+import { Hash, Link2, Plus } from 'lucide-react';
 import {
   ChannelType,
   ClientToServerEvent,
@@ -286,8 +286,10 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
           server={activeServer}
           channels={channels}
           activeChannelId={activeChannelId}
+          canManageServer={canManageActiveServer}
           onSelect={setActiveChannelId}
           onCreateChannel={() => setIsCreateChannelOpen(true)}
+          onOpenServerSettings={() => setIsServerSettingsOpen(true)}
         />
         <UserBar
           profile={profileQuery.data}
@@ -309,11 +311,6 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
             >
               <Link2 size={18} />
             </IconButton>
-            {canManageActiveServer ? (
-              <IconButton label="Paramètres serveur" onClick={() => setIsServerSettingsOpen(true)}>
-                <Settings size={18} />
-              </IconButton>
-            ) : null}
             <IconButton
               label="Nouveau salon"
               disabled={!activeServerId}
