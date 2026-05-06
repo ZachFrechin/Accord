@@ -2,7 +2,11 @@
   "name": "@discord2/desktop",
   "version": "0.1.0",
   "description": "Discord2 self-hosted desktop client",
-  "author": "Discord2",
+  "author": {
+    "name": "Discord2",
+    "email": "contact@discord2.local"
+  },
+  "homepage": "https://github.com/discord2/discord2",
   "private": true,
   "main": "out/main/index.js",
   "scripts": {
