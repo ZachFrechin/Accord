@@ -85,7 +85,11 @@ jobs:
         with:
           name: desktop-${{ runner.os }}
           path: |
-            apps/desktop/release/*/*.{exe,dmg,zip,deb,AppImage}
+            apps/desktop/release/**/Discord2-*.exe
+            apps/desktop/release/**/Discord2-*.dmg
+            apps/desktop/release/**/Discord2-*.zip
+            apps/desktop/release/**/Discord2-*.deb
+            apps/desktop/release/**/Discord2-*.AppImage
           if-no-files-found: error
 
   publish-release:
@@ -105,5 +109,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release-artifacts/*/*.{exe,dmg,zip,deb,AppImage}
+            release-artifacts/**/Discord2-*.exe
+            release-artifacts/**/Discord2-*.dmg
+            release-artifacts/**/Discord2-*.zip
+            release-artifacts/**/Discord2-*.deb
+            release-artifacts/**/Discord2-*.AppImage
           generate_release_notes: true
