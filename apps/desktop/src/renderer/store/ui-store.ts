@@ -12,6 +12,7 @@ interface UiState {
   voiceStatus: VoiceStatus;
   voiceError: string | null;
   voiceParticipantIds: UserId[];
+  voiceParticipantsByChannel: Record<ChannelId, UserId[]>;
   isMuted: boolean;
   isDeafened: boolean;
   theme: ThemeName;
@@ -26,6 +27,7 @@ interface UiState {
         | 'voiceStatus'
         | 'voiceError'
         | 'voiceParticipantIds'
+        | 'voiceParticipantsByChannel'
         | 'isMuted'
         | 'isDeafened'
       >
@@ -49,6 +51,7 @@ export const useUiStore = create<UiState>((set) => ({
   voiceStatus: 'idle',
   voiceError: null,
   voiceParticipantIds: [],
+  voiceParticipantsByChannel: {},
   isMuted: false,
   isDeafened: false,
   theme: getInitialTheme(),
@@ -57,13 +60,16 @@ export const useUiStore = create<UiState>((set) => ({
   setRealtimeStatus: (realtimeStatus) => set({ realtimeStatus }),
   setVoiceState: (patch) => set(patch),
   setVoiceParticipantIds: (channelId, userIds) =>
-    set((state) =>
-      state.activeVoiceChannelId === channelId
-        ? {
-            voiceParticipantIds: userIds,
-          }
-        : {},
-    ),
+    set((state) => {
+      const next = {
+        ...state.voiceParticipantsByChannel,
+        [channelId]: userIds,
+      };
+      if (state.activeVoiceChannelId === channelId) {
+        return { voiceParticipantIds: userIds, voiceParticipantsByChannel: next };
+      }
+      return { voiceParticipantsByChannel: next };
+    }),
   setTheme: (theme) =>
     set(() => {
       localStorage.setItem('discord2-theme', theme);

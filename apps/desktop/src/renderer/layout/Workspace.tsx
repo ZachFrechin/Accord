@@ -62,6 +62,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
     voiceStatus,
     voiceError,
     voiceParticipantIds,
+    voiceParticipantsByChannel,
     isMuted,
     isDeafened,
     setActiveServerId,
@@ -161,6 +162,24 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
       socket?.emit(ClientToServerEvent.ChannelLeave, { channelId: activeChannelId });
     };
   }, [activeChannelId]);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || !activeServerId) {
+      return;
+    }
+
+    const voiceChannels = channels.filter((channel) => channel.type === ChannelType.Voice);
+    for (const channel of voiceChannels) {
+      socket.emit(ClientToServerEvent.ChannelJoin, { channelId: channel.id });
+    }
+
+    return () => {
+      for (const channel of voiceChannels) {
+        socket.emit(ClientToServerEvent.ChannelLeave, { channelId: channel.id });
+      }
+    };
+  }, [activeServerId, channels]);
 
   const createServerMutation = useMutation({
     mutationFn: (name: string) => api.servers.create({ name }),
@@ -316,11 +335,13 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
       />
       <div className="workspace-sidebar">
         <ChannelSidebar
+          api={api}
           server={activeServer}
           channels={channels}
           activeChannelId={activeChannelId}
           activeVoiceChannelId={activeVoiceChannelId}
           voiceStatus={voiceStatus}
+          voiceParticipantsByChannel={voiceParticipantsByChannel}
           isLoading={channelsQuery.isLoading}
           canManageServer={canManageActiveServer}
           onSelect={setActiveChannelId}

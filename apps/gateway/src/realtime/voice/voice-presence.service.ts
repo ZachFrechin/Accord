@@ -10,10 +10,17 @@ export class VoicePresenceService {
 
   async publishVoicePresence(server: Server, channelId: ChannelId): Promise<void> {
     const userIds = await this.listVoiceUserIds(server, channelId);
-    this.roomService.emitToVoice(server, channelId, ServerToClientEvent.VoicePresenceUpdated, {
+    const payload = {
       channelId,
       userIds,
-    });
+    };
+    this.roomService.emitToVoice(server, channelId, ServerToClientEvent.VoicePresenceUpdated, payload);
+    this.roomService.emitToChannelFromServer(
+      server,
+      channelId,
+      ServerToClientEvent.VoicePresenceUpdated,
+      payload,
+    );
   }
 
   async listVoiceUserIds(server: Server, channelId: ChannelId): Promise<UserId[]> {

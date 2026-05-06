@@ -1677,6 +1677,51 @@ input::placeholder {
   }
 }
 
+/* ── Voice Channel Participants in Sidebar ──────────── */
+
+.voice-channel-wrapper {
+  display: grid;
+  gap: 4px;
+}
+
+.voice-channel-participants {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 6px;
+  min-height: 22px;
+}
+
+.voice-participant-avatars {
+  display: flex;
+  align-items: center;
+}
+
+.voice-participant-avatar {
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--bg-surface);
+  margin-left: -6px;
+  background: var(--bg-avatar);
+  color: var(--bg-avatar-text);
+  font-size: 9px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.voice-participant-avatar:first-child {
+  margin-left: 0;
+}
+
+.voice-participant-count {
+  color: var(--text-ghost);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 /* ── Scrollbar ──────────────────────────────────────── */
 
 ::-webkit-scrollbar {

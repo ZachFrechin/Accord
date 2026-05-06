@@ -1,13 +1,17 @@
 import { Hash, Lock, Mic, Plus, Settings } from 'lucide-react';
-import { ChannelType, type ChannelSummary, type ServerSummary } from '@discord2/shared';
+import { ChannelType, type ChannelId, type ChannelSummary, type ServerSummary, type UserId } from '@discord2/shared';
 import { IconButton } from '../../components/IconButton';
+import type { ApiClient } from '../../lib/api-client';
+import { VoiceChannelParticipants } from './VoiceChannelParticipants';
 
 interface ChannelSidebarProps {
+  api: ApiClient;
   server: ServerSummary | null;
   channels: ChannelSummary[];
   activeChannelId: string | null;
   activeVoiceChannelId: string | null;
   voiceStatus: string;
+  voiceParticipantsByChannel: Record<ChannelId, UserId[]>;
   isLoading: boolean;
   canManageServer: boolean;
   onSelect: (channelId: string) => void;
@@ -18,11 +22,13 @@ interface ChannelSidebarProps {
 }
 
 export function ChannelSidebar({
+  api,
   server,
   channels,
   activeChannelId,
   activeVoiceChannelId,
   voiceStatus,
+  voiceParticipantsByChannel,
   isLoading,
   canManageServer,
   onSelect,
@@ -91,18 +97,23 @@ export function ChannelSidebar({
         </div>
         <nav className="channel-list" aria-label="Salons vocaux">
           {voiceChannels.map((channel) => (
-            <button
-              className={`channel voice-channel${channel.id === activeVoiceChannelId ? ' active' : ''}`}
-              key={channel.id}
-              type="button"
-              onClick={() => onJoinVoiceChannel(channel.id)}
-            >
-              <Mic size={16} />
-              <span>{channel.name}</span>
-              {channel.id === activeVoiceChannelId ? (
-                <small>{voiceStatus === 'connected' ? 'live' : voiceStatus}</small>
-              ) : null}
-            </button>
+            <div key={channel.id} className="voice-channel-wrapper">
+              <button
+                className={`channel voice-channel${channel.id === activeVoiceChannelId ? ' active' : ''}`}
+                type="button"
+                onClick={() => onJoinVoiceChannel(channel.id)}
+              >
+                <Mic size={16} />
+                <span>{channel.name}</span>
+                {channel.id === activeVoiceChannelId ? (
+                  <small>{voiceStatus === 'connected' ? 'live' : voiceStatus}</small>
+                ) : null}
+              </button>
+              <VoiceChannelParticipants
+                api={api}
+                userIds={voiceParticipantsByChannel[channel.id] ?? []}
+              />
+            </div>
           ))}
           {voiceChannels.length === 0 ? <p className="muted">Aucun salon vocal.</p> : null}
         </nav>
