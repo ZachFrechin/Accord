@@ -18,9 +18,10 @@ services:
       LIVEKIT_RTC_PORT_RANGE_END: 50100
       LIVEKIT_RTC_USE_EXTERNAL_IP: 'true'
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
-    expose:
+    ports:
       - '7880'
-      - '7881'
+      - '7881:7881'
+      - '50000-50100:50000-50100/udp'
 
   api:
     build:
