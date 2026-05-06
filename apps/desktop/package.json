@@ -55,7 +55,15 @@
     "asar": true,
     "mac": {
       "category": "public.app-category.social-networking",
-      "identity": null,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "notarize": true,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Discord2 utilise le micro pour rejoindre les salons vocaux.",
+        "NSCameraUsageDescription": "Discord2 n'utilise pas la caméra dans cette version."
+      },
       "target": [
         "dmg",
         "zip"

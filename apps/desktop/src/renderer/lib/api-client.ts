@@ -3,14 +3,19 @@ import type {
   ChannelSummary,
   CreateChannelInput,
   CreateServerInput,
+  CreateServerRoleInput,
   DeleteChannelResult,
   InviteRecord,
   MessagePrivacy,
   MessageRecord,
   RedeemInviteResult,
   ServerSummary,
+  ServerMemberProfile,
+  ServerRole,
   UpdateChannelInput,
+  UpdateMemberRolesInput,
   UpdateProfileInput,
+  UpdateServerRoleInput,
   UpdateServerInput,
   UserProfile,
   VoiceTokenResponse,
@@ -39,6 +44,31 @@ export class ApiClient {
       }),
     update: (serverId: string, input: UpdateServerInput) =>
       this.request<ServerSummary>(`/servers/${serverId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
+  };
+
+  readonly roles = {
+    list: (serverId: string) => this.request<ServerRole[]>(`/servers/${serverId}/roles`),
+    create: (serverId: string, input: CreateServerRoleInput) =>
+      this.request<ServerRole>(`/servers/${serverId}/roles`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    update: (serverId: string, roleId: string, input: UpdateServerRoleInput) =>
+      this.request<ServerRole>(`/servers/${serverId}/roles/${roleId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
+    delete: (serverId: string, roleId: string) =>
+      this.request<{ roleId: string }>(`/servers/${serverId}/roles/${roleId}`, {
+        method: 'DELETE',
+      }),
+    members: (serverId: string) =>
+      this.request<ServerMemberProfile[]>(`/servers/${serverId}/members`),
+    updateMemberRoles: (serverId: string, userId: string, input: UpdateMemberRolesInput) =>
+      this.request<ServerMemberProfile>(`/servers/${serverId}/members/${userId}/roles`, {
         method: 'PATCH',
         body: JSON.stringify(input),
       }),

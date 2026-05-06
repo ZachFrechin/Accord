@@ -25,6 +25,12 @@ const repositoryMocks = vi.hoisted(() => ({
     updateForUser: vi.fn(),
     upsertFromAuthUser: vi.fn(),
   },
+  roles: {
+    insertMessageMentions: vi.fn(),
+    listMentionsForMessages: vi.fn(),
+    listMembers: vi.fn(),
+    listRoles: vi.fn(),
+  },
   servers: {
     addMember: vi.fn(),
     create: vi.fn(),
@@ -47,6 +53,9 @@ vi.mock('@discord2/db', () => ({
   }),
   ProfilesRepository: vi.fn(function ProfilesRepository() {
     return repositoryMocks.profiles;
+  }),
+  RolesRepository: vi.fn(function RolesRepository() {
+    return repositoryMocks.roles;
   }),
   ServersRepository: vi.fn(function ServersRepository() {
     return repositoryMocks.servers;
@@ -334,10 +343,16 @@ describe('api service behavior', () => {
       }),
     };
     const eventsPublisher = { publishMessageCreated: vi.fn().mockResolvedValue(undefined) };
+    const rolesService = {
+      insertMessageMentions: vi.fn().mockResolvedValue(undefined),
+      listMentionsForMessages: vi.fn(),
+      resolveMentions: vi.fn().mockResolvedValue([]),
+    };
     const service = new MessagesService(
       supabase,
       serversService as never,
       usersService as never,
+      rolesService as never,
       eventsPublisher as never,
     );
     const message = {
@@ -373,8 +388,11 @@ describe('api service behavior', () => {
         displayName: 'User',
         avatarUrl: null,
       },
+      mentions: [],
     });
     expect(serversService.requireMembership).toHaveBeenCalledWith(user, 'server-1');
+    expect(rolesService.resolveMentions).toHaveBeenCalledWith('server-1', 'hello');
+    expect(rolesService.insertMessageMentions).toHaveBeenCalledWith('message-1', []);
     expect(eventsPublisher.publishMessageCreated).toHaveBeenCalledWith({
       channelId: 'channel-1',
       message: expect.objectContaining({ id: 'message-1', content: 'hello' }),
@@ -387,6 +405,7 @@ describe('api service behavior', () => {
       supabase,
       { requireMembership: vi.fn() } as never,
       { me: vi.fn() } as never,
+      { insertMessageMentions: vi.fn(), resolveMentions: vi.fn() } as never,
       { publishMessageCreated: vi.fn() } as never,
     );
     repositoryMocks.channels.findById.mockResolvedValue({

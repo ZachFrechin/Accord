@@ -4,6 +4,7 @@ import type {
   DeviceId,
   InviteId,
   MessageId,
+  RoleId,
   ServerId,
   UserId,
 } from './ids';
@@ -59,6 +60,21 @@ export interface ServerMember {
   role: 'owner' | 'admin' | 'member';
 }
 
+export interface ServerRole {
+  id: RoleId;
+  serverId: ServerId;
+  name: string;
+  color: string;
+  mentionable: boolean;
+  position: number;
+  createdAt: string;
+}
+
+export interface ServerMemberProfile extends ServerMember {
+  profile: Pick<UserProfile, 'id' | 'displayName' | 'avatarUrl'>;
+  roleIds: RoleId[];
+}
+
 export interface ChannelSummary {
   id: ChannelId;
   serverId: ServerId | null;
@@ -80,6 +96,22 @@ export interface UpdateProfileInput {
 export interface UpdateServerInput {
   name?: string;
   avatarUrl?: string | null;
+}
+
+export interface CreateServerRoleInput {
+  name: string;
+  color: string;
+  mentionable: boolean;
+}
+
+export interface UpdateServerRoleInput {
+  name?: string;
+  color?: string;
+  mentionable?: boolean;
+}
+
+export interface UpdateMemberRolesInput {
+  roleIds: RoleId[];
 }
 
 export interface CreateChannelInput {
@@ -128,12 +160,27 @@ export interface MessageRecord {
   channelId: ChannelId;
   authorId: UserId;
   author?: Pick<UserProfile, 'id' | 'displayName' | 'avatarUrl'>;
+  mentions?: MessageMention[];
   privacy: MessagePrivacy;
   content: string | null;
   encrypted: EncryptedPayload | null;
   createdAt: string;
   editedAt: string | null;
 }
+
+export type MessageMention =
+  | {
+      type: 'user';
+      userId: UserId;
+      displayName: string;
+      avatarUrl: string | null;
+    }
+  | {
+      type: 'role';
+      roleId: RoleId;
+      name: string;
+      color: string;
+    };
 
 export interface ConversationKeyRecord {
   conversationId: ConversationId;

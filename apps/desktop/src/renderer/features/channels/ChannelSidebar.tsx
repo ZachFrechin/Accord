@@ -1,4 +1,4 @@
-import { Hash, Lock, Mic, Pencil, Plus, Settings, Trash2 } from 'lucide-react';
+import { Hash, Lock, Mic, Plus, Settings, SlidersHorizontal } from 'lucide-react';
 import {
   ChannelType,
   type ChannelId,
@@ -24,7 +24,6 @@ interface ChannelSidebarProps {
   onCreateChannel: () => void;
   onCreateVoiceChannel: () => void;
   onEditChannel: (channel: ChannelSummary) => void;
-  onDeleteChannel: (channel: ChannelSummary) => void;
   onJoinVoiceChannel: (channelId: string) => void;
   onOpenServerSettings: () => void;
 }
@@ -43,22 +42,24 @@ export function ChannelSidebar({
   onCreateChannel,
   onCreateVoiceChannel,
   onEditChannel,
-  onDeleteChannel,
   onJoinVoiceChannel,
   onOpenServerSettings,
 }: ChannelSidebarProps): React.JSX.Element {
   const textChannels = channels.filter((channel) => channel.type === ChannelType.Text);
   const voiceChannels = channels.filter((channel) => channel.type === ChannelType.Voice);
-  const renderChannelActions = (channel: ChannelSummary) =>
+  const renderChannelSettingsBtn = (channel: ChannelSummary) =>
     canManageServer ? (
-      <div className="channel-actions" aria-label={`Actions du salon ${channel.name}`}>
-        <IconButton label="Modifier le salon" onClick={() => onEditChannel(channel)}>
-          <Pencil size={14} />
-        </IconButton>
-        <IconButton label="Supprimer le salon" onClick={() => onDeleteChannel(channel)}>
-          <Trash2 size={14} />
-        </IconButton>
-      </div>
+      <button
+        className="channel-settings-btn"
+        type="button"
+        aria-label={`Paramètres du salon ${channel.name}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onEditChannel(channel);
+        }}
+      >
+        <SlidersHorizontal size={14} />
+      </button>
     ) : null;
 
   return (
@@ -88,17 +89,16 @@ export function ChannelSidebar({
               ))
             : null}
           {textChannels.map((channel) => (
-            <div className="channel-row" key={channel.id}>
-              <button
-                className={`channel${channel.id === activeChannelId ? ' active' : ''}`}
-                type="button"
-                onClick={() => onSelect(channel.id)}
-              >
-                {channel.isPrivate ? <Lock size={16} /> : <Hash size={16} />}
-                <span>{channel.name}</span>
-              </button>
-              {renderChannelActions(channel)}
-            </div>
+            <button
+              className={`channel${channel.id === activeChannelId ? ' active' : ''}`}
+              key={channel.id}
+              type="button"
+              onClick={() => onSelect(channel.id)}
+            >
+              {channel.isPrivate ? <Lock size={16} /> : <Hash size={16} />}
+              <span>{channel.name}</span>
+              {renderChannelSettingsBtn(channel)}
+            </button>
           ))}
           {!isLoading && textChannels.length === 0 ? (
             <p className="muted">Aucun salon texte.</p>
@@ -121,20 +121,18 @@ export function ChannelSidebar({
         <nav className="channel-list" aria-label="Salons vocaux">
           {voiceChannels.map((channel) => (
             <div key={channel.id} className="voice-channel-wrapper">
-              <div className="channel-row">
-                <button
-                  className={`channel voice-channel${channel.id === activeVoiceChannelId ? ' active' : ''}`}
-                  type="button"
-                  onClick={() => onJoinVoiceChannel(channel.id)}
-                >
-                  <Mic size={16} />
-                  <span>{channel.name}</span>
-                  {channel.id === activeVoiceChannelId ? (
-                    <small>{voiceStatus === 'connected' ? 'live' : voiceStatus}</small>
-                  ) : null}
-                </button>
-                {renderChannelActions(channel)}
-              </div>
+              <button
+                className={`channel voice-channel${channel.id === activeVoiceChannelId ? ' active' : ''}`}
+                type="button"
+                onClick={() => onJoinVoiceChannel(channel.id)}
+              >
+                <Mic size={16} />
+                <span>{channel.name}</span>
+                {channel.id === activeVoiceChannelId ? (
+                  <small>{voiceStatus === 'connected' ? 'live' : voiceStatus}</small>
+                ) : null}
+                {renderChannelSettingsBtn(channel)}
+              </button>
               <VoiceChannelParticipants
                 api={api}
                 userIds={voiceParticipantsByChannel[channel.id] ?? []}

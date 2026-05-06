@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import type { MessageRecord } from '@discord2/shared';
+import type { MessageMention, MessageRecord } from '@discord2/shared';
 import { AvatarImage } from '../../components/AvatarImage';
 import { ProfilePopup } from '../users/ProfilePopup';
 
@@ -90,7 +90,7 @@ export function MessageTimeline({
                       : formatMessageTime(message.createdAt)}
                   </span>
                 </div>
-                <p>{message.content}</p>
+                <p>{renderMessageContent(message.content, message.mentions ?? [])}</p>
               </div>
             </article>
           ))}
@@ -105,6 +105,67 @@ export function MessageTimeline({
       ) : null}
     </>
   );
+}
+
+function renderMessageContent(
+  content: string | null,
+  mentions: MessageMention[],
+): React.ReactNode[] | string {
+  if (!content || mentions.length === 0) {
+    return content ?? '';
+  }
+
+  const mentionPatterns = mentions
+    .map((mention) => ({
+      mention,
+      label: mention.type === 'user' ? mention.displayName : mention.name,
+    }))
+    .sort((a, b) => b.label.length - a.label.length);
+  const pattern = new RegExp(
+    `@(${mentionPatterns.map((item) => escapeRegExp(item.label)).join('|')})(?=$|\\s|[,.!?;:])`,
+    'giu',
+  );
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of content.matchAll(pattern)) {
+    const name = match[1]?.trim() ?? '';
+    const mention = mentionPatterns.find(
+      (item) => item.label.toLocaleLowerCase() === name.toLocaleLowerCase(),
+    )?.mention;
+    if (!mention || match.index === undefined) {
+      continue;
+    }
+
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index));
+    }
+
+    parts.push(
+      <span
+        className={`message-mention ${mention.type === 'role' ? 'role' : 'user'}`}
+        key={`${mention.type}:${mention.type === 'user' ? mention.userId : mention.roleId}:${match.index}`}
+        style={
+          mention.type === 'role'
+            ? ({ '--mention-color': mention.color } as React.CSSProperties)
+            : undefined
+        }
+      >
+        @{name}
+      </span>,
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : content;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function formatMessageTime(value: string): string {

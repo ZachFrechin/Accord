@@ -11,12 +11,13 @@ import {
   type ChannelSummary,
   type MessageCreatedEvent,
   type MessageRecord,
+  type ServerMemberProfile,
+  type ServerRole,
   type ServerSummary,
   type VoicePresenceEvent,
 } from '@discord2/shared';
 import { CreateChannelDialog } from '../features/channels/CreateChannelDialog';
 import { ChannelSidebar } from '../features/channels/ChannelSidebar';
-import { DeleteChannelDialog } from '../features/channels/DeleteChannelDialog';
 import { EditChannelDialog } from '../features/channels/EditChannelDialog';
 import { InviteDialog } from '../features/invites/InviteDialog';
 import { JoinServerDialog } from '../features/invites/JoinServerDialog';
@@ -55,7 +56,6 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<ChannelSummary | null>(null);
-  const [deletingChannel, setDeletingChannel] = useState<ChannelSummary | null>(null);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [inviteCodeId, setInviteCodeId] = useState<string | null>(null);
@@ -100,9 +100,21 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
     queryFn: () => api.messages.list(activeChannelId!),
     enabled: Boolean(activeChannelId),
   });
+  const rolesQuery = useQuery({
+    queryKey: ['roles', activeServerId],
+    queryFn: () => api.roles.list(activeServerId!),
+    enabled: Boolean(activeServerId),
+  });
+  const membersQuery = useQuery({
+    queryKey: ['members', activeServerId],
+    queryFn: () => api.roles.members(activeServerId!),
+    enabled: Boolean(activeServerId),
+  });
 
   const servers = serversQuery.data ?? [];
   const channels = channelsQuery.data ?? [];
+  const roles = rolesQuery.data ?? [];
+  const members = membersQuery.data ?? [];
   const activeServer = servers.find((server) => server.id === activeServerId) ?? null;
   const activeChannel = channels.find((channel) => channel.id === activeChannelId) ?? null;
   const activeVoiceChannel =
@@ -251,7 +263,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
         return nextChannels;
       });
       queryClient.removeQueries({ queryKey: ['messages', channelId] });
-      setDeletingChannel(null);
+      setEditingChannel(null);
     },
   });
 
@@ -313,6 +325,56 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
         current.map((item) => (item.id === server.id ? server : item)),
       );
       setIsServerSettingsOpen(false);
+    },
+  });
+
+  const createRoleMutation = useMutation({
+    mutationFn: (input: { name: string; color: string; mentionable: boolean }) =>
+      api.roles.create(activeServerId!, input),
+    onSuccess: (role) => {
+      queryClient.setQueryData<ServerRole[]>(['roles', activeServerId], (current = []) => [
+        ...current,
+        role,
+      ]);
+    },
+  });
+
+  const updateRoleMutation = useMutation({
+    mutationFn: (input: { roleId: string; name: string; color: string; mentionable: boolean }) =>
+      api.roles.update(activeServerId!, input.roleId, {
+        name: input.name,
+        color: input.color,
+        mentionable: input.mentionable,
+      }),
+    onSuccess: (role) => {
+      queryClient.setQueryData<ServerRole[]>(['roles', activeServerId], (current = []) =>
+        current.map((item) => (item.id === role.id ? role : item)),
+      );
+    },
+  });
+
+  const deleteRoleMutation = useMutation({
+    mutationFn: (roleId: string) => api.roles.delete(activeServerId!, roleId),
+    onSuccess: ({ roleId }) => {
+      queryClient.setQueryData<ServerRole[]>(['roles', activeServerId], (current = []) =>
+        current.filter((role) => role.id !== roleId),
+      );
+      queryClient.setQueryData<ServerMemberProfile[]>(['members', activeServerId], (current = []) =>
+        current.map((member) => ({
+          ...member,
+          roleIds: member.roleIds.filter((id) => id !== roleId),
+        })),
+      );
+    },
+  });
+
+  const updateMemberRolesMutation = useMutation({
+    mutationFn: (input: { userId: string; roleIds: string[] }) =>
+      api.roles.updateMemberRoles(activeServerId!, input.userId, { roleIds: input.roleIds }),
+    onSuccess: (member) => {
+      queryClient.setQueryData<ServerMemberProfile[]>(['members', activeServerId], (current = []) =>
+        current.map((item) => (item.userId === member.userId ? member : item)),
+      );
     },
   });
 
@@ -398,7 +460,6 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
             setIsCreateChannelOpen(true);
           }}
           onEditChannel={setEditingChannel}
-          onDeleteChannel={setDeletingChannel}
           onJoinVoiceChannel={(channelId) => {
             void voice.joinVoiceChannel(channelId);
           }}
@@ -493,6 +554,8 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
             <MessageComposer
               disabled={!activeChannelId || sendMessageMutation.isPending}
               error={composerError}
+              members={members}
+              roles={roles}
               onSend={async (content) => {
                 try {
                   await sendMessageMutation.mutateAsync(content);
@@ -530,6 +593,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
         <EditChannelDialog
           channel={editingChannel}
           isSubmitting={updateChannelMutation.isPending}
+          isDeleting={deleteChannelMutation.isPending}
           onClose={() => setEditingChannel(null)}
           onSave={async (name) => {
             await updateChannelMutation.mutateAsync({
@@ -538,15 +602,8 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
               name,
             });
           }}
-        />
-      ) : null}
-      {deletingChannel ? (
-        <DeleteChannelDialog
-          channel={deletingChannel}
-          isDeleting={deleteChannelMutation.isPending}
-          onClose={() => setDeletingChannel(null)}
           onDelete={async () => {
-            await deleteChannelMutation.mutateAsync(deletingChannel);
+            await deleteChannelMutation.mutateAsync(editingChannel);
           }}
         />
       ) : null}
@@ -592,9 +649,30 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
         <ServerSettingsDialog
           server={activeServer}
           isSaving={updateServerMutation.isPending}
+          roles={roles}
+          members={members}
+          isLoadingRoles={rolesQuery.isLoading || membersQuery.isLoading}
+          isSavingRole={
+            createRoleMutation.isPending ||
+            updateRoleMutation.isPending ||
+            deleteRoleMutation.isPending ||
+            updateMemberRolesMutation.isPending
+          }
           onClose={() => setIsServerSettingsOpen(false)}
           onSave={async (input) => {
             await updateServerMutation.mutateAsync(input);
+          }}
+          onCreateRole={async (input) => {
+            await createRoleMutation.mutateAsync(input);
+          }}
+          onUpdateRole={async (roleId, input) => {
+            await updateRoleMutation.mutateAsync({ roleId, ...input });
+          }}
+          onDeleteRole={async (roleId) => {
+            await deleteRoleMutation.mutateAsync(roleId);
+          }}
+          onUpdateMemberRoles={async (userId, roleIds) => {
+            await updateMemberRolesMutation.mutateAsync({ userId, roleIds });
           }}
         />
       ) : null}

@@ -8,6 +8,7 @@ import { FilesModule } from './files/files.module';
 import { HealthModule } from './health/health.module';
 import { InvitesModule } from './invites/invites.module';
 import { MessagesModule } from './messages/messages.module';
+import { RolesModule } from './roles/roles.module';
 import { ServersModule } from './servers/servers.module';
 import { UsersModule } from './users/users.module';
 import { VoiceModule } from './voice/voice.module';
@@ -26,6 +27,7 @@ import { SupabaseAuthGuard } from './auth/supabase-auth.guard';
     UsersModule,
     ServersModule,
     ChannelsModule,
+    RolesModule,
     MessagesModule,
     InvitesModule,
     FilesModule,

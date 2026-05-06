@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { ChannelsRepository, MessagesRepository } from '@discord2/db';
 import { normalizeMessageInput } from '@discord2/domain';
 import { ChannelType, type AuthUser, type ChannelId, type MessageRecord } from '@discord2/shared';
+import { RolesService } from '../roles/roles.service';
 import { ServersService } from '../servers/servers.service';
 import { UsersService } from '../users/users.service';
 import type { CreateMessageDto } from './dto';
@@ -17,6 +18,7 @@ export class MessagesService {
     @Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient,
     private readonly serversService: ServersService,
     private readonly usersService: UsersService,
+    private readonly rolesService: RolesService,
     private readonly eventsPublisher: MessageEventsPublisher,
   ) {
     this.repository = new MessagesRepository(supabase);
@@ -28,7 +30,7 @@ export class MessagesService {
     channelId: ChannelId,
     dto: CreateMessageDto,
   ): Promise<MessageRecord> {
-    await this.requireChannelWriteAccess(user, channelId);
+    const serverId = await this.requireChannelWriteAccess(user, channelId);
     const normalized = normalizeMessageInput({
       privacy: dto.privacy,
       content: dto.content ?? null,
@@ -42,10 +44,13 @@ export class MessagesService {
       content: normalized.content ?? null,
       encrypted: normalized.encrypted ?? null,
     });
+    const mentions = await this.rolesService.resolveMentions(serverId, normalized.content ?? null);
+    await this.rolesService.insertMessageMentions(message.id, mentions);
 
     const profile = await this.usersService.me(user);
     const messageWithAuthor: MessageRecord = {
       ...message,
+      mentions,
       author: {
         id: profile.id,
         displayName: profile.displayName,
@@ -63,10 +68,17 @@ export class MessagesService {
 
   async listMessages(user: AuthUser, channelId: ChannelId): Promise<MessageRecord[]> {
     await this.requireChannelWriteAccess(user, channelId);
-    return this.repository.listByChannel(channelId);
+    const messages = await this.repository.listByChannel(channelId);
+    const mentionsByMessage = await this.rolesService.listMentionsForMessages(
+      messages.map((message) => message.id),
+    );
+    return messages.map((message) => ({
+      ...message,
+      mentions: mentionsByMessage.get(message.id) ?? [],
+    }));
   }
 
-  private async requireChannelWriteAccess(user: AuthUser, channelId: ChannelId): Promise<void> {
+  private async requireChannelWriteAccess(user: AuthUser, channelId: ChannelId): Promise<string> {
     const channel = await this.channelsRepository.findById(channelId);
     if (!channel) {
       throw new NotFoundException('Channel not found.');
@@ -81,5 +93,6 @@ export class MessagesService {
     }
 
     await this.serversService.requireMembership(user, channel.serverId);
+    return channel.serverId;
   }
 }
