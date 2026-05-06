@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Mic, Volume2 } from 'lucide-react';
 import { Dialog } from '../../components/Dialog';
 import type { VoiceSettings } from '../../store/ui-store';
+import { createVoiceAudioConstraints } from './audio-processing';
 
 interface VoiceSettingsDialogProps {
   settings: VoiceSettings;
@@ -41,12 +42,18 @@ export function VoiceSettingsDialog({
       setInputDevices(
         devices
           .filter((d) => d.kind === 'audioinput')
-          .map((d) => ({ deviceId: d.deviceId, label: d.label || `Micro ${d.deviceId.slice(0, 8)}` })),
+          .map((d) => ({
+            deviceId: d.deviceId,
+            label: d.label || `Micro ${d.deviceId.slice(0, 8)}`,
+          })),
       );
       setOutputDevices(
         devices
           .filter((d) => d.kind === 'audiooutput')
-          .map((d) => ({ deviceId: d.deviceId, label: d.label || `Sortie ${d.deviceId.slice(0, 8)}` })),
+          .map((d) => ({
+            deviceId: d.deviceId,
+            label: d.label || `Sortie ${d.deviceId.slice(0, 8)}`,
+          })),
       );
     }
 
@@ -57,14 +64,7 @@ export function VoiceSettingsDialog({
     // Visualiseur du micro pour tester l'entrée
     async function startPreview() {
       try {
-        const constraints: MediaTrackConstraints = {
-          echoCancellation: settings.enableEchoCancellation,
-          noiseSuppression: settings.enableNoiseSuppression,
-          autoGainControl: settings.enableAutoGainControl,
-        };
-        if (settings.inputDeviceId) {
-          constraints.deviceId = { exact: settings.inputDeviceId };
-        }
+        const constraints = createVoiceAudioConstraints(settings);
         const stream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
         streamRef.current = stream;
         const ctx = new AudioContext();
@@ -97,7 +97,12 @@ export function VoiceSettingsDialog({
       audioCtxRef.current = null;
       analyserRef.current = null;
     };
-  }, [settings.inputDeviceId, settings.enableEchoCancellation, settings.enableNoiseSuppression, settings.enableAutoGainControl]);
+  }, [
+    settings.inputDeviceId,
+    settings.enableEchoCancellation,
+    settings.enableNoiseSuppression,
+    settings.enableAutoGainControl,
+  ]);
 
   return (
     <Dialog title="Paramètres vocaux" onClose={onClose}>
@@ -138,10 +143,7 @@ export function VoiceSettingsDialog({
           </label>
 
           <div className="voice-meter-wrap">
-            <div
-              className="voice-meter-bar"
-              style={{ width: `${Math.min(previewLevel, 100)}%` }}
-            />
+            <div className="voice-meter-bar" style={{ width: `${Math.min(previewLevel, 100)}%` }} />
           </div>
         </section>
 
@@ -184,6 +186,15 @@ export function VoiceSettingsDialog({
         {/* Traitement audio */}
         <section className="settings-section">
           <h3>Traitement audio</h3>
+
+          <label className="toggle-row">
+            <span>Réduction de bruit avancée RNNoise</span>
+            <input
+              type="checkbox"
+              checked={settings.enableRnnoise}
+              onChange={(e) => onSave({ enableRnnoise: e.target.checked })}
+            />
+          </label>
 
           <label className="toggle-row">
             <span>Annulation d'écho</span>

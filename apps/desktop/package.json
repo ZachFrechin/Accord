@@ -1,6 +1,6 @@
 {
   "name": "@discord2/desktop",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "description": "Discord2 self-hosted desktop client",
   "author": {
     "name": "Discord2",
@@ -21,23 +21,24 @@
     "@discord2/config": "0.1.0",
     "@discord2/e2ee": "0.1.0",
     "@discord2/shared": "0.1.0",
+    "@sapphi-red/web-noise-suppressor": "^0.3.5",
     "@supabase/supabase-js": "^2.86.0",
     "@tanstack/react-query": "^5.90.12",
     "livekit-client": "^2.17.1",
     "lucide-react": "^0.555.0",
-    "zustand": "^5.0.8",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "electron": "39.2.7",
     "electron-builder": "^26.0.12",
     "electron-vite": "^4.0.1",
-    "vite": "^7.2.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3"
+    "vite": "^7.2.4"
   },
   "build": {
     "appId": "com.discord2.desktop",

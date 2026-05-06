@@ -1,6 +1,13 @@
 import { useEffect, useRef, type MutableRefObject } from 'react';
 import type { Socket } from 'socket.io-client';
-import { LocalAudioTrack, LocalTrack, Room, RoomEvent, Track, type RemoteTrack } from 'livekit-client';
+import {
+  Room,
+  RoomEvent,
+  Track,
+  type LocalAudioTrack,
+  type LocalTrack,
+  type RemoteTrack,
+} from 'livekit-client';
 import { ClientToServerEvent, type ChannelId } from '@discord2/shared';
 import type { ApiClient } from '../../lib/api-client';
 import { env } from '../../lib/env';
@@ -36,7 +43,9 @@ export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomContr
       element.muted = useUiStore.getState().isDeafened;
       if (voiceSettings.outputDeviceId && 'setSinkId' in element) {
         try {
-          void (element as unknown as { setSinkId: (id: string) => Promise<void> }).setSinkId(voiceSettings.outputDeviceId);
+          void (element as unknown as { setSinkId: (id: string) => Promise<void> }).setSinkId(
+            voiceSettings.outputDeviceId,
+          );
         } catch {
           // ignore
         }
@@ -138,9 +147,9 @@ export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomContr
 
     const room = new Room({
       audioCaptureDefaults: {
-        noiseSuppression: true,
-        echoCancellation: true,
-        autoGainControl: true,
+        noiseSuppression: useUiStore.getState().voiceSettings.enableNoiseSuppression,
+        echoCancellation: useUiStore.getState().voiceSettings.enableEchoCancellation,
+        autoGainControl: useUiStore.getState().voiceSettings.enableAutoGainControl,
       },
     });
     roomRef.current = room;
