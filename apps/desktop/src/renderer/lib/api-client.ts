@@ -17,6 +17,7 @@ export class ApiClient {
 
   readonly users = {
     me: () => this.request<UserProfile>('/users/me'),
+    getById: (id: string) => this.request<UserProfile>(`/users/${encodeURIComponent(id)}`),
   };
 
   readonly servers = {

@@ -11,7 +11,7 @@ export class ProfilesRepository {
   constructor(private readonly supabase: SupabaseClient) {}
 
   async upsertFromAuthUser(user: AuthUser): Promise<UserProfile> {
-    const existing = await this.findById(user);
+    const existing = await this.findByAuthUser(user);
     if (existing) {
       return existing;
     }
@@ -33,7 +33,21 @@ export class ProfilesRepository {
     return mapProfileRow(data, user.email);
   }
 
-  private async findById(user: AuthUser): Promise<UserProfile | null> {
+  async findByUserId(userId: string): Promise<UserProfile | null> {
+    const { data, error } = await this.supabase
+      .from('profiles')
+      .select('id, display_name, avatar_url')
+      .eq('id', userId)
+      .maybeSingle<ProfileRow>();
+
+    if (error) {
+      throw error;
+    }
+
+    return data ? mapProfileRow(data, null) : null;
+  }
+
+  private async findByAuthUser(user: AuthUser): Promise<UserProfile | null> {
     const { data, error } = await this.supabase
       .from('profiles')
       .select('id, display_name, avatar_url')

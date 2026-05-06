@@ -14,7 +14,7 @@ export function UserBar({ profile, realtimeStatus }: UserBarProps): React.JSX.El
       <div className="avatar small">{(profile?.displayName ?? 'U').slice(0, 1).toUpperCase()}</div>
       <div className="user-meta">
         <strong>{profile?.displayName ?? 'Utilisateur'}</strong>
-        <span>{realtimeStatus}</span>
+        <span data-status={realtimeStatus}>{realtimeStatus}</span>
       </div>
       <IconButton label="Déconnexion" onClick={() => void supabase.auth.signOut()}>
         <LogOut size={18} />

@@ -1,11 +1,17 @@
+import { useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import type { MessageRecord } from '@discord2/shared';
+import { ProfilePopup } from '../users/ProfilePopup';
 
 interface MessageTimelineProps {
   messages: MessageRecord[];
   isLoading: boolean;
+  session: Session;
 }
 
-export function MessageTimeline({ messages, isLoading }: MessageTimelineProps): React.JSX.Element {
+export function MessageTimeline({ messages, isLoading, session }: MessageTimelineProps): React.JSX.Element {
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
   if (isLoading) {
     return <div className="center-state">Chargement des messages...</div>;
   }
@@ -20,22 +26,43 @@ export function MessageTimeline({ messages, isLoading }: MessageTimelineProps): 
   }
 
   return (
-    <div className="message-list">
-      {messages.map((message) => (
-        <article className="message-row" key={message.id}>
-          <div className="avatar">
-            {(message.author?.displayName ?? 'U').slice(0, 1).toUpperCase()}
-          </div>
-          <div className="message-body">
-            <div className="message-meta">
-              <strong>{message.author?.displayName ?? 'Utilisateur'}</strong>
-              <span>{formatMessageTime(message.createdAt)}</span>
+    <>
+      <div className="message-list">
+        {messages.map((message) => (
+          <article className="message-row" key={message.id}>
+            <div className="avatar">
+              {(message.author?.displayName ?? 'U').slice(0, 1).toUpperCase()}
             </div>
-            <p>{message.content}</p>
-          </div>
-        </article>
-      ))}
-    </div>
+            <div className="message-body">
+              <div className="message-meta">
+                <strong
+                  className="author-name"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedUserId(message.authorId)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      setSelectedUserId(message.authorId);
+                    }
+                  }}
+                >
+                  {message.author?.displayName ?? 'Utilisateur'}
+                </strong>
+                <span>{formatMessageTime(message.createdAt)}</span>
+              </div>
+              <p>{message.content}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+      {selectedUserId ? (
+        <ProfilePopup
+          userId={selectedUserId}
+          session={session}
+          onClose={() => setSelectedUserId(null)}
+        />
+      ) : null}
+    </>
   );
 }
 

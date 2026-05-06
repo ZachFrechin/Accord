@@ -264,6 +264,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
             <MessageTimeline
               messages={messagesQuery.data ?? []}
               isLoading={messagesQuery.isLoading}
+              session={session}
             />
             <MessageComposer
               disabled={!activeChannelId || sendMessageMutation.isPending}
