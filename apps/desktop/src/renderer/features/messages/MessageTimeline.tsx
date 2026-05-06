@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import type { MessageRecord } from '@discord2/shared';
 import { ProfilePopup } from '../users/ProfilePopup';
@@ -11,6 +11,18 @@ interface MessageTimelineProps {
 
 export function MessageTimeline({ messages, isLoading, session }: MessageTimelineProps): React.JSX.Element {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const prevCountRef = useRef(messages.length);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+
+    if (messages.length > prevCountRef.current) {
+      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    }
+    prevCountRef.current = messages.length;
+  }, [messages.length]);
 
   if (isLoading) {
     return <div className="center-state">Chargement des messages...</div>;
@@ -27,7 +39,7 @@ export function MessageTimeline({ messages, isLoading, session }: MessageTimelin
 
   return (
     <>
-      <div className="message-list">
+      <div className="message-list" ref={listRef}>
         {messages.map((message) => (
           <article className="message-row" key={message.id}>
             <div className="avatar">

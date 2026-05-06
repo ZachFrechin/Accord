@@ -219,10 +219,13 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
         return;
       }
 
-      queryClient.setQueryData<MessageRecord[]>(['messages', context.channelId], (current = []) => [
-        ...current.filter((item) => !item.id.startsWith('pending-')),
-        message,
-      ]);
+      queryClient.setQueryData<MessageRecord[]>(['messages', context.channelId], (current = []) => {
+        const withoutPending = current.filter((item) => !item.id.startsWith('pending-'));
+        if (withoutPending.some((item) => item.id === message.id)) {
+          return withoutPending;
+        }
+        return [...withoutPending, message];
+      });
     },
   });
 
