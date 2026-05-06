@@ -56,7 +56,16 @@ npm run dev:desktop
 
 Redis is internal only and must not be exposed publicly.
 
-LiveKit is the exception to plan carefully: WebRTC media requires UDP connectivity. If Traefik/Coolify does not handle your LiveKit UDP port range, publish the LiveKit RTC UDP range separately at the infrastructure level and keep API/gateway ports behind Traefik.
+LiveKit is the exception to plan carefully: WebRTC signaling can go through Traefik to `7880`, but media requires UDP connectivity. For production, keep API/gateway/Redis internal and open the LiveKit RTC UDP range configured in `infra/livekit/livekit.yaml` (`50000-50100/udp` by default) on the VPS.
+
+For local Docker testing, publish ports only on the LiveKit service if you need to test media from outside the Docker network:
+
+```yaml
+ports:
+  - '7880:7880'
+  - '7881:7881'
+  - '50000-50100:50000-50100/udp'
+```
 
 ## Security Baseline
 
@@ -68,4 +77,4 @@ LiveKit is the exception to plan carefully: WebRTC media requires UDP connectivi
 
 ## Current Scope
 
-This is a maintainable v1 foundation, not the full Discord feature set. The next implementation steps are to fill the server/channel CRUD, permission checks, key exchange UX, message composer, LiveKit room join UI, and Coolify-specific deployment values.
+This is a maintainable v1 foundation, not the full Discord feature set. Current scope includes server/channel CRUD, public text chat, profile/server settings, and audio-only LiveKit voice rooms. E2EE media is intentionally prepared but disabled until client-only key distribution is designed.

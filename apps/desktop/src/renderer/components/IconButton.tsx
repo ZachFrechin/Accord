@@ -1,3 +1,5 @@
+import { Tooltip } from './Tooltip';
+
 interface IconButtonProps {
   label: string;
   children: React.ReactNode;
@@ -12,15 +14,16 @@ export function IconButton({
   onClick,
 }: IconButtonProps): React.JSX.Element {
   return (
-    <button
-      className="icon-button"
-      type="button"
-      aria-label={label}
-      data-tooltip={label}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {children}
-    </button>
+    <Tooltip label={label}>
+      <button
+        className="icon-button"
+        type="button"
+        aria-label={label}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }

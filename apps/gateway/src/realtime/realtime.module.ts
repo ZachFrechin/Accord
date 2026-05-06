@@ -6,6 +6,8 @@ import { RealtimeGateway } from './gateways/realtime.gateway';
 import { MessageFanoutService } from './messages/message-fanout.service';
 import { PresenceService } from './presence/presence.service';
 import { RoomService } from './rooms/room.service';
+import { VoiceAuthorizationService } from './voice/voice-authorization.service';
+import { VoicePresenceService } from './voice/voice-presence.service';
 
 @Module({
   providers: [
@@ -15,6 +17,8 @@ import { RoomService } from './rooms/room.service';
     MessageFanoutService,
     PresenceService,
     RoomService,
+    VoiceAuthorizationService,
+    VoicePresenceService,
     RealtimeGateway,
   ],
 })

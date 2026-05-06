@@ -5,6 +5,8 @@ import { ChannelType, MessagePrivacy, type AuthUser } from '@discord2/shared';
 
 const repositoryMocks = vi.hoisted(() => ({
   channels: {
+    createTextChannel: vi.fn(),
+    createVoiceChannel: vi.fn(),
     findById: vi.fn(),
   },
   invites: {
@@ -105,6 +107,56 @@ describe('api service behavior', () => {
       displayName: 'New Name',
       avatarUrl: profile.avatarUrl,
     });
+  });
+
+  it('allows owners and admins to create voice channels', async () => {
+    const { ChannelsService } = await import('./channels/channels.service');
+    const serversService = {
+      requireMembership: vi.fn().mockResolvedValue({
+        id: 'server-1',
+        role: 'admin',
+      }),
+    };
+    const service = new ChannelsService(supabase, serversService as never);
+    const channel = {
+      id: 'channel-1',
+      serverId: 'server-1',
+      type: ChannelType.Voice,
+      name: 'Voice',
+      isPrivate: false,
+      createdAt: null,
+    };
+    repositoryMocks.channels.createVoiceChannel.mockResolvedValue(channel);
+
+    await expect(
+      service.createChannel(user, 'server-1', {
+        name: ' Voice ',
+        type: ChannelType.Voice,
+      }),
+    ).resolves.toEqual(channel);
+    expect(repositoryMocks.channels.createVoiceChannel).toHaveBeenCalledWith({
+      serverId: 'server-1',
+      name: 'Voice',
+    });
+  });
+
+  it('rejects voice channel creation from regular members', async () => {
+    const { ChannelsService } = await import('./channels/channels.service');
+    const serversService = {
+      requireMembership: vi.fn().mockResolvedValue({
+        id: 'server-1',
+        role: 'member',
+      }),
+    };
+    const service = new ChannelsService(supabase, serversService as never);
+
+    await expect(
+      service.createChannel(user, 'server-1', {
+        name: 'Voice',
+        type: ChannelType.Voice,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repositoryMocks.channels.createVoiceChannel).not.toHaveBeenCalled();
   });
 
   it('allows owners and admins to update server settings', async () => {
@@ -251,6 +303,67 @@ describe('api service behavior', () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(repositoryMocks.messages.insert).not.toHaveBeenCalled();
+  });
+
+  it('creates a short LiveKit token only for accessible voice channels', async () => {
+    const { VoiceService } = await import('./voice/voice.service');
+    const serversService = {
+      requireMembership: vi.fn().mockResolvedValue({ id: 'server-1', role: 'member' }),
+    };
+    const service = new VoiceService(supabase, serversService as never);
+    repositoryMocks.channels.findById.mockResolvedValue({
+      id: 'channel-1',
+      serverId: 'server-1',
+      type: ChannelType.Voice,
+      name: 'voice',
+      isPrivate: false,
+      createdAt: null,
+    });
+
+    await expect(service.createJoinToken(user, 'channel-1')).resolves.toMatchObject({
+      room: 'voice:channel-1',
+      token: expect.any(String),
+    });
+    expect(serversService.requireMembership).toHaveBeenCalledWith(user, 'server-1');
+  });
+
+  it('rejects LiveKit tokens for non-voice channels', async () => {
+    const { VoiceService } = await import('./voice/voice.service');
+    const serversService = { requireMembership: vi.fn() };
+    const service = new VoiceService(supabase, serversService as never);
+    repositoryMocks.channels.findById.mockResolvedValue({
+      id: 'channel-1',
+      serverId: 'server-1',
+      type: ChannelType.Text,
+      name: 'general',
+      isPrivate: false,
+      createdAt: null,
+    });
+
+    await expect(service.createJoinToken(user, 'channel-1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(serversService.requireMembership).not.toHaveBeenCalled();
+  });
+
+  it('rejects LiveKit tokens when the user is not a server member', async () => {
+    const { VoiceService } = await import('./voice/voice.service');
+    const serversService = {
+      requireMembership: vi.fn().mockRejectedValue(new NotFoundException('Server not found.')),
+    };
+    const service = new VoiceService(supabase, serversService as never);
+    repositoryMocks.channels.findById.mockResolvedValue({
+      id: 'channel-1',
+      serverId: 'server-1',
+      type: ChannelType.Voice,
+      name: 'voice',
+      isPrivate: false,
+      createdAt: null,
+    });
+
+    await expect(service.createJoinToken(user, 'channel-1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('redeems active invitations by adding membership and marking the invite used', async () => {

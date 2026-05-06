@@ -47,11 +47,29 @@ export class ChannelsRepository {
   }
 
   async createTextChannel(input: { serverId: ServerId; name: string }): Promise<ChannelSummary> {
+    return this.createServerChannel({
+      ...input,
+      type: ChannelType.Text,
+    });
+  }
+
+  async createVoiceChannel(input: { serverId: ServerId; name: string }): Promise<ChannelSummary> {
+    return this.createServerChannel({
+      ...input,
+      type: ChannelType.Voice,
+    });
+  }
+
+  private async createServerChannel(input: {
+    serverId: ServerId;
+    name: string;
+    type: typeof ChannelType.Text | typeof ChannelType.Voice;
+  }): Promise<ChannelSummary> {
     const { data, error } = await this.supabase
       .from('channels')
       .insert({
         server_id: input.serverId,
-        type: ChannelType.Text,
+        type: input.type,
         name: input.name,
         is_private: false,
       })

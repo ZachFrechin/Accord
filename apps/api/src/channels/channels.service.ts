@@ -1,6 +1,7 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ChannelsRepository } from '@discord2/db';
+import { canManageServer } from '@discord2/domain';
 import { ChannelType, type AuthUser, type ChannelSummary, type ServerId } from '@discord2/shared';
 import { ServersService } from '../servers/servers.service';
 import type { CreateChannelDto } from './dto';
@@ -26,15 +27,31 @@ export class ChannelsService {
     serverId: ServerId,
     dto: CreateChannelDto,
   ): Promise<ChannelSummary> {
-    await this.serversService.requireMembership(user, serverId);
+    const membership = await this.serversService.requireMembership(user, serverId);
+    const name = dto.name.trim();
 
-    if (dto.type !== ChannelType.Text) {
-      throw new BadRequestException('Only public text channels are supported in this iteration.');
+    if (!name) {
+      throw new BadRequestException('Channel name is required.');
     }
 
-    return this.repository.createTextChannel({
-      serverId,
-      name: dto.name.trim(),
-    });
+    if (dto.type === ChannelType.Text) {
+      return this.repository.createTextChannel({
+        serverId,
+        name,
+      });
+    }
+
+    if (dto.type === ChannelType.Voice) {
+      if (!canManageServer({ serverId, userId: user.id, role: membership.role })) {
+        throw new ForbiddenException('You cannot manage voice channels for this server.');
+      }
+
+      return this.repository.createVoiceChannel({
+        serverId,
+        name,
+      });
+    }
+
+    throw new BadRequestException('Unsupported channel type.');
   }
 }

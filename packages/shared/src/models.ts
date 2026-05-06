@@ -84,7 +84,12 @@ export interface UpdateServerInput {
 
 export interface CreateChannelInput {
   name: string;
-  type: typeof ChannelType.Text;
+  type: typeof ChannelType.Text | typeof ChannelType.Voice;
+}
+
+export interface VoiceTokenResponse {
+  room: string;
+  token: string;
 }
 
 export interface InviteRecord {

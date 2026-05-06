@@ -12,6 +12,7 @@ import {
   type MessageCreatedEvent,
   type MessageRecord,
   type ServerSummary,
+  type VoicePresenceEvent,
 } from '@discord2/shared';
 import { CreateChannelDialog } from '../features/channels/CreateChannelDialog';
 import { ChannelSidebar } from '../features/channels/ChannelSidebar';
@@ -24,6 +25,8 @@ import { ServerSettingsDialog } from '../features/servers/ServerSettingsDialog';
 import { ServerRail } from '../features/servers/ServerRail';
 import { ThemePickerDialog } from '../features/theme/ThemePickerDialog';
 import { ProfileSettingsDialog } from '../features/users/ProfileSettingsDialog';
+import { useVoiceRoom } from '../features/voice/useVoiceRoom';
+import { VoicePanel } from '../features/voice/VoicePanel';
 import { ApiClient } from '../lib/api-client';
 import { createRealtimeSocket } from '../lib/realtime';
 import { queryClient } from '../app/query-client';
@@ -39,6 +42,9 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   const api = useMemo(() => new ApiClient(session), [session]);
   const [isCreateServerOpen, setIsCreateServerOpen] = useState(false);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
+  const [createChannelType, setCreateChannelType] = useState<
+    typeof ChannelType.Text | typeof ChannelType.Voice
+  >(ChannelType.Text);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isJoinServerOpen, setIsJoinServerOpen] = useState(false);
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
@@ -51,13 +57,21 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   const {
     activeServerId,
     activeChannelId,
+    activeVoiceChannelId,
     realtimeStatus,
+    voiceStatus,
+    voiceError,
+    voiceParticipantIds,
+    isMuted,
+    isDeafened,
     setActiveServerId,
     setActiveChannelId,
     setRealtimeStatus,
+    setVoiceParticipantIds,
     theme,
     setTheme,
   } = useUiStore();
+  const voice = useVoiceRoom({ api, socket: socketRef.current });
 
   const profileQuery = useQuery({
     queryKey: ['me'],
@@ -82,6 +96,8 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   const channels = channelsQuery.data ?? [];
   const activeServer = servers.find((server) => server.id === activeServerId) ?? null;
   const activeChannel = channels.find((channel) => channel.id === activeChannelId) ?? null;
+  const activeVoiceChannel =
+    channels.find((channel) => channel.id === activeVoiceChannelId) ?? null;
   const canManageActiveServer = activeServer?.role === 'owner' || activeServer?.role === 'admin';
 
   useEffect(() => {
@@ -120,13 +136,18 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
         return [...current, event.message];
       });
     });
+    socket.on(ServerToClientEvent.VoicePresenceUpdated, (event: VoicePresenceEvent) => {
+      setVoiceParticipantIds(event.channelId, event.userIds);
+    });
 
     return () => {
+      socket.off(ServerToClientEvent.MessageCreated);
+      socket.off(ServerToClientEvent.VoicePresenceUpdated);
       socket.disconnect();
       socketRef.current = null;
       setRealtimeStatus('disconnected');
     };
-  }, [session.access_token, setRealtimeStatus]);
+  }, [session.access_token, setRealtimeStatus, setVoiceParticipantIds]);
 
   useEffect(() => {
     if (!activeChannelId) {
@@ -151,17 +172,22 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   });
 
   const createChannelMutation = useMutation({
-    mutationFn: (name: string) =>
+    mutationFn: (input: {
+      name: string;
+      type: typeof ChannelType.Text | typeof ChannelType.Voice;
+    }) =>
       api.channels.create(activeServerId!, {
-        name,
-        type: ChannelType.Text,
+        name: input.name,
+        type: input.type,
       }),
     onSuccess: (channel) => {
       queryClient.setQueryData<ChannelSummary[]>(
         ['channels', activeServerId],
         [...channels, channel],
       );
-      setActiveChannelId(channel.id);
+      if (channel.type === ChannelType.Text) {
+        setActiveChannelId(channel.id);
+      }
       setIsCreateChannelOpen(false);
     },
   });
@@ -293,11 +319,39 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
           server={activeServer}
           channels={channels}
           activeChannelId={activeChannelId}
+          activeVoiceChannelId={activeVoiceChannelId}
+          voiceStatus={voiceStatus}
           isLoading={channelsQuery.isLoading}
           canManageServer={canManageActiveServer}
           onSelect={setActiveChannelId}
-          onCreateChannel={() => setIsCreateChannelOpen(true)}
+          onCreateChannel={() => {
+            setCreateChannelType(ChannelType.Text);
+            setIsCreateChannelOpen(true);
+          }}
+          onCreateVoiceChannel={() => {
+            setCreateChannelType(ChannelType.Voice);
+            setIsCreateChannelOpen(true);
+          }}
+          onJoinVoiceChannel={(channelId) => {
+            void voice.joinVoiceChannel(channelId);
+          }}
           onOpenServerSettings={() => setIsServerSettingsOpen(true)}
+        />
+        <VoicePanel
+          api={api}
+          channel={activeVoiceChannel}
+          participantIds={voiceParticipantIds}
+          status={voiceStatus}
+          error={voiceError}
+          isMuted={isMuted}
+          isDeafened={isDeafened}
+          onToggleMute={() => {
+            void voice.setMuted(!isMuted);
+          }}
+          onToggleDeafen={() => voice.setDeafened(!isDeafened)}
+          onLeave={() => {
+            void voice.leaveVoiceChannel();
+          }}
         />
         <UserBar
           profile={profileQuery.data}
@@ -323,7 +377,10 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
             <IconButton
               label="Nouveau salon"
               disabled={!activeServerId}
-              onClick={() => setIsCreateChannelOpen(true)}
+              onClick={() => {
+                setCreateChannelType(ChannelType.Text);
+                setIsCreateChannelOpen(true);
+              }}
             >
               <Plus size={18} />
             </IconButton>
@@ -393,10 +450,11 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
       ) : null}
       {isCreateChannelOpen ? (
         <CreateChannelDialog
+          type={createChannelType}
           isSubmitting={createChannelMutation.isPending}
           onClose={() => setIsCreateChannelOpen(false)}
-          onCreate={async (name) => {
-            await createChannelMutation.mutateAsync(name);
+          onCreate={async (name, type) => {
+            await createChannelMutation.mutateAsync({ name, type });
           }}
         />
       ) : null}

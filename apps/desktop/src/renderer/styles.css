@@ -581,11 +581,6 @@ input::placeholder {
   overscroll-behavior: contain;
 }
 
-.server-dot-wrap {
-  display: grid;
-  place-items: center;
-}
-
 .server-dot,
 .icon-button {
   display: grid;
@@ -651,41 +646,9 @@ input::placeholder {
 }
 
 .icon-button {
-  position: relative;
   width: 36px;
   height: 36px;
   border-radius: 10px;
-}
-
-.icon-button::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  z-index: 70;
-  max-inline-size: min(220px, 50vw);
-  padding: 7px 9px;
-  border: 1px solid var(--border-dialog);
-  border-radius: 8px;
-  color: var(--text-primary);
-  background: var(--bg-popup);
-  box-shadow: var(--shadow-md);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.2;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, 4px);
-  transition:
-    opacity 140ms ease,
-    transform 140ms ease;
-  white-space: nowrap;
-}
-
-.icon-button:hover::after,
-.icon-button:focus-visible::after {
-  opacity: 1;
-  transform: translate(-50%, 0);
 }
 
 .icon-button:hover:not(:disabled) {
@@ -736,33 +699,13 @@ input::placeholder {
   object-fit: cover;
 }
 
-.server-tooltip-floating {
-  position: fixed;
-  left: calc(var(--server-rail-width) + 10px);
-  z-index: 80;
-  max-inline-size: min(260px, calc(100vw - var(--server-rail-width) - 24px));
-  padding: 8px 10px;
-  overflow: hidden;
-  border: 1px solid var(--border-dialog);
-  border-radius: 8px;
-  color: var(--text-primary);
-  background: var(--bg-popup);
-  box-shadow: var(--shadow-md);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.2;
-  pointer-events: none;
-  text-overflow: ellipsis;
-  transform: translateY(-50%);
-  white-space: nowrap;
-  animation: tooltipIn 140ms ease;
-}
+
 
 /* ── Sidebar ────────────────────────────────────────── */
 
 .workspace-sidebar {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   min-width: 0;
   min-block-size: 0;
   overflow: hidden;
@@ -865,9 +808,18 @@ input::placeholder {
 }
 
 .channel span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.channel small {
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .channel:hover:not(.active) {
@@ -886,6 +838,96 @@ input::placeholder {
 
 .channel.active svg {
   color: var(--text-primary);
+}
+
+/* ── Voice Panel ────────────────────────────────────── */
+
+.voice-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.voice-panel-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-panel-header div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.voice-panel-header span {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.voice-panel-header strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-panel .icon-button {
+  inline-size: 32px;
+  block-size: 32px;
+}
+
+.voice-error {
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--text-error-border);
+  border-radius: 9px;
+  color: var(--text-error);
+  background: var(--text-error-bg);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.voice-empty {
+  margin: 0;
+  color: var(--text-ghost);
+  font-size: 12px;
+}
+
+.voice-participants {
+  display: grid;
+  gap: 4px;
+}
+
+.voice-participants span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.voice-audio-root {
+  position: fixed;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* ── User Bar ───────────────────────────────────────── */

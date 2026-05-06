@@ -11,6 +11,7 @@ import type {
   UpdateProfileInput,
   UpdateServerInput,
   UserProfile,
+  VoiceTokenResponse,
 } from '@discord2/shared';
 import { env } from './env';
 
@@ -67,6 +68,13 @@ export class ApiClient {
       }),
     redeem: (code: string) =>
       this.request<RedeemInviteResult>(`/invites/${encodeURIComponent(code)}/redeem`, {
+        method: 'POST',
+      }),
+  };
+
+  readonly voice = {
+    createToken: (channelId: string) =>
+      this.request<VoiceTokenResponse>(`/voice/channels/${channelId}/token`, {
         method: 'POST',
       }),
   };

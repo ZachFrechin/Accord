@@ -35,14 +35,14 @@ export class RoomService {
     server.to(this.channelRoom(channelId)).emit(eventName, payload);
   }
 
-  joinVoice(client: AuthenticatedSocket, channelId: ChannelId): void {
+  async joinVoice(client: AuthenticatedSocket, channelId: ChannelId): Promise<void> {
     client.data.voiceChannelId = channelId;
-    void client.join(this.voiceRoom(channelId));
+    await client.join(this.voiceRoom(channelId));
   }
 
-  leaveVoice(client: AuthenticatedSocket, channelId: ChannelId): void {
+  async leaveVoice(client: AuthenticatedSocket, channelId: ChannelId): Promise<void> {
     client.data.voiceChannelId = undefined;
-    void client.leave(this.voiceRoom(channelId));
+    await client.leave(this.voiceRoom(channelId));
   }
 
   emitToVoice<TPayload>(
@@ -51,7 +51,11 @@ export class RoomService {
     eventName: string,
     payload: TPayload,
   ): void {
-    server.to(this.voiceRoom(channelId)).emit(eventName, payload);
+    server.to(this.voiceRoomName(channelId)).emit(eventName, payload);
+  }
+
+  voiceRoomName(channelId: ChannelId): string {
+    return `voice:${channelId}`;
   }
 
   private userRoom(userId: UserId): string {
@@ -63,6 +67,6 @@ export class RoomService {
   }
 
   private voiceRoom(channelId: ChannelId): string {
-    return `voice:${channelId}`;
+    return this.voiceRoomName(channelId);
   }
 }

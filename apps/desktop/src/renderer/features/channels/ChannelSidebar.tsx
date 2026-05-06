@@ -6,10 +6,14 @@ interface ChannelSidebarProps {
   server: ServerSummary | null;
   channels: ChannelSummary[];
   activeChannelId: string | null;
+  activeVoiceChannelId: string | null;
+  voiceStatus: string;
   isLoading: boolean;
   canManageServer: boolean;
   onSelect: (channelId: string) => void;
   onCreateChannel: () => void;
+  onCreateVoiceChannel: () => void;
+  onJoinVoiceChannel: (channelId: string) => void;
   onOpenServerSettings: () => void;
 }
 
@@ -17,10 +21,14 @@ export function ChannelSidebar({
   server,
   channels,
   activeChannelId,
+  activeVoiceChannelId,
+  voiceStatus,
   isLoading,
   canManageServer,
   onSelect,
   onCreateChannel,
+  onCreateVoiceChannel,
+  onJoinVoiceChannel,
   onOpenServerSettings,
 }: ChannelSidebarProps): React.JSX.Element {
   const textChannels = channels.filter((channel) => channel.type === ChannelType.Text);
@@ -71,15 +79,32 @@ export function ChannelSidebar({
       <section className="channel-section">
         <div className="section-title">
           <span>Vocal</span>
+          {canManageServer ? (
+            <IconButton
+              label="Créer un salon vocal"
+              disabled={!server}
+              onClick={onCreateVoiceChannel}
+            >
+              <Plus size={16} />
+            </IconButton>
+          ) : null}
         </div>
         <nav className="channel-list" aria-label="Salons vocaux">
           {voiceChannels.map((channel) => (
-            <button className="channel" key={channel.id} type="button" disabled>
+            <button
+              className={`channel voice-channel${channel.id === activeVoiceChannelId ? ' active' : ''}`}
+              key={channel.id}
+              type="button"
+              onClick={() => onJoinVoiceChannel(channel.id)}
+            >
               <Mic size={16} />
               <span>{channel.name}</span>
+              {channel.id === activeVoiceChannelId ? (
+                <small>{voiceStatus === 'connected' ? 'live' : voiceStatus}</small>
+              ) : null}
             </button>
           ))}
-          <p className="muted">LiveKit arrive dans une prochaine itération.</p>
+          {voiceChannels.length === 0 ? <p className="muted">Aucun salon vocal.</p> : null}
         </nav>
       </section>
     </aside>

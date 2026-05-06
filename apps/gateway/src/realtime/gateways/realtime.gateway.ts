@@ -24,6 +24,8 @@ import { MessageFanoutService } from '../messages/message-fanout.service';
 import { PresenceService } from '../presence/presence.service';
 import { RoomService } from '../rooms/room.service';
 import type { AuthenticatedSocket } from '../types/authenticated-socket';
+import { VoiceAuthorizationService } from '../voice/voice-authorization.service';
+import { VoicePresenceService } from '../voice/voice-presence.service';
 
 const env = loadServerEnv();
 
@@ -43,6 +45,8 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     private readonly messageFanout: MessageFanoutService,
     private readonly presenceService: PresenceService,
     private readonly roomService: RoomService,
+    private readonly voiceAuthorization: VoiceAuthorizationService,
+    private readonly voicePresence: VoicePresenceService,
   ) {}
 
   afterInit(server: Server): void {
@@ -60,10 +64,16 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     }
   }
 
-  handleDisconnect(client: AuthenticatedSocket): void {
+  async handleDisconnect(client: AuthenticatedSocket): Promise<void> {
     const user = client.data.user;
     if (!user) {
       return;
+    }
+
+    const voiceChannelId = client.data.voiceChannelId;
+    if (voiceChannelId) {
+      client.data.voiceChannelId = undefined;
+      await this.voicePresence.publishVoicePresence(this.server, voiceChannelId);
     }
 
     this.presenceService.publishOffline(this.server, user);
@@ -121,38 +131,39 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   }
 
   @SubscribeMessage(ClientToServerEvent.VoiceJoin)
-  voiceJoin(
+  async voiceJoin(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: VoiceJoinPayload,
-  ): void {
+  ): Promise<void> {
     const user = this.authService.requireUser(client);
-    this.roomService.joinVoice(client, payload.channelId);
-    this.roomService.emitToVoice(
-      this.server,
-      payload.channelId,
-      ServerToClientEvent.VoicePresenceUpdated,
-      {
-        channelId: payload.channelId,
-        userIds: [user.id],
-      },
-    );
+    try {
+      await this.voiceAuthorization.requireVoiceAccess(user, payload.channelId);
+    } catch {
+      client.emit(ServerToClientEvent.Error, { message: 'Voice channel access denied.' });
+      return;
+    }
+
+    const previousChannelId = client.data.voiceChannelId;
+    if (previousChannelId && previousChannelId !== payload.channelId) {
+      await this.roomService.leaveVoice(client, previousChannelId);
+      await this.voicePresence.publishVoicePresence(this.server, previousChannelId);
+    }
+
+    await this.roomService.joinVoice(client, payload.channelId);
+    await this.voicePresence.publishVoicePresence(this.server, payload.channelId);
   }
 
   @SubscribeMessage(ClientToServerEvent.VoiceLeave)
-  voiceLeave(
+  async voiceLeave(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: VoiceJoinPayload,
-  ): void {
+  ): Promise<void> {
     this.authService.requireUser(client);
-    this.roomService.leaveVoice(client, payload.channelId);
-    this.roomService.emitToVoice(
-      this.server,
-      payload.channelId,
-      ServerToClientEvent.VoicePresenceUpdated,
-      {
-        channelId: payload.channelId,
-        userIds: [],
-      },
-    );
+    if (client.data.voiceChannelId !== payload.channelId) {
+      return;
+    }
+
+    await this.roomService.leaveVoice(client, payload.channelId);
+    await this.voicePresence.publishVoicePresence(this.server, payload.channelId);
   }
 }

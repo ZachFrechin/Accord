@@ -7,5 +7,5 @@ export class CreateChannelDto {
   name!: string;
 
   @IsEnum(ChannelType)
-  type!: typeof ChannelType.Text;
+  type!: typeof ChannelType.Text | typeof ChannelType.Voice;
 }
