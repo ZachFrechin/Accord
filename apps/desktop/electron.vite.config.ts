@@ -8,6 +8,7 @@ export default defineConfig({
   renderer: {
     envDir: resolve(__dirname, '../..'),
     plugins: [react()],
+    assetsInclude: ['**/*.wasm'],
     resolve: {
       alias: {
         '@discord2/config': resolve(__dirname, '../../packages/config/src/index.ts'),

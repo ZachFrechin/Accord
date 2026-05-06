@@ -1,4 +1,4 @@
-import { LogOut, Palette, Settings } from 'lucide-react';
+import { LogOut, Mic, Palette, Settings } from 'lucide-react';
 import type { UserProfile } from '@discord2/shared';
 import { AvatarImage } from '../components/AvatarImage';
 import { IconButton } from '../components/IconButton';
@@ -9,6 +9,7 @@ interface UserBarProps {
   realtimeStatus: string;
   onOpenSettings: () => void;
   onOpenThemePicker: () => void;
+  onOpenVoiceSettings: () => void;
 }
 
 export function UserBar({
@@ -16,6 +17,7 @@ export function UserBar({
   realtimeStatus,
   onOpenSettings,
   onOpenThemePicker,
+  onOpenVoiceSettings,
 }: UserBarProps): React.JSX.Element {
   return (
     <footer className="user-bar">
@@ -31,6 +33,9 @@ export function UserBar({
       <div className="user-actions">
         <IconButton label="Paramètres profil" disabled={!profile} onClick={onOpenSettings}>
           <Settings size={18} />
+        </IconButton>
+        <IconButton label="Paramètres vocaux" onClick={onOpenVoiceSettings}>
+          <Mic size={18} />
         </IconButton>
         <IconButton label="Changer de thème" onClick={onOpenThemePicker}>
           <Palette size={18} />

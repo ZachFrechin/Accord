@@ -27,6 +27,7 @@ import { ThemePickerDialog } from '../features/theme/ThemePickerDialog';
 import { ProfileSettingsDialog } from '../features/users/ProfileSettingsDialog';
 import { useVoiceRoom } from '../features/voice/useVoiceRoom';
 import { VoicePanel } from '../features/voice/VoicePanel';
+import { VoiceSettingsDialog } from '../features/voice/VoiceSettingsDialog';
 import { ApiClient } from '../lib/api-client';
 import { createRealtimeSocket } from '../lib/realtime';
 import { queryClient } from '../app/query-client';
@@ -50,6 +51,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
   const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
+  const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [inviteCodeId, setInviteCodeId] = useState<string | null>(null);
@@ -71,6 +73,8 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
     setVoiceParticipantIds,
     theme,
     setTheme,
+    voiceSettings,
+    setVoiceSettings,
   } = useUiStore();
   const voice = useVoiceRoom({ api, socket: socketRef.current });
 
@@ -379,6 +383,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
           realtimeStatus={realtimeStatus}
           onOpenSettings={() => setIsProfileSettingsOpen(true)}
           onOpenThemePicker={() => setIsThemePickerOpen(true)}
+          onOpenVoiceSettings={() => setIsVoiceSettingsOpen(true)}
         />
       </div>
       <section className="chat-panel">
@@ -535,6 +540,13 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
             setTheme(nextTheme);
             setIsThemePickerOpen(false);
           }}
+        />
+      ) : null}
+      {isVoiceSettingsOpen ? (
+        <VoiceSettingsDialog
+          settings={voiceSettings}
+          onSave={setVoiceSettings}
+          onClose={() => setIsVoiceSettingsOpen(false)}
         />
       ) : null}
     </main>

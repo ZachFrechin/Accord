@@ -1,11 +1,7 @@
 import { LocalAudioTrack } from 'livekit-client';
 import { createRNNWasmModule } from '@jitsi/rnnoise-wasm';
-
-export interface AudioProcessingOptions {
-  enableNoiseGate?: boolean;
-  noiseGateThreshold?: number;
-  enableRnnoise?: boolean;
-}
+import rnnoiseWasmUrl from '../../assets/rnnoise.wasm?url';
+import type { VoiceSettings } from '../../store/ui-store';
 
 export interface ProcessedAudioResult {
   track: LocalAudioTrack;
@@ -13,15 +9,18 @@ export interface ProcessedAudioResult {
 }
 
 export async function createProcessedAudioTrack(
-  options: AudioProcessingOptions = {},
+  settings: VoiceSettings,
 ): Promise<ProcessedAudioResult> {
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-    },
-  });
+  const constraints: MediaTrackConstraints = {
+    echoCancellation: settings.enableEchoCancellation,
+    noiseSuppression: settings.enableNoiseSuppression,
+    autoGainControl: settings.enableAutoGainControl,
+  };
+  if (settings.inputDeviceId) {
+    constraints.deviceId = { exact: settings.inputDeviceId };
+  }
+
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
 
   const audioContext = new AudioContext({ sampleRate: 48000 });
   const source = audioContext.createMediaStreamSource(stream);
@@ -30,18 +29,23 @@ export async function createProcessedAudioTrack(
   let lastNode: AudioNode = source;
   const cleanupFns: Array<() => void> = [];
 
-  if (options.enableRnnoise) {
+  // Gain d'entrée
+  const inputGain = audioContext.createGain();
+  inputGain.gain.value = settings.inputVolume / 100;
+  lastNode.connect(inputGain);
+  lastNode = inputGain;
+
+  if (settings.enableRnnoise) {
     const { processor: rnnoiseNode, cleanup } = await createRnnoiseNode(audioContext);
     cleanupFns.push(cleanup);
     lastNode.connect(rnnoiseNode);
     lastNode = rnnoiseNode;
   }
 
-  if (options.enableNoiseGate !== false) {
-    const gateNode = createNoiseGateNode(audioContext, options.noiseGateThreshold ?? 0.006);
-    lastNode.connect(gateNode);
-    lastNode = gateNode;
-  }
+  const gateThreshold = (settings.noiseGateThreshold / 100) * 0.02;
+  const gateNode = createNoiseGateNode(audioContext, gateThreshold);
+  lastNode.connect(gateNode);
+  lastNode = gateNode;
 
   lastNode.connect(destination);
 
@@ -103,10 +107,19 @@ interface RNNoiseState {
 
 const RNNOISE_FRAME_SIZE = 480;
 
+async function loadWasmBinary(): Promise<ArrayBuffer> {
+  const response = await fetch(rnnoiseWasmUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to load rnnoise.wasm: ${response.status}`);
+  }
+  return response.arrayBuffer();
+}
+
 async function createRnnoiseNode(
   audioContext: AudioContext,
 ): Promise<{ processor: ScriptProcessorNode; cleanup: () => void }> {
-  const wasmModule = await createRNNWasmModule();
+  const wasmBinary = await loadWasmBinary();
+  const wasmModule = await createRNNWasmModule({ wasmBinary });
   const statePtr = wasmModule._rnnoise_create();
   const inputPtr = wasmModule._malloc(RNNOISE_FRAME_SIZE * 4);
   const outputPtr = wasmModule._malloc(RNNOISE_FRAME_SIZE * 4);

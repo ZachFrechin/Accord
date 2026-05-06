@@ -28,10 +28,25 @@ export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomContr
   const localTrackRef = useRef<LocalAudioTrack | null>(null);
   const disposeTrackRef = useRef<(() => void) | null>(null);
 
+  const applyOutputSettings = (): void => {
+    const { voiceSettings } = useUiStore.getState();
+    const outputVolume = voiceSettings.outputVolume / 100;
+    attachedElementsRef.current.forEach((element) => {
+      element.volume = outputVolume;
+      element.muted = useUiStore.getState().isDeafened;
+      if (voiceSettings.outputDeviceId && 'setSinkId' in element) {
+        try {
+          void (element as unknown as { setSinkId: (id: string) => Promise<void> }).setSinkId(voiceSettings.outputDeviceId);
+        } catch {
+          // ignore
+        }
+      }
+    });
+  };
+
   const applyDeafen = (deafened: boolean): void => {
-    const volume = deafened ? 0 : 1;
     const room = roomRef.current;
-    room?.remoteParticipants.forEach((participant) => participant.setVolume(volume));
+    room?.remoteParticipants.forEach((participant) => participant.setVolume(deafened ? 0 : 1));
     attachedElementsRef.current.forEach((element) => {
       element.muted = deafened;
     });
@@ -49,6 +64,7 @@ export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomContr
     element.dataset.livekitVoice = 'true';
     attachedElementsRef.current.add(element);
     audioRoot.appendChild(element);
+    applyOutputSettings();
   };
 
   const detachRemoteAudio = (track: RemoteTrack): void => {
@@ -155,12 +171,8 @@ export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomContr
       await room.connect(env.VITE_LIVEKIT_URL, token);
       await room.startAudio();
 
-      // Créer une track audio traitée (noise gate + RNNoise)
-      const { track, dispose } = await createProcessedAudioTrack({
-        enableRnnoise: true,
-        enableNoiseGate: true,
-        noiseGateThreshold: 0.006,
-      });
+      const settings = useUiStore.getState().voiceSettings;
+      const { track, dispose } = await createProcessedAudioTrack(settings);
       localTrackRef.current = track;
       disposeTrackRef.current = dispose;
 
@@ -213,6 +225,19 @@ export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomContr
       void cleanupRoom(true);
     };
   }, [socket]);
+
+  useEffect(() => {
+    // Appliquer les réglages de sortie en temps réel quand ils changent
+    const unsubscribe = useUiStore.subscribe((state, prev) => {
+      if (
+        state.voiceSettings.outputVolume !== prev.voiceSettings.outputVolume ||
+        state.voiceSettings.outputDeviceId !== prev.voiceSettings.outputDeviceId
+      ) {
+        applyOutputSettings();
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   return {
     joinVoiceChannel,

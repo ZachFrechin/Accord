@@ -9,6 +9,12 @@ declare module '@jitsi/rnnoise-wasm' {
     ready: Promise<RNNoiseModule>;
   }
 
-  export function createRNNWasmModule(): Promise<RNNoiseModule>;
-  export function createRNNWasmModuleSync(): RNNoiseModule;
+  interface RNNoiseModuleOptions {
+    wasmBinary?: ArrayBuffer;
+    locateFile?: (path: string) => string;
+    [key: string]: unknown;
+  }
+
+  export function createRNNWasmModule(options?: RNNoiseModuleOptions): Promise<RNNoiseModule>;
+  export function createRNNWasmModuleSync(options?: RNNoiseModuleOptions): RNNoiseModule;
 }
