@@ -26,6 +26,15 @@ export class RoomService {
     client.to(this.channelRoom(channelId)).emit(eventName, payload);
   }
 
+  emitToChannelFromServer<TPayload>(
+    server: Server,
+    channelId: ChannelId,
+    eventName: string,
+    payload: TPayload,
+  ): void {
+    server.to(this.channelRoom(channelId)).emit(eventName, payload);
+  }
+
   joinVoice(client: AuthenticatedSocket, channelId: ChannelId): void {
     client.data.voiceChannelId = channelId;
     void client.join(this.voiceRoom(channelId));

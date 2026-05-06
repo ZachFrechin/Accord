@@ -22,9 +22,15 @@ export function loadServerEnv(source: NodeJS.ProcessEnv = process.env): ServerEn
   return envSchema.parse(source);
 }
 
-export function parseCorsOrigins(value: string): string[] {
-  return value
+export function parseCorsOrigins(value: string): string[] | true {
+  const origins = value
     .split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
+
+  if (origins.includes('*')) {
+    return true;
+  }
+
+  return origins;
 }

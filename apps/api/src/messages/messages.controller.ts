@@ -9,8 +9,8 @@ export class MessagesController {
   constructor(private readonly messagesService: MessagesService) {}
 
   @Get()
-  list(@Param('channelId') channelId: string) {
-    return this.messagesService.listMessages(channelId);
+  list(@CurrentUser() user: AuthUser, @Param('channelId') channelId: string) {
+    return this.messagesService.listMessages(user, channelId);
   }
 
   @Post()

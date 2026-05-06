@@ -1,4 +1,12 @@
-import type { ChannelId, ConversationId, DeviceId, MessageId, ServerId, UserId } from './ids';
+import type {
+  ChannelId,
+  ConversationId,
+  DeviceId,
+  InviteId,
+  MessageId,
+  ServerId,
+  UserId,
+} from './ids';
 
 export const ChannelType = {
   Text: 'text',
@@ -29,6 +37,21 @@ export interface AuthUser {
   email: string | null;
 }
 
+export interface UserProfile {
+  id: UserId;
+  email: string | null;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+export interface ServerSummary {
+  id: ServerId;
+  name: string;
+  ownerId: UserId;
+  role: ServerMember['role'];
+  createdAt: string;
+}
+
 export interface ServerMember {
   serverId: ServerId;
   userId: UserId;
@@ -41,6 +64,31 @@ export interface ChannelSummary {
   type: ChannelType;
   name: string;
   isPrivate: boolean;
+  createdAt: string | null;
+}
+
+export interface CreateServerInput {
+  name: string;
+}
+
+export interface CreateChannelInput {
+  name: string;
+  type: typeof ChannelType.Text;
+}
+
+export interface InviteRecord {
+  id: InviteId;
+  serverId: ServerId;
+  code: string;
+  createdBy: UserId;
+  expiresAt: string | null;
+  usedBy?: UserId | null;
+  usedAt?: string | null;
+  createdAt?: string;
+}
+
+export interface RedeemInviteResult {
+  server: ServerSummary;
 }
 
 export interface EncryptedPayload {
@@ -55,6 +103,7 @@ export interface MessageRecord {
   id: MessageId;
   channelId: ChannelId;
   authorId: UserId;
+  author?: Pick<UserProfile, 'id' | 'displayName' | 'avatarUrl'>;
   privacy: MessagePrivacy;
   content: string | null;
   encrypted: EncryptedPayload | null;

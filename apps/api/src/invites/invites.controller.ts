@@ -17,3 +17,13 @@ export class InvitesController {
     return this.invitesService.createInvite(user, serverId, body);
   }
 }
+
+@Controller('invites')
+export class RedeemInvitesController {
+  constructor(private readonly invitesService: InvitesService) {}
+
+  @Post(':code/redeem')
+  redeem(@CurrentUser() user: AuthUser, @Param('code') code: string) {
+    return this.invitesService.redeemInvite(user, code);
+  }
+}

@@ -18,7 +18,10 @@
     "@discord2/e2ee": "0.1.0",
     "@discord2/shared": "0.1.0",
     "@supabase/supabase-js": "^2.86.0",
+    "@tanstack/react-query": "^5.90.12",
     "livekit-client": "^2.17.1",
+    "lucide-react": "^0.555.0",
+    "zustand": "^5.0.8",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {

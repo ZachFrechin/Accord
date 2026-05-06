@@ -20,6 +20,7 @@ import {
 } from '@discord2/shared';
 import { RedisIoAdapterService } from '../adapters/redis-io-adapter.service';
 import { WsAuthService } from '../auth/ws-auth.service';
+import { MessageFanoutService } from '../messages/message-fanout.service';
 import { PresenceService } from '../presence/presence.service';
 import { RoomService } from '../rooms/room.service';
 import type { AuthenticatedSocket } from '../types/authenticated-socket';
@@ -39,12 +40,14 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   constructor(
     private readonly redisAdapter: RedisIoAdapterService,
     private readonly authService: WsAuthService,
+    private readonly messageFanout: MessageFanoutService,
     private readonly presenceService: PresenceService,
     private readonly roomService: RoomService,
   ) {}
 
   afterInit(server: Server): void {
     this.redisAdapter.attach(server);
+    this.messageFanout.subscribe(server);
   }
 
   async handleConnection(client: AuthenticatedSocket): Promise<void> {

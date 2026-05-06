@@ -1,5 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ChannelId, EncryptedPayload, MessageRecord, UserId } from '@discord2/shared';
+import type {
+  ChannelId,
+  EncryptedPayload,
+  MessageRecord,
+  UserId,
+  UserProfile,
+} from '@discord2/shared';
 import { MessagePrivacy } from '@discord2/shared';
 
 export interface InsertMessageInput {
@@ -19,7 +25,15 @@ interface MessageRow {
   encrypted_payload: EncryptedPayload | null;
   created_at: string;
   edited_at: string | null;
+  profiles?: {
+    display_name: string;
+    avatar_url: string | null;
+  } | null;
 }
+
+export type MessageWithAuthor = MessageRecord & {
+  author: Pick<UserProfile, 'id' | 'displayName' | 'avatarUrl'>;
+};
 
 export class MessagesRepository {
   constructor(private readonly supabase: SupabaseClient) {}
@@ -46,14 +60,14 @@ export class MessagesRepository {
     return mapMessageRow(data);
   }
 
-  async listByChannel(channelId: ChannelId, limit = 50): Promise<MessageRecord[]> {
+  async listByChannel(channelId: ChannelId, limit = 50): Promise<MessageWithAuthor[]> {
     const { data, error } = await this.supabase
       .from('messages')
       .select(
-        'id, channel_id, author_id, privacy, content, encrypted_payload, created_at, edited_at',
+        'id, channel_id, author_id, privacy, content, encrypted_payload, created_at, edited_at, profiles:author_id(display_name, avatar_url)',
       )
       .eq('channel_id', channelId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
       .limit(limit)
       .returns<MessageRow[]>();
 
@@ -61,7 +75,7 @@ export class MessagesRepository {
       throw error;
     }
 
-    return data.map(mapMessageRow);
+    return data.map(mapMessageWithAuthorRow);
   }
 }
 
@@ -75,5 +89,16 @@ function mapMessageRow(row: MessageRow): MessageRecord {
     encrypted: row.encrypted_payload,
     createdAt: row.created_at,
     editedAt: row.edited_at,
+  };
+}
+
+function mapMessageWithAuthorRow(row: MessageRow): MessageWithAuthor {
+  return {
+    ...mapMessageRow(row),
+    author: {
+      id: row.author_id,
+      displayName: row.profiles?.display_name ?? 'Unknown user',
+      avatarUrl: row.profiles?.avatar_url ?? null,
+    },
   };
 }

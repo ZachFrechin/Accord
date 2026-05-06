@@ -20,6 +20,10 @@ export const ServerToClientEvent = {
   Error: 'error',
 } as const;
 
+export const InternalRealtimeEvent = {
+  MessageCreated: 'message.created',
+} as const;
+
 export interface ChannelJoinPayload {
   channelId: ChannelId;
 }
