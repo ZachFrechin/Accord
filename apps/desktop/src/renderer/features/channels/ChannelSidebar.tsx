@@ -53,10 +53,7 @@ export function ChannelSidebar({
         className="channel-settings-btn"
         type="button"
         aria-label={`Paramètres du salon ${channel.name}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          onEditChannel(channel);
-        }}
+        onClick={() => onEditChannel(channel)}
       >
         <SlidersHorizontal size={14} />
       </button>
@@ -89,16 +86,17 @@ export function ChannelSidebar({
               ))
             : null}
           {textChannels.map((channel) => (
-            <button
-              className={`channel${channel.id === activeChannelId ? ' active' : ''}`}
-              key={channel.id}
-              type="button"
-              onClick={() => onSelect(channel.id)}
-            >
-              {channel.isPrivate ? <Lock size={16} /> : <Hash size={16} />}
-              <span>{channel.name}</span>
+            <div className="channel-row" key={channel.id}>
+              <button
+                className={`channel${channel.id === activeChannelId ? ' active' : ''}`}
+                type="button"
+                onClick={() => onSelect(channel.id)}
+              >
+                {channel.isPrivate ? <Lock size={16} /> : <Hash size={16} />}
+                <span>{channel.name}</span>
+              </button>
               {renderChannelSettingsBtn(channel)}
-            </button>
+            </div>
           ))}
           {!isLoading && textChannels.length === 0 ? (
             <p className="muted">Aucun salon texte.</p>
@@ -121,18 +119,20 @@ export function ChannelSidebar({
         <nav className="channel-list" aria-label="Salons vocaux">
           {voiceChannels.map((channel) => (
             <div key={channel.id} className="voice-channel-wrapper">
-              <button
-                className={`channel voice-channel${channel.id === activeVoiceChannelId ? ' active' : ''}`}
-                type="button"
-                onClick={() => onJoinVoiceChannel(channel.id)}
-              >
-                <Mic size={16} />
-                <span>{channel.name}</span>
-                {channel.id === activeVoiceChannelId ? (
-                  <small>{voiceStatus === 'connected' ? 'live' : voiceStatus}</small>
-                ) : null}
+              <div className="channel-row">
+                <button
+                  className={`channel voice-channel${channel.id === activeVoiceChannelId ? ' active' : ''}`}
+                  type="button"
+                  onClick={() => onJoinVoiceChannel(channel.id)}
+                >
+                  <Mic size={16} />
+                  <span>{channel.name}</span>
+                  {channel.id === activeVoiceChannelId ? (
+                    <small>{voiceStatus === 'connected' ? 'live' : voiceStatus}</small>
+                  ) : null}
+                </button>
                 {renderChannelSettingsBtn(channel)}
-              </button>
+              </div>
               <VoiceChannelParticipants
                 api={api}
                 userIds={voiceParticipantsByChannel[channel.id] ?? []}

@@ -784,7 +784,10 @@ input::placeholder {
 
 .channel-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   min-width: 0;
+  border-radius: 8px;
 }
 
 .channel-settings-btn {
@@ -803,11 +806,10 @@ input::placeholder {
     transform 140ms ease,
     color 140ms ease;
   flex-shrink: 0;
-  margin-left: auto;
 }
 
-.channel:hover .channel-settings-btn,
-.channel:focus-within .channel-settings-btn {
+.channel-row:hover .channel-settings-btn,
+.channel-row:focus-within .channel-settings-btn {
   opacity: 1;
   transform: translateX(0);
 }
@@ -820,6 +822,7 @@ input::placeholder {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   min-height: 34px;
   padding: 0 10px;
   border-radius: 8px;
