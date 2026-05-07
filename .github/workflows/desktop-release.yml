@@ -27,11 +27,7 @@ jobs:
       VITE_API_URL: ${{ vars.VITE_API_URL }}
       VITE_GATEWAY_URL: ${{ vars.VITE_GATEWAY_URL }}
       VITE_LIVEKIT_URL: ${{ vars.VITE_LIVEKIT_URL }}
-      CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
-      CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-      APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
-      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      CSC_IDENTITY_AUTO_DISCOVERY: false
 
     steps:
       - name: Checkout
@@ -52,20 +48,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Prepare macOS notarization key
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          if [ -z "$APPLE_API_KEY_BASE64" ] || [ -z "$APPLE_API_KEY_ID" ]; then
-            echo "Missing APPLE_API_KEY_BASE64 or APPLE_API_KEY_ID."
-            exit 1
-          fi
-
-          key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
-          printf '%s' "$APPLE_API_KEY_BASE64" | base64 -D > "$key_path"
-          chmod 600 "$key_path"
-          echo "APPLE_API_KEY=$key_path" >> "$GITHUB_ENV"
-
       - name: Validate release environment
         shell: bash
         run: |
@@ -82,23 +64,6 @@ jobs:
           if (missing.length > 0) {
             console.error(`Missing release environment variables: ${missing.join(', ')}`);
             process.exit(1);
-          }
-
-          if (process.env.RUNNER_OS === 'macOS') {
-            const macRequired = [
-              'CSC_LINK',
-              'CSC_KEY_PASSWORD',
-              'APPLE_API_KEY',
-              'APPLE_API_KEY_ID',
-              'APPLE_API_ISSUER',
-            ];
-            const missingMac = macRequired.filter((key) => !process.env[key]);
-            if (missingMac.length > 0) {
-              console.error(
-                `Missing macOS signing/notarization secrets: ${missingMac.join(', ')}`,
-              );
-              process.exit(1);
-            }
           }
 
           for (const key of required.filter((key) => key !== 'VITE_SUPABASE_ANON_KEY')) {
