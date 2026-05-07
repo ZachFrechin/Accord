@@ -4,16 +4,19 @@ import type { ServerMemberProfile, ServerRole, ServerSummary } from '@discord2/s
 import { AvatarImage } from '../../components/AvatarImage';
 import { Dialog } from '../../components/Dialog';
 import { uploadPublicImage } from '../../lib/storage-upload';
+import type { SupabaseBrowserClient } from '../../lib/supabase';
 
 type ServerSettingsTab = 'general' | 'roles' | 'members';
 
 interface ServerSettingsDialogProps {
   server: ServerSummary;
+  supabase: SupabaseBrowserClient;
   isSaving: boolean;
   roles: ServerRole[];
   members: ServerMemberProfile[];
   isLoadingRoles: boolean;
   isSavingRole: boolean;
+  isRemovingMember?: boolean;
   onClose: () => void;
   onSave: (input: { name: string; avatarUrl: string | null }) => Promise<void>;
   onCreateRole: (input: { name: string; color: string; mentionable: boolean }) => Promise<void>;
@@ -23,21 +26,25 @@ interface ServerSettingsDialogProps {
   ) => Promise<void>;
   onDeleteRole: (roleId: string) => Promise<void>;
   onUpdateMemberRoles: (userId: string, roleIds: string[]) => Promise<void>;
+  onRemoveMember?: (userId: string) => Promise<void>;
 }
 
 export function ServerSettingsDialog({
   server,
+  supabase,
   isSaving,
   roles,
   members,
   isLoadingRoles,
   isSavingRole,
+  isRemovingMember = false,
   onClose,
   onSave,
   onCreateRole,
   onUpdateRole,
   onDeleteRole,
   onUpdateMemberRoles,
+  onRemoveMember,
 }: ServerSettingsDialogProps): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<ServerSettingsTab>('general');
   const [name, setName] = useState(server.name);
@@ -50,7 +57,9 @@ export function ServerSettingsDialog({
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(
     members[0]?.userId ?? null,
   );
+  const [confirmKickId, setConfirmKickId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const canManageMembers = server.role === 'owner' || server.role === 'admin';
 
   const filteredMembers = members.filter((member) =>
     member.profile.displayName.toLocaleLowerCase().includes(memberSearch.toLocaleLowerCase()),
@@ -83,7 +92,7 @@ export function ServerSettingsDialog({
 
     try {
       const uploadedAvatarUrl = avatarFile
-        ? await uploadPublicImage('server-icons', server.id, avatarFile)
+        ? await uploadPublicImage(supabase, 'server-icons', server.id, avatarFile)
         : avatarUrl;
       await onSave({
         name: name.trim(),
@@ -242,25 +251,69 @@ export function ServerSettingsDialog({
                   </label>
                   <div className="member-picker-list">
                     {filteredMembers.map((member) => (
-                      <button
-                        type="button"
-                        className={`member-picker-row${
-                          selectedMember?.userId === member.userId ? ' active' : ''
-                        }`}
-                        aria-pressed={selectedMember?.userId === member.userId}
-                        key={member.userId}
-                        onClick={() => setSelectedMemberId(member.userId)}
-                      >
-                        <AvatarImage
-                          className="member-role-avatar"
-                          label={member.profile.displayName}
-                          src={member.profile.avatarUrl}
-                        />
-                        <span>
-                          <strong>{member.profile.displayName}</strong>
-                          <small>{member.role}</small>
-                        </span>
-                      </button>
+                      <div className="member-picker-row-wrap" key={member.userId}>
+                        {confirmKickId === member.userId ? (
+                          <div className="member-kick-confirm">
+                            <span>Retirer {member.profile.displayName} ?</span>
+                            <button
+                              type="button"
+                              className="kick-confirm-btn"
+                              disabled={isRemovingMember}
+                              onClick={() => {
+                                void onRemoveMember?.(member.userId).then(() => {
+                                  setConfirmKickId(null);
+                                  if (selectedMemberId === member.userId) {
+                                    setSelectedMemberId(null);
+                                  }
+                                });
+                              }}
+                            >
+                              Confirmer
+                            </button>
+                            <button
+                              type="button"
+                              className="kick-cancel-btn"
+                              disabled={isRemovingMember}
+                              onClick={() => setConfirmKickId(null)}
+                            >
+                              Annuler
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className={`member-picker-row${
+                              selectedMember?.userId === member.userId ? ' active' : ''
+                            }`}
+                            aria-pressed={selectedMember?.userId === member.userId}
+                            onClick={() => setSelectedMemberId(member.userId)}
+                          >
+                            <AvatarImage
+                              className="member-role-avatar"
+                              label={member.profile.displayName}
+                              src={member.profile.avatarUrl}
+                            />
+                            <span>
+                              <strong>{member.profile.displayName}</strong>
+                              <small>{member.role}</small>
+                            </span>
+                            {canManageMembers && member.role !== 'owner' && onRemoveMember ? (
+                              <button
+                                type="button"
+                                className="member-kick-btn"
+                                title="Retirer du serveur"
+                                disabled={isRemovingMember}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirmKickId(member.userId);
+                                }}
+                              >
+                                ✕
+                              </button>
+                            ) : null}
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>

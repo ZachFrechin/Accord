@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -52,21 +53,27 @@ export class CreateAttachmentDto {
   @IsString()
   @IsOptional()
   fileName?: string;
-}
 
-export class CreateMessageDto {
-  @IsEnum(MessagePrivacy)
-  privacy!: MessagePrivacy;
-
-  @IsString()
+  @IsBoolean()
   @IsOptional()
-  content?: string;
+  isE2ee?: boolean;
 
   @IsObject()
   @ValidateNested()
   @Type(() => EncryptedPayloadDto)
   @IsOptional()
   encrypted?: EncryptedPayloadDto;
+}
+
+export class CreateMessageDto {
+  @IsEnum(MessagePrivacy)
+  privacy!: typeof MessagePrivacy.EndToEndEncrypted;
+
+  @IsObject()
+  @IsNotEmpty()
+  @ValidateNested()
+  @Type(() => EncryptedPayloadDto)
+  encrypted!: EncryptedPayloadDto;
 
   @IsArray()
   @ValidateNested({ each: true })

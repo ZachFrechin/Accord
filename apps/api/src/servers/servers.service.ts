@@ -8,7 +8,7 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ServersRepository } from '@discord2/db';
 import { canManageServer } from '@discord2/domain';
-import type { AuthUser, ServerId, ServerSummary, UpdateServerInput } from '@discord2/shared';
+import type { AuthUser, ServerId, ServerSummary, UpdateServerInput, UserId } from '@discord2/shared';
 import { assertPublicStorageUrl } from '../common/storage-url.validator';
 import type { CreateServerDto, UpdateServerDto } from './dto';
 
@@ -38,6 +38,33 @@ export class ServersService {
     }
 
     return server;
+  }
+
+  async removeMember(
+    user: AuthUser,
+    serverId: ServerId,
+    targetUserId: UserId,
+  ): Promise<{ serverId: ServerId; userId: UserId }> {
+    const membership = await this.repository.findMembership(serverId, user.id);
+    if (!membership) {
+      throw new NotFoundException('Server not found.');
+    }
+
+    if (!canManageServer(membership)) {
+      throw new ForbiddenException('You cannot manage this server.');
+    }
+
+    const targetMembership = await this.repository.findMembership(serverId, targetUserId);
+    if (!targetMembership) {
+      throw new NotFoundException('Member not found.');
+    }
+
+    if (targetMembership.role === 'owner') {
+      throw new ForbiddenException('The server owner cannot be removed.');
+    }
+
+    await this.repository.removeMember(serverId, targetUserId);
+    return { serverId, userId: targetUserId };
   }
 
   async updateServer(

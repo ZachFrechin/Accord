@@ -459,6 +459,79 @@ input:disabled {
   gap: 16px;
 }
 
+.instance-panel {
+  width: min(520px, calc(100vw - 40px));
+}
+
+.auth-instance-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.auth-instance-line span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-instance-line button {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  background: transparent;
+}
+
+.instance-select {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 10px;
+  color: var(--text-primary);
+  background: var(--bg-input);
+}
+
+.instance-list {
+  display: grid;
+  gap: 10px;
+}
+
+.instance-option {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  color: var(--text-primary);
+  text-align: left;
+  background: var(--bg-surface);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.instance-option:hover,
+.instance-option:focus-visible,
+.instance-option[data-active='true'] {
+  border-color: var(--border-input-focus);
+  background: var(--bg-surface-hover);
+}
+
+.instance-option span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 label {
   display: grid;
   gap: 8px;
@@ -782,12 +855,33 @@ input::placeholder {
   gap: 2px;
 }
 
-.channel-row {
+.channel-settings-btn {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  min-width: 0;
-  border-radius: 8px;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--text-ghost);
+  background: transparent;
+  opacity: 0;
+  transform: translateX(3px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    color 140ms ease;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.channel:hover .channel-settings-btn,
+.channel:focus-within .channel-settings-btn {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.channel-settings-btn:hover {
+  color: var(--text-primary);
 }
 
 .channel-settings-btn {

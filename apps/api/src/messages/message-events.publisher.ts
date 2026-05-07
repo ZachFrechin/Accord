@@ -1,7 +1,11 @@
 import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import Redis from 'ioredis';
 import { loadServerEnv } from '@discord2/config';
-import { InternalRealtimeEvent, type MessageCreatedEvent } from '@discord2/shared';
+import {
+  InternalRealtimeEvent,
+  type MemberRemovedEvent,
+  type MessageCreatedEvent,
+} from '@discord2/shared';
 
 @Injectable()
 export class MessageEventsPublisher implements OnApplicationShutdown {
@@ -26,15 +30,23 @@ export class MessageEventsPublisher implements OnApplicationShutdown {
   }
 
   async publishMessageCreated(event: MessageCreatedEvent): Promise<void> {
+    await this.publish(InternalRealtimeEvent.MessageCreated, event);
+  }
+
+  async publishMemberRemoved(event: MemberRemovedEvent): Promise<void> {
+    await this.publish(InternalRealtimeEvent.MemberRemoved, event);
+  }
+
+  private async publish(channel: string, event: unknown): Promise<void> {
     if (!this.redis) {
       return;
     }
 
     try {
-      await this.redis.publish(InternalRealtimeEvent.MessageCreated, JSON.stringify(event));
+      await this.redis.publish(channel, JSON.stringify(event));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown publish error';
-      this.logger.warn(`Unable to publish message.created event: ${message}`);
+      this.logger.warn(`Unable to publish ${channel} event: ${message}`);
     }
   }
 

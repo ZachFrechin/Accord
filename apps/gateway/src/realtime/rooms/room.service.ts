@@ -35,6 +35,15 @@ export class RoomService {
     server.to(this.channelRoom(channelId)).emit(eventName, payload);
   }
 
+  emitToUserFromServer<TPayload>(
+    server: Server,
+    userId: UserId,
+    eventName: string,
+    payload: TPayload,
+  ): void {
+    server.to(this.userRoom(userId)).emit(eventName, payload);
+  }
+
   async joinVoice(client: AuthenticatedSocket, channelId: ChannelId): Promise<void> {
     client.data.voiceChannelId = channelId;
     await client.join(this.voiceRoom(channelId));
@@ -58,7 +67,7 @@ export class RoomService {
     return `voice:${channelId}`;
   }
 
-  private userRoom(userId: UserId): string {
+  userRoom(userId: UserId): string {
     return `user:${userId}`;
   }
 

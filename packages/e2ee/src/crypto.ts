@@ -8,11 +8,71 @@ export interface ConversationKey {
   bytes: Uint8Array;
 }
 
+export interface DeviceIdentity {
+  deviceId: DeviceId;
+  publicKey: string;
+  privateKey: string;
+}
+
 export async function generateConversationKey(version = 1): Promise<ConversationKey> {
   await sodium.ready;
   return {
     version,
     bytes: sodium.randombytes_buf(conversationKeyBytes),
+  };
+}
+
+export async function importConversationKey(
+  encodedKey: string,
+  version: number,
+): Promise<ConversationKey> {
+  await sodium.ready;
+  return {
+    version,
+    bytes: fromBase64(encodedKey),
+  };
+}
+
+export async function exportConversationKey(key: ConversationKey): Promise<string> {
+  await sodium.ready;
+  return toBase64(key.bytes);
+}
+
+export async function generateDeviceIdentity(deviceId: DeviceId): Promise<DeviceIdentity> {
+  await sodium.ready;
+  const keypair = sodium.crypto_box_keypair();
+
+  return {
+    deviceId,
+    publicKey: toBase64(keypair.publicKey),
+    privateKey: toBase64(keypair.privateKey),
+  };
+}
+
+export async function wrapConversationKey(
+  key: ConversationKey,
+  recipientPublicKey: string,
+): Promise<string> {
+  await sodium.ready;
+  const wrapped = sodium.crypto_box_seal(key.bytes, fromBase64(recipientPublicKey));
+  return toBase64(wrapped);
+}
+
+export async function unwrapConversationKey(
+  wrappedKey: string,
+  identity: DeviceIdentity,
+  version: number,
+): Promise<ConversationKey> {
+  await sodium.ready;
+  const bytes = sodium.crypto_box_seal_open(
+    fromBase64(wrappedKey),
+    fromBase64(identity.publicKey),
+    fromBase64(identity.privateKey),
+  );
+
+  return {
+    version,
+    bytes,
   };
 }
 
@@ -61,6 +121,7 @@ export async function decryptMessage(
 export async function encryptBytes(
   bytes: Uint8Array,
   key: ConversationKey,
+  senderDeviceId: DeviceId,
 ): Promise<EncryptedPayload> {
   await sodium.ready;
 
@@ -78,7 +139,7 @@ export async function encryptBytes(
     ciphertext: toBase64(ciphertext),
     nonce: toBase64(nonce),
     keyVersion: key.version,
-    senderDeviceId: 'file-encryption',
+    senderDeviceId,
   };
 }
 
@@ -97,10 +158,10 @@ export async function decryptBytes(
   );
 }
 
-function toBase64(bytes: Uint8Array): string {
+export function toBase64(bytes: Uint8Array): string {
   return sodium.to_base64(bytes, sodium.base64_variants.ORIGINAL);
 }
 
-function fromBase64(value: string): Uint8Array {
+export function fromBase64(value: string): Uint8Array {
   return sodium.from_base64(value, sodium.base64_variants.ORIGINAL);
 }

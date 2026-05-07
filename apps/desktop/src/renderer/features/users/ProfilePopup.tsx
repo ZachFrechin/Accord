@@ -2,24 +2,21 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import type { UserProfile } from '@discord2/shared';
 import { AvatarImage } from '../../components/AvatarImage';
-import { ApiClient } from '../../lib/api-client';
-import type { Session } from '@supabase/supabase-js';
+import type { ApiClient } from '../../lib/api-client';
 
 interface ProfilePopupProps {
   userId: string;
-  session: Session;
+  api: ApiClient;
   onClose: () => void;
 }
 
-export function ProfilePopup({ userId, session, onClose }: ProfilePopupProps): React.JSX.Element {
+export function ProfilePopup({ userId, api, onClose }: ProfilePopupProps): React.JSX.Element {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const api = new ApiClient(session);
-
     api.users
       .getById(userId)
       .then((data) => {
@@ -38,7 +35,7 @@ export function ProfilePopup({ userId, session, onClose }: ProfilePopupProps): R
     return () => {
       cancelled = true;
     };
-  }, [userId, session]);
+  }, [userId, api]);
 
   function handleBackdropClick(event: React.MouseEvent<HTMLDivElement>): void {
     if (event.currentTarget === event.target) {

@@ -336,7 +336,7 @@ describe('api service behavior', () => {
     expect(repositoryMocks.servers.update).not.toHaveBeenCalled();
   });
 
-  it('publishes a message.created event after persisting a public text message', async () => {
+  it('publishes a message.created event after persisting an E2EE text message', async () => {
     const { MessagesService } = await import('./messages/messages.service');
     const serversService = { requireMembership: vi.fn().mockResolvedValue({ id: 'server-1' }) };
     const usersService = {
@@ -352,24 +352,27 @@ describe('api service behavior', () => {
       listMentionsForMessages: vi.fn(),
       resolveMentions: vi.fn().mockResolvedValue([]),
     };
-    const embedsService = {
-      createEmbeds: vi.fn().mockResolvedValue([]),
-    };
     const service = new MessagesService(
       supabase,
       serversService as never,
       usersService as never,
       rolesService as never,
-      embedsService as never,
       eventsPublisher as never,
     );
+    const encrypted = {
+      algorithm: 'xchacha20poly1305-ietf' as const,
+      ciphertext: 'abc',
+      nonce: 'nonce',
+      keyVersion: 1,
+      senderDeviceId: 'device-1',
+    };
     const message = {
       id: 'message-1',
       channelId: 'channel-1',
       authorId: user.id,
-      privacy: MessagePrivacy.Public,
-      content: 'hello',
-      encrypted: null,
+      privacy: MessagePrivacy.EndToEndEncrypted,
+      content: null,
+      encrypted,
       createdAt: '2026-05-06T00:00:00.000Z',
       editedAt: null,
     };
@@ -383,16 +386,15 @@ describe('api service behavior', () => {
     });
     repositoryMocks.messages.insert.mockResolvedValue(message);
     repositoryMocks.messages.insertAttachments.mockResolvedValue([]);
-    repositoryMocks.messages.insertEmbeds.mockResolvedValue([]);
 
     await expect(
       service.createMessage(user, 'channel-1', {
-        privacy: MessagePrivacy.Public,
-        content: ' hello ',
+        privacy: MessagePrivacy.EndToEndEncrypted,
+        encrypted,
       }),
     ).resolves.toMatchObject({
       id: 'message-1',
-      content: 'hello',
+      content: null,
       author: {
         id: user.id,
         displayName: 'User',
@@ -401,18 +403,14 @@ describe('api service behavior', () => {
       mentions: [],
     });
     expect(serversService.requireMembership).toHaveBeenCalledWith(user, 'server-1');
-    expect(rolesService.resolveMentions).toHaveBeenCalledWith('server-1', 'hello');
-    expect(rolesService.insertMessageMentions).toHaveBeenCalledWith('message-1', []);
     expect(repositoryMocks.messages.insertAttachments).toHaveBeenCalledWith('message-1', []);
-    expect(repositoryMocks.messages.insertEmbeds).toHaveBeenCalledWith('message-1', []);
-    expect(embedsService.createEmbeds).toHaveBeenCalledWith('hello');
     expect(eventsPublisher.publishMessageCreated).toHaveBeenCalledWith({
       channelId: 'channel-1',
-      message: expect.objectContaining({ id: 'message-1', content: 'hello' }),
+      message: expect.objectContaining({ id: 'message-1', content: null }),
     });
   });
 
-  it('accepts media-only public messages with validated attachments', async () => {
+  it('accepts media-only E2EE messages with validated attachments', async () => {
     const { MessagesService } = await import('./messages/messages.service');
     const serversService = { requireMembership: vi.fn().mockResolvedValue({ id: 'server-1' }) };
     const usersService = {
@@ -426,33 +424,37 @@ describe('api service behavior', () => {
       insertMessageMentions: vi.fn().mockResolvedValue(undefined),
       resolveMentions: vi.fn().mockResolvedValue([]),
     };
-    const embedsService = {
-      createEmbeds: vi.fn().mockResolvedValue([]),
-    };
     const eventsPublisher = { publishMessageCreated: vi.fn().mockResolvedValue(undefined) };
     const service = new MessagesService(
       supabase,
       serversService as never,
       usersService as never,
       rolesService as never,
-      embedsService as never,
       eventsPublisher as never,
     );
+    const encrypted = {
+      algorithm: 'xchacha20poly1305-ietf' as const,
+      ciphertext: 'abc',
+      nonce: 'nonce',
+      keyVersion: 1,
+      senderDeviceId: 'device-1',
+    };
     const message = {
       id: 'message-1',
       channelId: 'channel-1',
       authorId: user.id,
-      privacy: MessagePrivacy.Public,
+      privacy: MessagePrivacy.EndToEndEncrypted,
       content: null,
-      encrypted: null,
+      encrypted,
       createdAt: '2026-05-06T00:00:00.000Z',
       editedAt: null,
     };
     const attachment = {
-      storagePath: 'channel-1/user-1/file.png',
-      mimeType: 'image/png',
+      storagePath: 'channel-1/user-1/file.bin',
+      mimeType: 'application/octet-stream',
       byteSize: 1024,
-      fileName: 'file.png',
+      isE2ee: true,
+      encrypted,
     };
     repositoryMocks.channels.findById.mockResolvedValue({
       id: 'channel-1',
@@ -464,11 +466,11 @@ describe('api service behavior', () => {
     });
     repositoryMocks.messages.insert.mockResolvedValue(message);
     repositoryMocks.messages.insertAttachments.mockResolvedValue([{ id: 'attachment-1' }]);
-    repositoryMocks.messages.insertEmbeds.mockResolvedValue([]);
 
     await expect(
       service.createMessage(user, 'channel-1', {
-        privacy: MessagePrivacy.Public,
+        privacy: MessagePrivacy.EndToEndEncrypted,
+        encrypted,
         attachments: [attachment],
       }),
     ).resolves.toMatchObject({
@@ -488,7 +490,6 @@ describe('api service behavior', () => {
       { requireMembership: vi.fn().mockResolvedValue({ id: 'server-1' }) } as never,
       { me: vi.fn() } as never,
       { insertMessageMentions: vi.fn(), resolveMentions: vi.fn() } as never,
-      { createEmbeds: vi.fn() } as never,
       { publishMessageCreated: vi.fn() } as never,
     );
     repositoryMocks.channels.findById.mockResolvedValue({
@@ -499,15 +500,25 @@ describe('api service behavior', () => {
       isPrivate: false,
       createdAt: null,
     });
+    const encrypted = {
+      algorithm: 'xchacha20poly1305-ietf' as const,
+      ciphertext: 'abc',
+      nonce: 'nonce',
+      keyVersion: 1,
+      senderDeviceId: 'device-1',
+    };
 
     await expect(
       service.createMessage(user, 'channel-1', {
-        privacy: MessagePrivacy.Public,
+        privacy: MessagePrivacy.EndToEndEncrypted,
+        encrypted,
         attachments: [
           {
-            storagePath: 'other-channel/user-1/file.png',
-            mimeType: 'image/png',
+            storagePath: 'other-channel/user-1/file.bin',
+            mimeType: 'application/octet-stream',
             byteSize: 1024,
+            isE2ee: true,
+            encrypted,
           },
         ],
       }),
@@ -515,14 +526,13 @@ describe('api service behavior', () => {
     expect(repositoryMocks.messages.insert).not.toHaveBeenCalled();
   });
 
-  it('rejects messages outside public text server channels for this iteration', async () => {
+  it('rejects messages to voice channels', async () => {
     const { MessagesService } = await import('./messages/messages.service');
     const service = new MessagesService(
       supabase,
       { requireMembership: vi.fn() } as never,
       { me: vi.fn() } as never,
       { insertMessageMentions: vi.fn(), resolveMentions: vi.fn() } as never,
-      { createEmbeds: vi.fn() } as never,
       { publishMessageCreated: vi.fn() } as never,
     );
     repositoryMocks.channels.findById.mockResolvedValue({
@@ -533,11 +543,18 @@ describe('api service behavior', () => {
       isPrivate: false,
       createdAt: null,
     });
+    const encrypted = {
+      algorithm: 'xchacha20poly1305-ietf' as const,
+      ciphertext: 'abc',
+      nonce: 'nonce',
+      keyVersion: 1,
+      senderDeviceId: 'device-1',
+    };
 
     await expect(
       service.createMessage(user, 'channel-1', {
-        privacy: MessagePrivacy.Public,
-        content: 'hello',
+        privacy: MessagePrivacy.EndToEndEncrypted,
+        encrypted,
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(repositoryMocks.messages.insert).not.toHaveBeenCalled();

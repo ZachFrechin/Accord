@@ -19,12 +19,12 @@ describe('normalizeMessageInput', () => {
     ).toThrow(/must not include plaintext/);
   });
 
-  it('normalizes public message content', () => {
-    expect(
+  it('rejects non-E2EE messages', () => {
+    expect(() =>
       normalizeMessageInput({
         privacy: MessagePrivacy.Public,
-        content: ' hello ',
-      }),
-    ).toMatchObject({ content: 'hello', encrypted: null });
+        content: 'hello',
+      } as never),
+    ).toThrow(/end-to-end encrypted/);
   });
 });

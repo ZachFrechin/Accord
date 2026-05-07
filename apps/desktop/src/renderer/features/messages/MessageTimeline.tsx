@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { MessageEmbedType } from '@discord2/shared';
+import { MessageEmbedType, MessagePrivacy } from '@discord2/shared';
 import type {
   MessageMention,
   MessageRecord,
@@ -9,23 +9,34 @@ import type {
   ServerMemberProfile,
   ServerRole,
 } from '@discord2/shared';
+import type { ConversationKey } from '@discord2/e2ee';
 import { AvatarImage } from '../../components/AvatarImage';
 import { ProfilePopup } from '../users/ProfilePopup';
+import type { ApiClient } from '../../lib/api-client';
+import {
+  loadEncryptedAttachment,
+  revokeDecryptedAttachment,
+  type DecryptedAttachment,
+} from '../../lib/encrypted-attachments';
 
 interface MessageTimelineProps {
   messages: MessageRecord[];
   isLoading: boolean;
   session: Session;
+  api: ApiClient;
   members: ServerMemberProfile[];
   roles: ServerRole[];
+  conversationKey: ConversationKey | null;
 }
 
 export function MessageTimeline({
   messages,
   isLoading,
   session,
+  api,
   members,
   roles,
+  conversationKey,
 }: MessageTimelineProps): React.JSX.Element {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<MessageAttachment | null>(null);
@@ -77,11 +88,18 @@ export function MessageTimeline({
         <div className="message-list" ref={listRef}>
           {messages.map((message) => {
             const authorRole = getPrimaryRole(message.authorId, members, roles);
+            const isE2ee = message.privacy === MessagePrivacy.EndToEndEncrypted;
+            const displayMentions = isE2ee
+              ? detectClientMentions(message.content, members, roles)
+              : (message.mentions && message.mentions.length > 0
+                ? message.mentions
+                : detectClientMentions(message.content, members, roles));
             const isMentioningCurrentUser = isMessageMentioningCurrentUser(
-              message.mentions ?? [],
+              displayMentions,
               session.user.id,
               currentRoleIds,
             );
+            const clientEmbeds = createClientOnlyEmbeds(message.content);
 
             return (
               <article
@@ -121,13 +139,14 @@ export function MessageTimeline({
                     </span>
                   </div>
                   {message.content ? (
-                    <p>{renderMessageContent(message.content, message.mentions ?? [])}</p>
+                    <p>{renderMessageContent(message.content, displayMentions)}</p>
                   ) : null}
                   <MessageAttachments
                     attachments={message.attachments}
+                    conversationKey={conversationKey}
                     onPreview={setPreviewAttachment}
                   />
-                  <MessageEmbeds embeds={message.embeds} />
+                  <MessageEmbeds embeds={isE2ee ? clientEmbeds : [...message.embeds, ...clientEmbeds]} />
                 </div>
               </article>
             );
@@ -137,7 +156,7 @@ export function MessageTimeline({
       {selectedUserId ? (
         <ProfilePopup
           userId={selectedUserId}
-          session={session}
+          api={api}
           onClose={() => setSelectedUserId(null)}
         />
       ) : null}
@@ -162,6 +181,95 @@ export function MessageTimeline({
       ) : null}
     </>
   );
+}
+
+function detectClientMentions(
+  content: string | null,
+  members: ServerMemberProfile[],
+  roles: ServerRole[],
+): MessageMention[] {
+  if (!content) return [];
+  const mentions: MessageMention[] = [];
+  for (const member of members) {
+    if (hasMention(content, member.profile.displayName)) {
+      mentions.push({
+        type: 'user',
+        userId: member.userId,
+        displayName: member.profile.displayName,
+        avatarUrl: member.profile.avatarUrl,
+      });
+    }
+  }
+
+  for (const role of roles) {
+    if (role.mentionable && hasMention(content, role.name)) {
+      mentions.push({
+        type: 'role',
+        roleId: role.id,
+        name: role.name,
+        color: role.color,
+      });
+    }
+  }
+
+  return mentions;
+}
+
+function hasMention(content: string, label: string): boolean {
+  return new RegExp(`@${escapeRegExp(label)}(?=$|\\s|[,.!?;:])`, 'iu').test(content);
+}
+
+function createClientOnlyEmbeds(content: string | null): MessageEmbed[] {
+  if (!content) return [];
+  return extractUrls(content).slice(0, 4).map((url, index) => {
+    const youtubeId = getYouTubeId(url);
+    if (youtubeId) {
+      return {
+        id: `client-youtube-${index}-${url}`,
+        type: MessageEmbedType.YouTube,
+        url,
+        title: 'YouTube',
+        provider: 'YouTube',
+        embedUrl: `https://www.youtube-nocookie.com/embed/${youtubeId}`,
+      };
+    }
+
+    if (/\.(png|jpe?g|webp|gif)(\?.*)?$/iu.test(url)) {
+      return {
+        id: `client-image-${index}-${url}`,
+        type: MessageEmbedType.Image,
+        url,
+        title: new URL(url).hostname,
+        thumbnailUrl: url,
+      };
+    }
+
+    return {
+      id: `client-link-${index}-${url}`,
+      type: MessageEmbedType.Link,
+      url,
+      title: new URL(url).hostname,
+      provider: new URL(url).hostname,
+    };
+  });
+}
+
+function extractUrls(content: string): string[] {
+  const matches = content.match(/https?:\/\/[^\s<>"']+/giu);
+  return matches ?? [];
+}
+
+function getYouTubeId(url: string): string | null {
+  const parsed = new URL(url);
+  if (parsed.hostname === 'youtu.be') {
+    return parsed.pathname.slice(1) || null;
+  }
+
+  if (parsed.hostname.endsWith('youtube.com')) {
+    return parsed.searchParams.get('v');
+  }
+
+  return null;
 }
 
 function getPrimaryRole(
@@ -258,11 +366,90 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function EncryptedAttachmentItem({
+  attachment,
+  conversationKey,
+  onPreview,
+}: {
+  attachment: MessageAttachment;
+  conversationKey: ConversationKey | null;
+  onPreview: (attachment: MessageAttachment) => void;
+}): React.JSX.Element {
+  const [decrypted, setDecrypted] = useState<DecryptedAttachment | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!conversationKey || !attachment.encrypted) return;
+    let cancelled = false;
+    loadEncryptedAttachment(attachment, conversationKey)
+      .then((result) => {
+        if (!cancelled) setDecrypted(result);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      revokeDecryptedAttachment(attachment.id);
+    };
+  }, [attachment, conversationKey]);
+
+  if (failed || !conversationKey || !attachment.encrypted) {
+    return (
+      <div className="message-file-link encrypted" key={attachment.id}>
+        Fichier chiffré illisible
+      </div>
+    );
+  }
+
+  if (!decrypted) {
+    return (
+      <div className="message-file-link encrypted loading" key={attachment.id}>
+        Fichier chiffré (déchiffrement…)
+      </div>
+    );
+  }
+
+  if (decrypted.mimeType.startsWith('image/')) {
+    return (
+      <button
+        type="button"
+        className="message-media image"
+        key={attachment.id}
+        onClick={() => onPreview({ ...attachment, url: decrypted.objectUrl })}
+      >
+        <img alt="Image chiffrée" src={decrypted.objectUrl} loading="lazy" />
+      </button>
+    );
+  }
+
+  if (decrypted.mimeType.startsWith('video/')) {
+    return (
+      <video className="message-media video" controls key={attachment.id} preload="metadata">
+        <source src={decrypted.objectUrl} type={decrypted.mimeType} />
+      </video>
+    );
+  }
+
+  return (
+    <a
+      className="message-file-link"
+      key={attachment.id}
+      href={decrypted.objectUrl}
+      download="fichier-chiffré"
+    >
+      Télécharger le fichier
+    </a>
+  );
+}
+
 function MessageAttachments({
   attachments,
+  conversationKey,
   onPreview,
 }: {
   attachments: MessageAttachment[];
+  conversationKey: ConversationKey | null;
   onPreview: (attachment: MessageAttachment) => void;
 }): React.JSX.Element | null {
   if (attachments.length === 0) {
@@ -272,6 +459,17 @@ function MessageAttachments({
   return (
     <div className="message-attachments">
       {attachments.map((attachment) => {
+        if (attachment.isE2ee) {
+          return (
+            <EncryptedAttachmentItem
+              key={attachment.id}
+              attachment={attachment}
+              conversationKey={conversationKey}
+              onPreview={onPreview}
+            />
+          );
+        }
+
         if (attachment.mimeType.startsWith('image/')) {
           return (
             <button

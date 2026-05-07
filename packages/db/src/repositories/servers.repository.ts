@@ -107,6 +107,16 @@ export class ServersRepository {
     }
   }
 
+  async removeMember(serverId: ServerId, userId: UserId): Promise<void> {
+    const { error } = await this.supabase
+      .from('server_members')
+      .delete()
+      .eq('server_id', serverId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+  }
+
   async findByIdForUser(serverId: ServerId, userId: UserId): Promise<ServerSummary | null> {
     const servers = await this.listForUser(userId);
     return servers.find((server) => server.id === serverId) ?? null;

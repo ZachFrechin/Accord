@@ -117,7 +117,8 @@ export class MessagesRepository {
           mime_type: attachment.mimeType,
           byte_size: attachment.byteSize,
           file_name: attachment.fileName ?? null,
-          is_e2ee: false,
+          is_e2ee: attachment.isE2ee ?? false,
+          encrypted_payload: attachment.encrypted ?? null,
         })),
       )
       .select(
@@ -209,6 +210,32 @@ export class MessagesRepository {
     return byMessage;
   }
 
+  async findAttachment(
+    messageId: string,
+    attachmentId: string,
+  ): Promise<{ channelId: string; storagePath: string; isE2ee: boolean } | null> {
+    const { data, error } = await this.supabase
+      .from('attachments')
+      .select('id, message_id, storage_path, is_e2ee, messages!inner(channel_id)')
+      .eq('id', attachmentId)
+      .eq('message_id', messageId)
+      .maybeSingle<{
+        id: string;
+        message_id: string;
+        storage_path: string;
+        is_e2ee: boolean;
+        messages: { channel_id: string };
+      }>();
+
+    if (error) throw error;
+    if (!data) return null;
+    return {
+      channelId: data.messages.channel_id,
+      storagePath: data.storage_path,
+      isE2ee: data.is_e2ee,
+    };
+  }
+
   async listEmbedsForMessages(messageIds: string[]): Promise<Map<string, MessageEmbed[]>> {
     if (messageIds.length === 0) {
       return new Map();
@@ -254,7 +281,7 @@ function mapMessageRow(row: MessageRow): MessageRecord {
 function mapAttachmentRow(row: AttachmentRow): MessageAttachment {
   const attachment: MessageAttachment = {
     id: row.id,
-    url: toMessageMediaPublicUrl(row.storage_path),
+    url: row.is_e2ee ? '' : toMessageMediaPublicUrl(row.storage_path),
     storagePath: row.storage_path,
     mimeType: row.mime_type,
     byteSize: row.byte_size,
@@ -265,6 +292,7 @@ function mapAttachmentRow(row: AttachmentRow): MessageAttachment {
   if (row.width) attachment.width = row.width;
   if (row.height) attachment.height = row.height;
   if (row.duration_ms) attachment.durationMs = row.duration_ms;
+  if (row.encrypted_payload) attachment.encrypted = row.encrypted_payload;
 
   return attachment;
 }

@@ -47,6 +47,18 @@ export interface UserProfile {
   avatarUrl: string | null;
 }
 
+export interface InstanceConfig {
+  instanceId: string;
+  instanceName: string;
+  apiUrl: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  gatewayUrl: string;
+  livekitUrl: string;
+  capabilities: string[];
+  minClientVersion?: string;
+}
+
 export interface ServerSummary {
   id: ServerId;
   name: string;
@@ -176,6 +188,7 @@ export interface MessageAttachment {
   height?: number;
   durationMs?: number;
   isE2ee: boolean;
+  encrypted?: EncryptedPayload | null;
 }
 
 export interface MessageEmbed {
@@ -194,11 +207,14 @@ export interface CreateAttachmentInput {
   mimeType: string;
   byteSize: number;
   fileName?: string;
+  encrypted?: EncryptedPayload | null;
+  isE2ee?: boolean;
 }
 
 export interface CreateMessageInput {
   content?: string;
   privacy: MessagePrivacy;
+  encrypted?: EncryptedPayload | null;
   attachments?: CreateAttachmentInput[];
 }
 
@@ -236,4 +252,49 @@ export interface ConversationKeyRecord {
   keyVersion: number;
   wrappedKey: string;
   deviceId: DeviceId;
+}
+
+export interface CryptoDevice {
+  id: DeviceId;
+  userId: UserId;
+  publicKey: string;
+  createdAt: string;
+  revokedAt: string | null;
+}
+
+export interface PublishCryptoDeviceInput {
+  deviceId: DeviceId;
+  publicKey: string;
+}
+
+export interface WrappedConversationKey {
+  conversationId: ConversationId;
+  deviceId: DeviceId;
+  keyVersion: number;
+  wrappedKey: string;
+}
+
+export interface BootstrapConversationInput {
+  deviceId: DeviceId;
+  currentKeyVersion: number;
+  wrappedKeys: Array<{
+    deviceId: DeviceId;
+    keyVersion: number;
+    wrappedKey: string;
+  }>;
+}
+
+export interface ConversationBootstrapResult {
+  conversationId: ConversationId;
+  channelId: ChannelId;
+  currentKeyVersion: number;
+}
+
+export interface E2eeConversationState extends ConversationBootstrapResult {
+  keys: WrappedConversationKey[];
+}
+
+export interface SignedAttachmentUrl {
+  url: string;
+  expiresAt: string;
 }

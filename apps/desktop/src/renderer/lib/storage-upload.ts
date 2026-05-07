@@ -1,22 +1,15 @@
-import { supabase } from './supabase';
-import type { CreateAttachmentInput } from '@discord2/shared';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { CreateAttachmentInput, EncryptedPayload } from '@discord2/shared';
 
 const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
-const MAX_MESSAGE_MEDIA_SIZE_BYTES = 25 * 1024 * 1024;
 const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
 };
-const MESSAGE_MEDIA_EXTENSIONS: Record<string, string> = {
-  ...IMAGE_EXTENSIONS,
-  'image/gif': 'gif',
-  'video/mp4': 'mp4',
-  'video/webm': 'webm',
-  'video/quicktime': 'mov',
-};
 
 export async function uploadPublicImage(
+  supabase: SupabaseClient,
   bucket: 'profile-avatars' | 'server-icons',
   ownerId: string,
   file: File,
@@ -43,23 +36,19 @@ export async function uploadPublicImage(
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 
-export async function uploadMessageMedia(
+export async function uploadEncryptedMessageMedia(
+  supabase: SupabaseClient,
   channelId: string,
   userId: string,
-  file: File,
+  encryptedFile: EncryptedPayload,
 ): Promise<CreateAttachmentInput> {
-  const extension = MESSAGE_MEDIA_EXTENSIONS[file.type];
-  if (!extension) {
-    throw new Error('Format accepté : PNG, JPEG, WebP, GIF, MP4, WebM ou MOV.');
-  }
-
-  if (file.size > MAX_MESSAGE_MEDIA_SIZE_BYTES) {
-    throw new Error('Fichier trop lourd. Taille maximale : 25 MB.');
-  }
-
-  const path = `${channelId}/${userId}/${crypto.randomUUID()}.${extension}`;
-  const { error } = await supabase.storage.from('message-media').upload(path, file, {
-    contentType: file.type,
+  const path = `${channelId}/${userId}/${crypto.randomUUID()}.bin`;
+  const encryptedBytes = base64ToBytes(encryptedFile.ciphertext);
+  const body = new Blob([new Uint8Array(encryptedBytes)], {
+    type: 'application/octet-stream',
+  });
+  const { error } = await supabase.storage.from('message-media').upload(path, body, {
+    contentType: 'application/octet-stream',
     upsert: false,
   });
 
@@ -69,8 +58,14 @@ export async function uploadMessageMedia(
 
   return {
     storagePath: path,
-    mimeType: file.type,
-    byteSize: file.size,
-    fileName: file.name,
+    mimeType: 'application/octet-stream',
+    byteSize: body.size,
+    isE2ee: true,
+    encrypted: encryptedFile,
   };
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }

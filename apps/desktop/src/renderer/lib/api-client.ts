@@ -12,6 +12,7 @@ import type {
   ServerSummary,
   ServerMemberProfile,
   ServerRole,
+  SignedAttachmentUrl,
   UpdateChannelInput,
   UpdateMemberRolesInput,
   UpdateProfileInput,
@@ -19,11 +20,19 @@ import type {
   UpdateServerInput,
   UserProfile,
   VoiceTokenResponse,
+  BootstrapConversationInput,
+  ConversationBootstrapResult,
+  CryptoDevice,
+  E2eeConversationState,
+  InstanceConfig,
+  PublishCryptoDeviceInput,
 } from '@discord2/shared';
-import { env } from './env';
 
 export class ApiClient {
-  constructor(private readonly session: Session) {}
+  constructor(
+    private readonly session: Session,
+    private readonly instance: InstanceConfig,
+  ) {}
 
   readonly users = {
     me: () => this.request<UserProfile>('/users/me'),
@@ -72,6 +81,10 @@ export class ApiClient {
         method: 'PATCH',
         body: JSON.stringify(input),
       }),
+    removeMember: (serverId: string, userId: string) =>
+      this.request<void>(`/servers/${serverId}/members/${userId}`, {
+        method: 'DELETE',
+      }),
   };
 
   readonly channels = {
@@ -99,6 +112,38 @@ export class ApiClient {
         method: 'POST',
         body: JSON.stringify(input),
       }),
+    getAttachmentUrl: (messageId: string, attachmentId: string) =>
+      this.request<SignedAttachmentUrl>(
+        `/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}/url`,
+      ),
+  };
+
+  readonly crypto = {
+    publishDevice: (input: PublishCryptoDeviceInput) =>
+      this.request<CryptoDevice>('/crypto/devices', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    listServerDevices: (serverId: string) =>
+      this.request<CryptoDevice[]>(`/crypto/devices/server/${serverId}`),
+    getConversation: (channelId: string) =>
+      this.request<E2eeConversationState>(`/crypto/conversations/${channelId}`),
+    bootstrapConversation: (channelId: string, input: BootstrapConversationInput) =>
+      this.request<ConversationBootstrapResult>(
+        `/crypto/conversations/${channelId}/bootstrap`,
+        {
+          method: 'POST',
+          body: JSON.stringify(input),
+        },
+      ),
+    addConversationKeys: (
+      conversationId: string,
+      wrappedKeys: Array<{ conversationId: string; deviceId: string; keyVersion: number; wrappedKey: string }>,
+    ) =>
+      this.request<unknown>(`/crypto/conversations/${encodeURIComponent(conversationId)}/keys`, {
+        method: 'POST',
+        body: JSON.stringify({ wrappedKeys }),
+      }),
   };
 
   readonly files = {
@@ -125,7 +170,7 @@ export class ApiClient {
   };
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const response = await fetch(`${env.VITE_API_URL}${path}`, {
+    const response = await fetch(`${this.instance.apiUrl}${path}`, {
       ...init,
       headers: {
         ...init.headers,

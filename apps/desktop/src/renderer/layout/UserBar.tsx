@@ -2,7 +2,6 @@ import { LogOut, Mic, Palette, Settings } from 'lucide-react';
 import type { UserProfile } from '@discord2/shared';
 import { AvatarImage } from '../components/AvatarImage';
 import { IconButton } from '../components/IconButton';
-import { supabase } from '../lib/supabase';
 
 interface UserBarProps {
   profile: UserProfile | undefined;
@@ -10,6 +9,7 @@ interface UserBarProps {
   onOpenSettings: () => void;
   onOpenThemePicker: () => void;
   onOpenVoiceSettings: () => void;
+  onLogout: () => void;
 }
 
 export function UserBar({
@@ -18,6 +18,7 @@ export function UserBar({
   onOpenSettings,
   onOpenThemePicker,
   onOpenVoiceSettings,
+  onLogout,
 }: UserBarProps): React.JSX.Element {
   return (
     <footer className="user-bar">
@@ -40,7 +41,7 @@ export function UserBar({
         <IconButton label="Changer de thème" onClick={onOpenThemePicker}>
           <Palette size={18} />
         </IconButton>
-        <IconButton label="Déconnexion" onClick={() => void supabase.auth.signOut()}>
+        <IconButton label="Déconnexion" onClick={onLogout}>
           <LogOut size={18} />
         </IconButton>
       </div>

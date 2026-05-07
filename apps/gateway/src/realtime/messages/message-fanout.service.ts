@@ -5,6 +5,7 @@ import { loadServerEnv } from '@discord2/config';
 import {
   InternalRealtimeEvent,
   ServerToClientEvent,
+  type MemberRemovedEvent,
   type MessageCreatedEvent,
 } from '@discord2/shared';
 import { RoomService } from '../rooms/room.service';
@@ -33,15 +34,18 @@ export class MessageFanoutService implements OnApplicationShutdown {
     });
 
     this.redis.on('message', (channel, payload) => {
-      if (channel !== InternalRealtimeEvent.MessageCreated) {
-        return;
+      if (channel === InternalRealtimeEvent.MessageCreated) {
+        this.forwardMessageCreated(server, payload);
+      } else if (channel === InternalRealtimeEvent.MemberRemoved) {
+        this.forwardMemberRemoved(server, payload);
       }
-
-      this.forwardMessageCreated(server, payload);
     });
 
-    void this.redis.subscribe(InternalRealtimeEvent.MessageCreated);
-    this.logger.log('Subscribed to message.created Redis events.');
+    void this.redis.subscribe(
+      InternalRealtimeEvent.MessageCreated,
+      InternalRealtimeEvent.MemberRemoved,
+    );
+    this.logger.log('Subscribed to message.created and member.removed Redis events.');
   }
 
   onApplicationShutdown(): void {
@@ -60,6 +64,21 @@ export class MessageFanoutService implements OnApplicationShutdown {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown parse error';
       this.logger.warn(`Invalid message.created payload: ${message}`);
+    }
+  }
+
+  private forwardMemberRemoved(server: Server, payload: string): void {
+    try {
+      const event = JSON.parse(payload) as MemberRemovedEvent;
+      this.roomService.emitToUserFromServer(
+        server,
+        event.userId,
+        ServerToClientEvent.MemberRemoved,
+        event,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown parse error';
+      this.logger.warn(`Invalid member.removed payload: ${message}`);
     }
   }
 }

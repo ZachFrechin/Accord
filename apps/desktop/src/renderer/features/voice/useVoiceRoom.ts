@@ -8,14 +8,14 @@ import {
   type LocalTrack,
   type RemoteTrack,
 } from 'livekit-client';
-import { ClientToServerEvent, type ChannelId } from '@discord2/shared';
+import { ClientToServerEvent, type ChannelId, type InstanceConfig } from '@discord2/shared';
 import type { ApiClient } from '../../lib/api-client';
-import { env } from '../../lib/env';
 import { useUiStore } from '../../store/ui-store';
 import { createProcessedAudioTrack } from './audio-processing';
 
 interface UseVoiceRoomInput {
   api: ApiClient;
+  instance: InstanceConfig;
   socket: Socket | null;
 }
 
@@ -26,7 +26,7 @@ export interface VoiceRoomControls {
   setDeafened: (deafened: boolean) => void;
 }
 
-export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomControls {
+export function useVoiceRoom({ api, instance, socket }: UseVoiceRoomInput): VoiceRoomControls {
   const roomRef = useRef<Room | null>(null);
   const activeChannelRef = useRef<ChannelId | null>(null);
   const audioRootRef = useRef<HTMLDivElement | null>(null);
@@ -177,7 +177,7 @@ export function useVoiceRoom({ api, socket }: UseVoiceRoomInput): VoiceRoomContr
 
     try {
       const { token } = await api.voice.createToken(channelId);
-      await room.connect(env.VITE_LIVEKIT_URL, token);
+      await room.connect(instance.livekitUrl, token);
       await room.startAudio();
 
       const settings = useUiStore.getState().voiceSettings;

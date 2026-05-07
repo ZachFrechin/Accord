@@ -1,11 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
-import { env } from './env';
+import type { InstanceConfig } from '@discord2/shared';
 
-export const supabase = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: false,
-    storage: window.localStorage,
-  },
-});
+export type SupabaseBrowserClient = ReturnType<typeof createClient>;
+
+export function createSupabaseClient(instance: InstanceConfig): SupabaseBrowserClient {
+  return createClient(instance.supabaseUrl, instance.supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+      storage: window.localStorage,
+      storageKey: `accord:${instance.instanceId}:supabase-auth`,
+    },
+  });
+}

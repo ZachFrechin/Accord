@@ -4,11 +4,12 @@ import type { UserProfile } from '@discord2/shared';
 import { AvatarImage } from '../../components/AvatarImage';
 import { Dialog } from '../../components/Dialog';
 import { uploadPublicImage } from '../../lib/storage-upload';
-import { supabase } from '../../lib/supabase';
+import type { SupabaseBrowserClient } from '../../lib/supabase';
 
 interface ProfileSettingsDialogProps {
   profile: UserProfile;
   session: Session;
+  supabase: SupabaseBrowserClient;
   isSavingProfile: boolean;
   onClose: () => void;
   onSaveProfile: (input: { displayName: string; avatarUrl: string | null }) => Promise<void>;
@@ -17,6 +18,7 @@ interface ProfileSettingsDialogProps {
 export function ProfileSettingsDialog({
   profile,
   session,
+  supabase,
   isSavingProfile,
   onClose,
   onSaveProfile,
@@ -51,7 +53,7 @@ export function ProfileSettingsDialog({
 
     try {
       const uploadedAvatarUrl = avatarFile
-        ? await uploadPublicImage('profile-avatars', profile.id, avatarFile)
+        ? await uploadPublicImage(supabase, 'profile-avatars', profile.id, avatarFile)
         : avatarUrl;
       await onSaveProfile({
         displayName: displayName.trim(),

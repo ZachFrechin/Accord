@@ -9,19 +9,8 @@ export interface CreateMessageInput {
 }
 
 export function normalizeMessageInput(input: CreateMessageInput): CreateMessageInput {
-  if (input.privacy === MessagePrivacy.Public) {
-    const content = input.content?.trim();
-    const hasAttachments = (input.attachments?.length ?? 0) > 0;
-    if (!content && !hasAttachments) {
-      throw new ValidationAppError('Public messages require plaintext content.');
-    }
-
-    return {
-      privacy: MessagePrivacy.Public,
-      content: content || null,
-      encrypted: null,
-      attachments: input.attachments ?? [],
-    };
+  if (input.privacy !== MessagePrivacy.EndToEndEncrypted) {
+    throw new ValidationAppError('Only end-to-end encrypted messages are accepted.');
   }
 
   if (input.content) {
@@ -36,5 +25,6 @@ export function normalizeMessageInput(input: CreateMessageInput): CreateMessageI
     privacy: MessagePrivacy.EndToEndEncrypted,
     content: null,
     encrypted: input.encrypted,
+    attachments: input.attachments ?? [],
   };
 }

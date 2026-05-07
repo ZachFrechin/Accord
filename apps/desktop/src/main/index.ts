@@ -37,6 +37,20 @@ function createMainWindow(): void {
 
 void app.whenReady().then(() => {
   ipcMain.handle('secure-storage:available', () => safeStorage.isEncryptionAvailable());
+  ipcMain.handle('secure-storage:encrypt-string', (_event, value: string) => {
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('Secure storage is not available.');
+    }
+
+    return safeStorage.encryptString(value).toString('base64');
+  });
+  ipcMain.handle('secure-storage:decrypt-string', (_event, value: string) => {
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('Secure storage is not available.');
+    }
+
+    return safeStorage.decryptString(Buffer.from(value, 'base64'));
+  });
   createMainWindow();
 });
 

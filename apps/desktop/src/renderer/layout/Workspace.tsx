@@ -9,13 +9,16 @@ import {
   MessagePrivacy,
   ServerToClientEvent,
   type ChannelSummary,
+  type MemberRemovedEvent,
   type MessageCreatedEvent,
   type MessageRecord,
   type ServerMemberProfile,
   type ServerRole,
   type ServerSummary,
   type VoicePresenceEvent,
+  type InstanceConfig,
 } from '@discord2/shared';
+import type { ConversationKey } from '@discord2/e2ee';
 import { CreateChannelDialog } from '../features/channels/CreateChannelDialog';
 import { ChannelSidebar } from '../features/channels/ChannelSidebar';
 import { EditChannelDialog } from '../features/channels/EditChannelDialog';
@@ -32,8 +35,18 @@ import { useVoiceRoom } from '../features/voice/useVoiceRoom';
 import { VoicePanel } from '../features/voice/VoicePanel';
 import { VoiceSettingsDialog } from '../features/voice/VoiceSettingsDialog';
 import { ApiClient } from '../lib/api-client';
+import {
+  decryptMessages,
+  encryptOutgoingBytes,
+  encryptOutgoingMessage,
+  ensureConversationKey,
+  getOrCreateDeviceIdentity,
+  rotateConversationKey,
+  type DeviceIdentity,
+} from '../lib/e2ee-client';
 import { createRealtimeSocket } from '../lib/realtime';
-import { uploadMessageMedia } from '../lib/storage-upload';
+import { uploadEncryptedMessageMedia } from '../lib/storage-upload';
+import type { SupabaseBrowserClient } from '../lib/supabase';
 import { queryClient } from '../app/query-client';
 import { useUiStore } from '../store/ui-store';
 import { IconButton } from '../components/IconButton';
@@ -41,10 +54,15 @@ import { UserBar } from './UserBar';
 
 interface WorkspaceProps {
   session: Session;
+  instance: InstanceConfig;
+  supabase: SupabaseBrowserClient;
 }
 
-export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
-  const api = useMemo(() => new ApiClient(session), [session]);
+export function Workspace({ session, instance, supabase }: WorkspaceProps): React.JSX.Element {
+  const api = useMemo(() => new ApiClient(session, instance), [session, instance]);
+  const [deviceIdentity, setDeviceIdentity] = useState<DeviceIdentity | null>(null);
+  const [conversationKey, setConversationKey] = useState<ConversationKey | null>(null);
+  const [decryptedMessages, setDecryptedMessages] = useState<MessageRecord[]>([]);
   const [isCreateServerOpen, setIsCreateServerOpen] = useState(false);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [createChannelType, setCreateChannelType] = useState<
@@ -81,7 +99,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
     voiceSettings,
     setVoiceSettings,
   } = useUiStore();
-  const voice = useVoiceRoom({ api, socket: socketRef.current });
+  const voice = useVoiceRoom({ api, instance, socket: socketRef.current });
 
   const profileQuery = useQuery({
     queryKey: ['me'],
@@ -123,6 +141,67 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   const canManageActiveServer = activeServer?.role === 'owner' || activeServer?.role === 'admin';
 
   useEffect(() => {
+    let cancelled = false;
+    getOrCreateDeviceIdentity({ api, instance, userId: session.user.id })
+      .then((identity) => {
+        if (!cancelled) setDeviceIdentity(identity);
+      })
+      .catch((error: unknown) => {
+        setComposerError(
+          error instanceof Error ? error.message : 'Impossible d’initialiser les clés E2EE.',
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, instance, session.user.id]);
+
+  useEffect(() => {
+    setConversationKey(null);
+    if (!activeServerId || !activeChannelId || !deviceIdentity) return;
+    let cancelled = false;
+    ensureConversationKey({
+      api,
+      instance,
+      userId: session.user.id,
+      serverId: activeServerId,
+      channelId: activeChannelId,
+      identity: deviceIdentity,
+    })
+      .then((key) => {
+        if (!cancelled) setConversationKey(key);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [activeChannelId, activeServerId, api, deviceIdentity, instance, session.user.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    decryptMessages({
+      api,
+      instance,
+      userId: session.user.id,
+      serverId: activeServerId,
+      channelId: activeChannelId,
+      identity: deviceIdentity,
+      messages: messagesQuery.data ?? [],
+    })
+      .then((messages) => {
+        if (!cancelled) setDecryptedMessages(messages);
+      })
+      .catch(() => {
+        if (!cancelled) setDecryptedMessages(messagesQuery.data ?? []);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeChannelId, activeServerId, api, deviceIdentity, instance, messagesQuery.data, session.user.id]);
+
+  useEffect(() => {
     if (!activeServerId && servers.length > 0) {
       const firstServer = servers[0];
       if (firstServer) {
@@ -144,7 +223,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
 
   useEffect(() => {
     setRealtimeStatus('connecting');
-    const socket = createRealtimeSocket(session.access_token);
+    const socket = createRealtimeSocket(session.access_token, instance);
     socketRef.current = socket;
 
     socket.on('connect', () => setRealtimeStatus('connected'));
@@ -162,14 +241,29 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
       setVoiceParticipantIds(event.channelId, event.userIds);
     });
 
+    socket.on(ServerToClientEvent.MemberRemoved, (event: MemberRemovedEvent) => {
+      if (event.userId === session.user.id) {
+        queryClient.setQueryData<ServerSummary[]>(['servers'], (current = []) =>
+          current.filter((s) => s.id !== event.serverId),
+        );
+        queryClient.removeQueries({ queryKey: ['channels', event.serverId] });
+        queryClient.removeQueries({ queryKey: ['members', event.serverId] });
+      } else {
+        queryClient.setQueryData<ServerMemberProfile[]>(['members', event.serverId], (current = []) =>
+          current.filter((m) => m.userId !== event.userId),
+        );
+      }
+    });
+
     return () => {
       socket.off(ServerToClientEvent.MessageCreated);
       socket.off(ServerToClientEvent.VoicePresenceUpdated);
+      socket.off(ServerToClientEvent.MemberRemoved);
       socket.disconnect();
       socketRef.current = null;
       setRealtimeStatus('disconnected');
     };
-  }, [session.access_token, setRealtimeStatus, setVoiceParticipantIds]);
+  }, [instance, session, setRealtimeStatus, setVoiceParticipantIds]);
 
   useEffect(() => {
     if (!activeChannelId) {
@@ -227,6 +321,16 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
       );
       if (channel.type === ChannelType.Text) {
         setActiveChannelId(channel.id);
+        if (activeServerId && deviceIdentity) {
+          void ensureConversationKey({
+            api,
+            instance,
+            userId: session.user.id,
+            serverId: activeServerId,
+            channelId: channel.id,
+            identity: deviceIdentity,
+          });
+        }
       }
       setIsCreateChannelOpen(false);
     },
@@ -379,19 +483,73 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
     },
   });
 
+  const removeMemberMutation = useMutation({
+    mutationFn: (userId: string) => api.roles.removeMember(activeServerId!, userId),
+    onSuccess: async (_, userId) => {
+      queryClient.setQueryData<ServerMemberProfile[]>(['members', activeServerId], (current = []) =>
+        current.filter((m) => m.userId !== userId),
+      );
+      if (activeServerId && deviceIdentity) {
+        const textChannels = channels.filter((c) => c.type === ChannelType.Text);
+        await Promise.all(
+          textChannels.map((channel) =>
+            rotateConversationKey({
+              api,
+              instance,
+              userId: session.user.id,
+              serverId: activeServerId,
+              channelId: channel.id,
+              identity: deviceIdentity,
+              removedDeviceIds: [],
+            }),
+          ),
+        );
+      }
+    },
+  });
+
   const sendMessageMutation = useMutation({
     mutationFn: async (input: {
       content: string;
       media: Array<{ file: File; previewUrl: string }>;
     }) => {
-      const attachments = await Promise.all(
-        input.media.map((draft) =>
-          uploadMessageMedia(activeChannelId!, session.user.id, draft.file),
-        ),
-      );
-      return api.messages.create(activeChannelId!, {
-        ...(input.content ? { content: input.content } : {}),
-        privacy: MessagePrivacy.Public,
+      if (!activeServerId || !activeChannelId || !deviceIdentity) {
+        throw new Error('Clés E2EE pas encore prêtes.');
+      }
+
+      const encrypted = await encryptOutgoingMessage({
+        api,
+        instance,
+        userId: session.user.id,
+        serverId: activeServerId,
+        channelId: activeChannelId,
+        identity: deviceIdentity,
+        content: input.content || '[media]',
+      });
+      const attachments = (
+        await Promise.all(
+          input.media.map(async (draft) => {
+            const encryptedFile = await encryptOutgoingBytes({
+              api,
+              instance,
+              userId: session.user.id,
+              serverId: activeServerId,
+              channelId: activeChannelId,
+              identity: deviceIdentity,
+              bytes: new Uint8Array(await draft.file.arrayBuffer()),
+            });
+            return uploadEncryptedMessageMedia(
+              supabase,
+              activeChannelId,
+              session.user.id,
+              encryptedFile,
+            );
+          }),
+        )
+      ).map((attachment) => attachment);
+      return api.messages.create(activeChannelId, {
+        privacy: MessagePrivacy.EndToEndEncrypted,
+        encrypted,
         attachments,
       });
     },
@@ -404,7 +562,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
         id: `pending-${crypto.randomUUID()}`,
         channelId,
         authorId: profileQuery.data?.id ?? session.user.id,
-        privacy: MessagePrivacy.Public,
+        privacy: MessagePrivacy.EndToEndEncrypted,
         content: input.content || null,
         attachments: input.media.map((draft) => ({
           id: `pending-attachment-${draft.previewUrl}`,
@@ -413,7 +571,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
           mimeType: draft.file.type,
           byteSize: draft.file.size,
           fileName: draft.file.name,
-          isE2ee: false,
+          isE2ee: true,
         })),
         embeds: [],
         encrypted: null,
@@ -508,6 +666,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
           onOpenSettings={() => setIsProfileSettingsOpen(true)}
           onOpenThemePicker={() => setIsThemePickerOpen(true)}
           onOpenVoiceSettings={() => setIsVoiceSettingsOpen(true)}
+          onLogout={() => void supabase.auth.signOut()}
         />
       </div>
       <section className="chat-panel">
@@ -568,11 +727,13 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
         ) : (
           <>
             <MessageTimeline
-              messages={messagesQuery.data ?? []}
+              messages={decryptedMessages}
               isLoading={messagesQuery.isLoading}
               session={session}
+              api={api}
               members={members}
               roles={roles}
+              conversationKey={conversationKey}
             />
             <MessageComposer
               disabled={!activeChannelId || sendMessageMutation.isPending}
@@ -661,6 +822,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
         <ProfileSettingsDialog
           profile={profileQuery.data}
           session={session}
+          supabase={supabase}
           isSavingProfile={updateProfileMutation.isPending}
           onClose={() => setIsProfileSettingsOpen(false)}
           onSaveProfile={async (input) => {
@@ -671,6 +833,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
       {isServerSettingsOpen && activeServer && canManageActiveServer ? (
         <ServerSettingsDialog
           server={activeServer}
+          supabase={supabase}
           isSaving={updateServerMutation.isPending}
           roles={roles}
           members={members}
@@ -681,6 +844,7 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
             deleteRoleMutation.isPending ||
             updateMemberRolesMutation.isPending
           }
+          isRemovingMember={removeMemberMutation.isPending}
           onClose={() => setIsServerSettingsOpen(false)}
           onSave={async (input) => {
             await updateServerMutation.mutateAsync(input);
@@ -696,6 +860,9 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
           }}
           onUpdateMemberRoles={async (userId, roleIds) => {
             await updateMemberRolesMutation.mutateAsync({ userId, roleIds });
+          }}
+          onRemoveMember={async (userId) => {
+            await removeMemberMutation.mutateAsync(userId);
           }}
         />
       ) : null}

@@ -14,12 +14,12 @@ import {
   type ChannelId,
   type CreateAttachmentInput,
   type MessageRecord,
+  type SignedAttachmentUrl,
 } from '@discord2/shared';
 import { RolesService } from '../roles/roles.service';
 import { ServersService } from '../servers/servers.service';
 import { UsersService } from '../users/users.service';
 import type { CreateMessageDto } from './dto';
-import { EmbedsService } from './embeds.service';
 import { MessageEventsPublisher } from './message-events.publisher';
 
 const MAX_ATTACHMENTS_PER_MESSAGE = 10;
@@ -32,6 +32,7 @@ const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
   'video/mp4',
   'video/webm',
   'video/quicktime',
+  'application/octet-stream',
 ]);
 
 @Injectable()
@@ -40,11 +41,10 @@ export class MessagesService {
   private readonly channelsRepository: ChannelsRepository;
 
   constructor(
-    @Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient,
+    @Inject('SUPABASE_SERVICE_CLIENT') private readonly supabase: SupabaseClient,
     private readonly serversService: ServersService,
     private readonly usersService: UsersService,
     private readonly rolesService: RolesService,
-    private readonly embedsService: EmbedsService,
     private readonly eventsPublisher: MessageEventsPublisher,
   ) {
     this.repository = new MessagesRepository(supabase);
@@ -56,12 +56,12 @@ export class MessagesService {
     channelId: ChannelId,
     dto: CreateMessageDto,
   ): Promise<MessageRecord> {
-    const serverId = await this.requireChannelWriteAccess(user, channelId);
+    await this.requireChannelWriteAccess(user, channelId);
     const attachments = validateMessageAttachments(user.id, channelId, dto.attachments ?? []);
     const normalized = normalizeMessageInput({
       privacy: dto.privacy,
-      content: dto.content ?? null,
-      encrypted: dto.encrypted ?? null,
+      content: null,
+      encrypted: dto.encrypted,
       attachments,
     });
 
@@ -69,23 +69,17 @@ export class MessagesService {
       channelId,
       authorId: user.id,
       privacy: normalized.privacy,
-      content: normalized.content ?? null,
+      content: null,
       encrypted: normalized.encrypted ?? null,
     });
-    const [storedAttachments, embedInputs] = await Promise.all([
-      this.repository.insertAttachments(message.id, attachments),
-      this.embedsService.createEmbeds(normalized.content ?? null),
-    ]);
-    const embeds = await this.repository.insertEmbeds(message.id, embedInputs);
-    const mentions = await this.rolesService.resolveMentions(serverId, normalized.content ?? null);
-    await this.rolesService.insertMessageMentions(message.id, mentions);
+    const storedAttachments = await this.repository.insertAttachments(message.id, attachments);
 
     const profile = await this.usersService.me(user);
     const messageWithAuthor: MessageRecord = {
       ...message,
-      mentions,
+      mentions: [],
       attachments: storedAttachments,
-      embeds,
+      embeds: [],
       author: {
         id: profile.id,
         displayName: profile.displayName,
@@ -99,6 +93,36 @@ export class MessagesService {
     });
 
     return messageWithAuthor;
+  }
+
+  async getAttachmentUrl(
+    user: AuthUser,
+    messageId: string,
+    attachmentId: string,
+  ): Promise<SignedAttachmentUrl> {
+    const attachment = await this.repository.findAttachment(messageId, attachmentId);
+    if (!attachment) {
+      throw new NotFoundException('Attachment not found.');
+    }
+
+    await this.requireChannelWriteAccess(user, attachment.channelId);
+
+    if (!attachment.isE2ee) {
+      throw new ForbiddenException('Signed URLs are only available for encrypted attachments.');
+    }
+
+    const { data, error } = await this.supabase.storage
+      .from('message-media')
+      .createSignedUrl(attachment.storagePath, 3600);
+
+    if (error || !data) {
+      throw new Error('Failed to generate signed URL.');
+    }
+
+    return {
+      url: data.signedUrl,
+      expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+    };
   }
 
   async listMessages(user: AuthUser, channelId: ChannelId): Promise<MessageRecord[]> {
@@ -151,6 +175,10 @@ function validateMessageAttachments(
       throw new BadRequestException('Attachment type is not allowed.');
     }
 
+    if (attachment.isE2ee && !attachment.encrypted) {
+      throw new BadRequestException('Encrypted attachment metadata is required.');
+    }
+
     if (attachment.byteSize > MAX_ATTACHMENT_BYTES) {
       throw new BadRequestException('Attachment is too large.');
     }
@@ -168,7 +196,13 @@ function validateMessageAttachments(
       storagePath: attachment.storagePath,
       mimeType: attachment.mimeType,
       byteSize: attachment.byteSize,
-      ...(attachment.fileName ? { fileName: attachment.fileName.trim().slice(0, 120) } : {}),
+      isE2ee: attachment.isE2ee ?? false,
+      encrypted: attachment.encrypted ?? null,
+      ...(attachment.isE2ee
+        ? {}
+        : attachment.fileName
+          ? { fileName: attachment.fileName.trim().slice(0, 120) }
+          : {}),
     };
   });
 }

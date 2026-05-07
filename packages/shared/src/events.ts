@@ -1,4 +1,4 @@
-import type { ChannelId, MessageId, UserId } from './ids';
+import type { ChannelId, MessageId, ServerId, UserId } from './ids';
 import type { MessageRecord, PresenceStatus } from './models';
 
 export const ClientToServerEvent = {
@@ -17,11 +17,13 @@ export const ServerToClientEvent = {
   TypingStopped: 'typing:stopped',
   PresenceUpdated: 'presence:updated',
   VoicePresenceUpdated: 'voice:presence-updated',
+  MemberRemoved: 'member:removed',
   Error: 'error',
 } as const;
 
 export const InternalRealtimeEvent = {
   MessageCreated: 'message.created',
+  MemberRemoved: 'member.removed',
 } as const;
 
 export interface ChannelJoinPayload {
@@ -58,6 +60,11 @@ export interface PresenceEvent {
 export interface VoicePresenceEvent {
   channelId: ChannelId;
   userIds: UserId[];
+}
+
+export interface MemberRemovedEvent {
+  serverId: ServerId;
+  userId: UserId;
 }
 
 export interface MessageAck {

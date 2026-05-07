@@ -7,6 +7,7 @@ import { CryptoKeysModule } from './crypto-keys/crypto-keys.module';
 import { FilesModule } from './files/files.module';
 import { HealthModule } from './health/health.module';
 import { InvitesModule } from './invites/invites.module';
+import { InstanceModule } from './instance/instance.module';
 import { MessagesModule } from './messages/messages.module';
 import { RolesModule } from './roles/roles.module';
 import { ServersModule } from './servers/servers.module';
@@ -30,6 +31,7 @@ import { SupabaseAuthGuard } from './auth/supabase-auth.guard';
     RolesModule,
     MessagesModule,
     InvitesModule,
+    InstanceModule,
     FilesModule,
     VoiceModule,
     CryptoKeysModule,
