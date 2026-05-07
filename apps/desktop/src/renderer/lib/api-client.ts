@@ -2,11 +2,11 @@ import type { Session } from '@supabase/supabase-js';
 import type {
   ChannelSummary,
   CreateChannelInput,
+  CreateMessageInput,
   CreateServerInput,
   CreateServerRoleInput,
   DeleteChannelResult,
   InviteRecord,
-  MessagePrivacy,
   MessageRecord,
   RedeemInviteResult,
   ServerSummary,
@@ -94,11 +94,15 @@ export class ApiClient {
 
   readonly messages = {
     list: (channelId: string) => this.request<MessageRecord[]>(`/channels/${channelId}/messages`),
-    create: (channelId: string, input: { content: string; privacy: MessagePrivacy }) =>
+    create: (channelId: string, input: CreateMessageInput) =>
       this.request<MessageRecord>(`/channels/${channelId}/messages`, {
         method: 'POST',
         body: JSON.stringify(input),
       }),
+  };
+
+  readonly files = {
+    limits: () => this.request<{ maxBytes: number; encryptedUploads: true }>('/files/limits'),
   };
 
   readonly invites = {

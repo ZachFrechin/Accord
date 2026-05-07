@@ -1,13 +1,19 @@
 import { useState } from 'react';
-import { Send } from 'lucide-react';
+import { ImagePlus, Send, X } from 'lucide-react';
 import type { ServerMemberProfile, ServerRole } from '@discord2/shared';
+
+export interface ComposerMediaDraft {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
 
 interface MessageComposerProps {
   disabled: boolean;
   error: string | null;
   members: ServerMemberProfile[];
   roles: ServerRole[];
-  onSend: (content: string) => Promise<void>;
+  onSend: (content: string, media: ComposerMediaDraft[]) => Promise<void>;
 }
 
 export function MessageComposer({
@@ -18,6 +24,7 @@ export function MessageComposer({
   onSend,
 }: MessageComposerProps): React.JSX.Element {
   const [content, setContent] = useState('');
+  const [mediaDrafts, setMediaDrafts] = useState<ComposerMediaDraft[]>([]);
   const [isSending, setIsSending] = useState(false);
   const mentionQuery = getMentionQuery(content);
   const mentionSuggestions = mentionQuery
@@ -45,17 +52,21 @@ export function MessageComposer({
       ].slice(0, 8)
     : [];
 
+  const canSubmit = Boolean(content.trim() || mediaDrafts.length > 0);
+
   async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const trimmed = content.trim();
-    if (!trimmed || disabled || isSending) {
+    if (!canSubmit || disabled || isSending) {
       return;
     }
 
     setIsSending(true);
     try {
-      await onSend(trimmed);
+      await onSend(trimmed, mediaDrafts);
       setContent('');
+      mediaDrafts.forEach((draft) => URL.revokeObjectURL(draft.previewUrl));
+      setMediaDrafts([]);
     } catch {
       // The parent owns the visible error; keep the draft in place.
     } finally {
@@ -75,9 +86,58 @@ export function MessageComposer({
     setContent(`${prefix}${spacing}${token} `);
   }
 
+  function addFiles(files: FileList | null): void {
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    setMediaDrafts((current) => [
+      ...current,
+      ...Array.from(files)
+        .slice(0, Math.max(0, 10 - current.length))
+        .map((file) => ({
+          id: crypto.randomUUID(),
+          file,
+          previewUrl: URL.createObjectURL(file),
+        })),
+    ]);
+  }
+
+  function removeFile(id: string): void {
+    setMediaDrafts((current) => {
+      const removed = current.find((draft) => draft.id === id);
+      if (removed) {
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+      return current.filter((draft) => draft.id !== id);
+    });
+  }
+
   return (
     <div className="composer-wrap">
       {error ? <div className="composer-error">{error}</div> : null}
+      {mediaDrafts.length > 0 ? (
+        <div className="composer-media-preview">
+          {mediaDrafts.map((draft) => (
+            <div className="composer-media-item" key={draft.id}>
+              {draft.file.type.startsWith('image/') ? (
+                <img alt={draft.file.name} src={draft.previewUrl} />
+              ) : (
+                <video src={draft.previewUrl} muted preload="metadata" />
+              )}
+              <span>{draft.file.name}</span>
+              <button
+                type="button"
+                aria-label={`Retirer ${draft.file.name}`}
+                disabled={isSending}
+                onClick={() => removeFile(draft.id)}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {mentionSuggestions.length > 0 ? (
         <div className="mention-suggestions">
           {mentionSuggestions.map((suggestion) => (
@@ -93,17 +153,32 @@ export function MessageComposer({
         </div>
       ) : null}
       <form className="composer" onSubmit={(event) => void submit(event)}>
+        <label className="composer-upload" aria-label="Ajouter un média">
+          <ImagePlus size={18} />
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+            multiple
+            disabled={disabled || isSending || mediaDrafts.length >= 10}
+            onChange={(event) => {
+              addFiles(event.target.files);
+              event.target.value = '';
+            }}
+          />
+        </label>
         <input
           value={content}
           disabled={disabled || isSending}
-          placeholder={disabled ? 'Sélectionne un salon' : 'Écrire un message'}
+          placeholder={
+            disabled
+              ? 'Sélectionne un salon'
+              : isSending
+                ? 'Envoi des médias...'
+                : 'Écrire un message'
+          }
           onChange={(event) => setContent(event.target.value)}
         />
-        <button
-          type="submit"
-          disabled={disabled || isSending || !content.trim()}
-          aria-label="Envoyer"
-        >
+        <button type="submit" disabled={disabled || isSending || !canSubmit} aria-label="Envoyer">
           <Send size={18} />
         </button>
       </form>

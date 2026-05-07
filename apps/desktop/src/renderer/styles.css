@@ -1220,6 +1220,146 @@ input::placeholder {
   font-weight: 500;
 }
 
+.message-attachments,
+.message-embeds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 20rem));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.message-media {
+  overflow: hidden;
+  max-inline-size: 20rem;
+  max-block-size: 18rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-surface);
+}
+
+.message-media.image {
+  display: block;
+  padding: 0;
+  cursor: zoom-in;
+}
+
+.message-media img,
+.message-media.video {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.message-file-link,
+.message-embed {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  text-decoration: none;
+}
+
+.message-file-link {
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.message-embed.youtube {
+  aspect-ratio: 16 / 9;
+  max-inline-size: 24rem;
+}
+
+.message-embed.youtube iframe {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  border: 0;
+}
+
+.message-embed.image img {
+  display: block;
+  inline-size: 100%;
+  max-block-size: 18rem;
+  object-fit: cover;
+}
+
+.message-embed.link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  max-inline-size: 24rem;
+}
+
+.message-embed.link img {
+  inline-size: 100%;
+  max-block-size: 9rem;
+  object-fit: cover;
+}
+
+.message-embed.link span {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.message-embed.link strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.message-embed.link small {
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.message-embed.link em {
+  color: var(--text-ghost);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.media-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 72%);
+  backdrop-filter: blur(8px);
+}
+
+.media-preview-dialog {
+  position: relative;
+  display: grid;
+  max-inline-size: min(92vw, 72rem);
+  max-block-size: 88vh;
+}
+
+.media-preview-dialog img {
+  max-inline-size: 100%;
+  max-block-size: 88vh;
+  border-radius: 12px;
+  object-fit: contain;
+}
+
+.media-preview-close {
+  position: absolute;
+  inset-block-start: 10px;
+  inset-inline-end: 10px;
+  display: grid;
+  place-items: center;
+  inline-size: 34px;
+  block-size: 34px;
+  border-radius: 50%;
+  color: #fff;
+  background: rgb(0 0 0 / 54%);
+  font-size: 22px;
+}
+
 /* ── Composer ───────────────────────────────────────── */
 
 .composer-wrap {
@@ -1276,15 +1416,91 @@ input::placeholder {
   font-weight: 600;
 }
 
+.composer-media-preview {
+  display: flex;
+  gap: 10px;
+  margin: 12px var(--panel-padding-inline) 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.composer-media-item {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  inline-size: 8.5rem;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-surface);
+}
+
+.composer-media-item img,
+.composer-media-item video {
+  inline-size: 100%;
+  block-size: 5.5rem;
+  object-fit: cover;
+}
+
+.composer-media-item span {
+  min-width: 0;
+  padding: 7px 8px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-media-item button {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  display: grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: 50%;
+  color: #fff;
+  background: rgb(0 0 0 / 55%);
+}
+
 .composer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
   padding: 14px var(--panel-padding-inline) clamp(0.875rem, 2vh, 1.25rem);
 }
 
-.composer input {
+.composer-upload {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: var(--composer-button-size);
+  block-size: var(--composer-button-size);
+  border: 1px solid var(--border-input);
+  border-radius: 50%;
+  color: var(--text-muted);
+  background: var(--bg-composer);
+  cursor: pointer;
+}
+
+.composer-upload:hover {
+  color: var(--text-primary);
+  background: var(--bg-composer-focus);
+}
+
+.composer-upload input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.composer > input {
   min-height: 46px;
   padding: 0 18px;
   border-radius: 24px;
@@ -1298,7 +1514,7 @@ input::placeholder {
     box-shadow 160ms ease;
 }
 
-.composer input:focus {
+.composer > input:focus {
   border-color: var(--border-input-focus);
   background: var(--bg-composer-focus);
   box-shadow: var(--composer-shadow);

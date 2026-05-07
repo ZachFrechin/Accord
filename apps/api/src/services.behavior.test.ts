@@ -18,7 +18,11 @@ const repositoryMocks = vi.hoisted(() => ({
   },
   messages: {
     insert: vi.fn(),
+    insertAttachments: vi.fn(),
+    insertEmbeds: vi.fn(),
+    listAttachmentsForMessages: vi.fn(),
     listByChannel: vi.fn(),
+    listEmbedsForMessages: vi.fn(),
   },
   profiles: {
     findByUserId: vi.fn(),
@@ -348,11 +352,15 @@ describe('api service behavior', () => {
       listMentionsForMessages: vi.fn(),
       resolveMentions: vi.fn().mockResolvedValue([]),
     };
+    const embedsService = {
+      createEmbeds: vi.fn().mockResolvedValue([]),
+    };
     const service = new MessagesService(
       supabase,
       serversService as never,
       usersService as never,
       rolesService as never,
+      embedsService as never,
       eventsPublisher as never,
     );
     const message = {
@@ -374,6 +382,8 @@ describe('api service behavior', () => {
       createdAt: null,
     });
     repositoryMocks.messages.insert.mockResolvedValue(message);
+    repositoryMocks.messages.insertAttachments.mockResolvedValue([]);
+    repositoryMocks.messages.insertEmbeds.mockResolvedValue([]);
 
     await expect(
       service.createMessage(user, 'channel-1', {
@@ -393,10 +403,116 @@ describe('api service behavior', () => {
     expect(serversService.requireMembership).toHaveBeenCalledWith(user, 'server-1');
     expect(rolesService.resolveMentions).toHaveBeenCalledWith('server-1', 'hello');
     expect(rolesService.insertMessageMentions).toHaveBeenCalledWith('message-1', []);
+    expect(repositoryMocks.messages.insertAttachments).toHaveBeenCalledWith('message-1', []);
+    expect(repositoryMocks.messages.insertEmbeds).toHaveBeenCalledWith('message-1', []);
+    expect(embedsService.createEmbeds).toHaveBeenCalledWith('hello');
     expect(eventsPublisher.publishMessageCreated).toHaveBeenCalledWith({
       channelId: 'channel-1',
       message: expect.objectContaining({ id: 'message-1', content: 'hello' }),
     });
+  });
+
+  it('accepts media-only public messages with validated attachments', async () => {
+    const { MessagesService } = await import('./messages/messages.service');
+    const serversService = { requireMembership: vi.fn().mockResolvedValue({ id: 'server-1' }) };
+    const usersService = {
+      me: vi.fn().mockResolvedValue({
+        id: user.id,
+        displayName: 'User',
+        avatarUrl: null,
+      }),
+    };
+    const rolesService = {
+      insertMessageMentions: vi.fn().mockResolvedValue(undefined),
+      resolveMentions: vi.fn().mockResolvedValue([]),
+    };
+    const embedsService = {
+      createEmbeds: vi.fn().mockResolvedValue([]),
+    };
+    const eventsPublisher = { publishMessageCreated: vi.fn().mockResolvedValue(undefined) };
+    const service = new MessagesService(
+      supabase,
+      serversService as never,
+      usersService as never,
+      rolesService as never,
+      embedsService as never,
+      eventsPublisher as never,
+    );
+    const message = {
+      id: 'message-1',
+      channelId: 'channel-1',
+      authorId: user.id,
+      privacy: MessagePrivacy.Public,
+      content: null,
+      encrypted: null,
+      createdAt: '2026-05-06T00:00:00.000Z',
+      editedAt: null,
+    };
+    const attachment = {
+      storagePath: 'channel-1/user-1/file.png',
+      mimeType: 'image/png',
+      byteSize: 1024,
+      fileName: 'file.png',
+    };
+    repositoryMocks.channels.findById.mockResolvedValue({
+      id: 'channel-1',
+      serverId: 'server-1',
+      type: ChannelType.Text,
+      name: 'general',
+      isPrivate: false,
+      createdAt: null,
+    });
+    repositoryMocks.messages.insert.mockResolvedValue(message);
+    repositoryMocks.messages.insertAttachments.mockResolvedValue([{ id: 'attachment-1' }]);
+    repositoryMocks.messages.insertEmbeds.mockResolvedValue([]);
+
+    await expect(
+      service.createMessage(user, 'channel-1', {
+        privacy: MessagePrivacy.Public,
+        attachments: [attachment],
+      }),
+    ).resolves.toMatchObject({
+      id: 'message-1',
+      content: null,
+      attachments: [{ id: 'attachment-1' }],
+    });
+    expect(repositoryMocks.messages.insertAttachments).toHaveBeenCalledWith('message-1', [
+      attachment,
+    ]);
+  });
+
+  it('rejects attachments outside the expected message-media path', async () => {
+    const { MessagesService } = await import('./messages/messages.service');
+    const service = new MessagesService(
+      supabase,
+      { requireMembership: vi.fn().mockResolvedValue({ id: 'server-1' }) } as never,
+      { me: vi.fn() } as never,
+      { insertMessageMentions: vi.fn(), resolveMentions: vi.fn() } as never,
+      { createEmbeds: vi.fn() } as never,
+      { publishMessageCreated: vi.fn() } as never,
+    );
+    repositoryMocks.channels.findById.mockResolvedValue({
+      id: 'channel-1',
+      serverId: 'server-1',
+      type: ChannelType.Text,
+      name: 'general',
+      isPrivate: false,
+      createdAt: null,
+    });
+
+    await expect(
+      service.createMessage(user, 'channel-1', {
+        privacy: MessagePrivacy.Public,
+        attachments: [
+          {
+            storagePath: 'other-channel/user-1/file.png',
+            mimeType: 'image/png',
+            byteSize: 1024,
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repositoryMocks.messages.insert).not.toHaveBeenCalled();
   });
 
   it('rejects messages outside public text server channels for this iteration', async () => {
@@ -406,6 +522,7 @@ describe('api service behavior', () => {
       { requireMembership: vi.fn() } as never,
       { me: vi.fn() } as never,
       { insertMessageMentions: vi.fn(), resolveMentions: vi.fn() } as never,
+      { createEmbeds: vi.fn() } as never,
       { publishMessageCreated: vi.fn() } as never,
     );
     repositoryMocks.channels.findById.mockResolvedValue({

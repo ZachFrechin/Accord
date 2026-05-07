@@ -151,9 +151,7 @@ export class MessagesRepository {
           embed_url: embed.embedUrl ?? null,
         })),
       )
-      .select(
-        'id, message_id, type, url, title, description, thumbnail_url, provider, embed_url',
-      )
+      .select('id, message_id, type, url, title, description, thumbnail_url, provider, embed_url')
       .returns<EmbedRow[]>();
 
     if (error) {
@@ -181,7 +179,9 @@ export class MessagesRepository {
     return data.map(mapMessageWithAuthorRow);
   }
 
-  async listAttachmentsForMessages(messageIds: string[]): Promise<Map<string, MessageAttachment[]>> {
+  async listAttachmentsForMessages(
+    messageIds: string[],
+  ): Promise<Map<string, MessageAttachment[]>> {
     if (messageIds.length === 0) {
       return new Map();
     }

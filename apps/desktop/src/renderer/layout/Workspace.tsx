@@ -33,6 +33,7 @@ import { VoicePanel } from '../features/voice/VoicePanel';
 import { VoiceSettingsDialog } from '../features/voice/VoiceSettingsDialog';
 import { ApiClient } from '../lib/api-client';
 import { createRealtimeSocket } from '../lib/realtime';
+import { uploadMessageMedia } from '../lib/storage-upload';
 import { queryClient } from '../app/query-client';
 import { useUiStore } from '../store/ui-store';
 import { IconButton } from '../components/IconButton';
@@ -379,12 +380,22 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: (content: string) =>
-      api.messages.create(activeChannelId!, {
-        content,
+    mutationFn: async (input: {
+      content: string;
+      media: Array<{ file: File; previewUrl: string }>;
+    }) => {
+      const attachments = await Promise.all(
+        input.media.map((draft) =>
+          uploadMessageMedia(activeChannelId!, session.user.id, draft.file),
+        ),
+      );
+      return api.messages.create(activeChannelId!, {
+        ...(input.content ? { content: input.content } : {}),
         privacy: MessagePrivacy.Public,
-      }),
-    onMutate: async (content) => {
+        attachments,
+      });
+    },
+    onMutate: async (input) => {
       setComposerError(null);
       const channelId = activeChannelId!;
       await queryClient.cancelQueries({ queryKey: ['messages', channelId] });
@@ -394,7 +405,17 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
         channelId,
         authorId: profileQuery.data?.id ?? session.user.id,
         privacy: MessagePrivacy.Public,
-        content,
+        content: input.content || null,
+        attachments: input.media.map((draft) => ({
+          id: `pending-attachment-${draft.previewUrl}`,
+          url: draft.previewUrl,
+          storagePath: draft.previewUrl,
+          mimeType: draft.file.type,
+          byteSize: draft.file.size,
+          fileName: draft.file.name,
+          isE2ee: false,
+        })),
+        embeds: [],
         encrypted: null,
         createdAt: new Date().toISOString(),
         editedAt: null,
@@ -409,12 +430,12 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
       queryClient.setQueryData<MessageRecord[]>(['messages', channelId], [...previous, optimistic]);
       return { previous, channelId };
     },
-    onError: (_error, _content, context) => {
+    onError: (_error, _input, context) => {
       if (context) {
         queryClient.setQueryData(['messages', context.channelId], context.previous);
       }
     },
-    onSuccess: (message, _content, context) => {
+    onSuccess: (message, _input, context) => {
       if (!context) {
         return;
       }
@@ -558,9 +579,9 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
               error={composerError}
               members={members}
               roles={roles}
-              onSend={async (content) => {
+              onSend={async (content, media) => {
                 try {
-                  await sendMessageMutation.mutateAsync(content);
+                  await sendMessageMutation.mutateAsync({ content, media });
                 } catch (error) {
                   const message =
                     error instanceof Error ? error.message : 'Impossible d’envoyer le message.';
