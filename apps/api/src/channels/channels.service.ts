@@ -1,23 +1,24 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ChannelsRepository } from '@discord2/db';
-import { canManageServer } from '@discord2/domain';
 import {
+  ChannelPermissionOverwriteTargetType,
   ChannelType,
+  Permission,
   type AuthUser,
   type ChannelId,
+  type ChannelPermissionOverwrite,
   type ChannelSummary,
   type DeleteChannelResult,
   type ServerId,
 } from '@discord2/shared';
-import { ServersService } from '../servers/servers.service';
-import type { CreateChannelDto, UpdateChannelDto } from './dto';
+import { PermissionsService } from '../permissions/permissions.service';
+import type { CreateChannelDto, UpdateChannelDto, UpdateChannelPermissionsDto } from './dto';
 
 @Injectable()
 export class ChannelsService {
@@ -25,14 +26,13 @@ export class ChannelsService {
 
   constructor(
     @Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient,
-    private readonly serversService: ServersService,
+    private readonly permissionsService: PermissionsService,
   ) {
     this.repository = new ChannelsRepository(supabase);
   }
 
   async listChannels(user: AuthUser, serverId: ServerId): Promise<ChannelSummary[]> {
-    await this.serversService.requireMembership(user, serverId);
-    return this.repository.listByServer(serverId);
+    return this.permissionsService.listVisibleChannels(user, serverId);
   }
 
   async createChannel(
@@ -40,7 +40,7 @@ export class ChannelsService {
     serverId: ServerId,
     dto: CreateChannelDto,
   ): Promise<ChannelSummary> {
-    const membership = await this.serversService.requireMembership(user, serverId);
+    await this.permissionsService.assertServerPermission(user, serverId, Permission.ManageChannels);
     const name = dto.name.trim();
 
     if (!name) {
@@ -55,10 +55,6 @@ export class ChannelsService {
     }
 
     if (dto.type === ChannelType.Voice) {
-      if (!canManageServer({ serverId, userId: user.id, role: membership.role })) {
-        throw new ForbiddenException('You cannot manage voice channels for this server.');
-      }
-
       return this.repository.createVoiceChannel({
         serverId,
         name,
@@ -82,6 +78,41 @@ export class ChannelsService {
     }
 
     return this.repository.update(channelId, { name });
+  }
+
+  async listChannelPermissions(
+    user: AuthUser,
+    serverId: ServerId,
+    channelId: ChannelId,
+  ): Promise<ChannelPermissionOverwrite[]> {
+    await this.requireManageableServerChannel(user, serverId, channelId);
+    return this.repository.listPermissionOverwrites(channelId);
+  }
+
+  async updateChannelPermissions(
+    user: AuthUser,
+    serverId: ServerId,
+    channelId: ChannelId,
+    dto: UpdateChannelPermissionsDto,
+  ): Promise<ChannelPermissionOverwrite[]> {
+    await this.requireManageableServerChannel(user, serverId, channelId);
+    const normalized = dto.overwrites.map((overwrite) => ({
+      targetType: overwrite.targetType,
+      targetId:
+        overwrite.targetType === ChannelPermissionOverwriteTargetType.Everyone
+          ? null
+          : overwrite.targetId,
+      allowPermissions: Array.from(new Set(overwrite.allowPermissions)),
+      denyPermissions: Array.from(new Set(overwrite.denyPermissions)),
+    }));
+
+    for (const overwrite of normalized) {
+      if (overwrite.targetType !== ChannelPermissionOverwriteTargetType.Everyone && !overwrite.targetId) {
+        throw new BadRequestException('Permission overwrite target is required.');
+      }
+    }
+
+    return this.repository.replacePermissionOverwrites(channelId, normalized);
   }
 
   async deleteChannel(
@@ -108,10 +139,7 @@ export class ChannelsService {
       throw new NotFoundException('Channel not found.');
     }
 
-    const membership = await this.serversService.requireMembership(user, serverId);
-    if (!canManageServer({ serverId, userId: user.id, role: membership.role })) {
-      throw new ForbiddenException('You cannot manage channels for this server.');
-    }
+    await this.permissionsService.assertServerPermission(user, serverId, Permission.ManageChannels);
 
     return channel;
   }

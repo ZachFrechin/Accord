@@ -5,11 +5,12 @@ import { ChannelsRepository } from '@discord2/db';
 import { loadServerEnv } from '@discord2/config';
 import {
   ChannelType,
+  Permission,
   type AuthUser,
   type ChannelId,
   type VoiceTokenResponse,
 } from '@discord2/shared';
-import { ServersService } from '../servers/servers.service';
+import { PermissionsService } from '../permissions/permissions.service';
 
 @Injectable()
 export class VoiceService {
@@ -18,7 +19,7 @@ export class VoiceService {
 
   constructor(
     @Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient,
-    private readonly serversService: ServersService,
+    private readonly permissionsService: PermissionsService,
   ) {
     this.channelsRepository = new ChannelsRepository(supabase);
   }
@@ -29,7 +30,11 @@ export class VoiceService {
       throw new NotFoundException('Voice channel not found.');
     }
 
-    await this.serversService.requireMembership(user, channel.serverId);
+    await this.permissionsService.assertChannelPermission(user, channelId, Permission.ConnectVoice);
+    const canSpeak = await this.permissionsService
+      .assertChannelPermission(user, channelId, Permission.SpeakVoice)
+      .then(() => true)
+      .catch(() => false);
 
     const room = `voice:${channelId}`;
     const accessToken = new AccessToken(this.env.LIVEKIT_API_KEY, this.env.LIVEKIT_API_SECRET, {
@@ -40,7 +45,7 @@ export class VoiceService {
     accessToken.addGrant({
       room,
       roomJoin: true,
-      canPublish: true,
+      canPublish: canSpeak,
       canSubscribe: true,
     });
 

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   MessageId,
   MessageMention,
+  Permission,
   RoleId,
   ServerId,
   ServerMember,
@@ -16,6 +17,7 @@ interface ServerRoleRow {
   name: string;
   color: string;
   mentionable: boolean;
+  permissions: Permission[];
   position: number;
   created_at: string;
 }
@@ -55,7 +57,7 @@ export class RolesRepository {
   async listRoles(serverId: ServerId): Promise<ServerRole[]> {
     const { data, error } = await this.supabase
       .from('server_roles')
-      .select('id, server_id, name, color, mentionable, position, created_at')
+      .select('id, server_id, name, color, mentionable, permissions, position, created_at')
       .eq('server_id', serverId)
       .order('position', { ascending: true })
       .order('created_at', { ascending: true })
@@ -73,6 +75,7 @@ export class RolesRepository {
     name: string;
     color: string;
     mentionable: boolean;
+    permissions?: Permission[];
   }): Promise<ServerRole> {
     const roles = await this.listRoles(input.serverId);
     const nextPosition = roles.reduce((max, role) => Math.max(max, role.position), 0) + 1;
@@ -83,9 +86,10 @@ export class RolesRepository {
         name: input.name,
         color: input.color,
         mentionable: input.mentionable,
+        permissions: input.permissions ?? [],
         position: nextPosition,
       })
-      .select('id, server_id, name, color, mentionable, position, created_at')
+      .select('id, server_id, name, color, mentionable, permissions, position, created_at')
       .single<ServerRoleRow>();
 
     if (error) {
@@ -98,19 +102,20 @@ export class RolesRepository {
   async updateRole(
     serverId: ServerId,
     roleId: RoleId,
-    input: Partial<Pick<ServerRole, 'name' | 'color' | 'mentionable'>>,
+    input: Partial<Pick<ServerRole, 'name' | 'color' | 'mentionable' | 'permissions'>>,
   ): Promise<ServerRole> {
-    const patch: Record<string, string | boolean> = {};
+    const patch: Record<string, string | boolean | Permission[]> = {};
     if (input.name !== undefined) patch.name = input.name;
     if (input.color !== undefined) patch.color = input.color;
     if (input.mentionable !== undefined) patch.mentionable = input.mentionable;
+    if (input.permissions !== undefined) patch.permissions = input.permissions;
 
     const { data, error } = await this.supabase
       .from('server_roles')
       .update(patch)
       .eq('server_id', serverId)
       .eq('id', roleId)
-      .select('id, server_id, name, color, mentionable, position, created_at')
+      .select('id, server_id, name, color, mentionable, permissions, position, created_at')
       .single<ServerRoleRow>();
 
     if (error) {
@@ -118,6 +123,20 @@ export class RolesRepository {
     }
 
     return mapRoleRow(data);
+  }
+
+  async reorderRoles(serverId: ServerId, roleIds: RoleId[]): Promise<ServerRole[]> {
+    for (const [index, roleId] of roleIds.entries()) {
+      const { error } = await this.supabase
+        .from('server_roles')
+        .update({ position: index + 1 })
+        .eq('server_id', serverId)
+        .eq('id', roleId);
+
+      if (error) throw error;
+    }
+
+    return this.listRoles(serverId);
   }
 
   async deleteRole(serverId: ServerId, roleId: RoleId): Promise<void> {
@@ -265,6 +284,7 @@ function mapRoleRow(row: ServerRoleRow): ServerRole {
     name: row.name,
     color: row.color,
     mentionable: row.mentionable,
+    permissions: row.permissions ?? [],
     position: row.position,
     createdAt: row.created_at,
   };

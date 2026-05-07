@@ -2,8 +2,8 @@ import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nest
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { customAlphabet } from 'nanoid';
 import { InvitesRepository, ServersRepository } from '@discord2/db';
-import type { AuthUser, RedeemInviteResult, ServerId } from '@discord2/shared';
-import { canCreateInvite } from '@discord2/domain';
+import { Permission, type AuthUser, type RedeemInviteResult, type ServerId } from '@discord2/shared';
+import { PermissionsService } from '../permissions/permissions.service';
 import type { CreateInviteDto } from './dto';
 
 const createInviteCode = customAlphabet(
@@ -16,16 +16,16 @@ export class InvitesService {
   private readonly repository: InvitesRepository;
   private readonly serversRepository: ServersRepository;
 
-  constructor(@Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient) {
+  constructor(
+    @Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient,
+    private readonly permissionsService: PermissionsService,
+  ) {
     this.repository = new InvitesRepository(supabase);
     this.serversRepository = new ServersRepository(supabase);
   }
 
   async createInvite(user: AuthUser, serverId: ServerId, dto: CreateInviteDto) {
-    const membership = await this.serversRepository.findMembership(serverId, user.id);
-    if (!membership || !canCreateInvite(membership)) {
-      throw new ForbiddenException('You cannot create invites for this server.');
-    }
+    await this.permissionsService.assertServerPermission(user, serverId, Permission.CreateInvites);
 
     return this.repository.create({
       serverId,
@@ -39,6 +39,11 @@ export class InvitesService {
     const invite = await this.repository.findActiveByCode(code);
     if (!invite) {
       throw new NotFoundException('Invite not found.');
+    }
+
+    const banned = await this.serversRepository.findBan(invite.serverId, user.id);
+    if (banned) {
+      throw new ForbiddenException('You are banned from this server.');
     }
 
     await this.serversRepository.addMember({

@@ -1,8 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put } from '@nestjs/common';
 import type { AuthUser } from '@discord2/shared';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ChannelsService } from './channels.service';
-import { CreateChannelDto, UpdateChannelDto } from './dto';
+import { CreateChannelDto, UpdateChannelDto, UpdateChannelPermissionsDto } from './dto';
 
 @Controller('servers/:serverId/channels')
 export class ChannelsController {
@@ -30,6 +30,25 @@ export class ChannelsController {
     @Body() body: UpdateChannelDto,
   ) {
     return this.channelsService.updateChannel(user, serverId, channelId, body);
+  }
+
+  @Get(':channelId/permissions')
+  listPermissions(
+    @CurrentUser() user: AuthUser,
+    @Param('serverId') serverId: string,
+    @Param('channelId') channelId: string,
+  ) {
+    return this.channelsService.listChannelPermissions(user, serverId, channelId);
+  }
+
+  @Put(':channelId/permissions')
+  updatePermissions(
+    @CurrentUser() user: AuthUser,
+    @Param('serverId') serverId: string,
+    @Param('channelId') channelId: string,
+    @Body() body: UpdateChannelPermissionsDto,
+  ) {
+    return this.channelsService.updateChannelPermissions(user, serverId, channelId, body);
   }
 
   @Delete(':channelId')

@@ -180,6 +180,24 @@ export class MessagesRepository {
     return data.map(mapMessageWithAuthorRow);
   }
 
+  async findById(messageId: string): Promise<MessageRecord | null> {
+    const { data, error } = await this.supabase
+      .from('messages')
+      .select(
+        'id, channel_id, author_id, privacy, content, encrypted_payload, created_at, edited_at',
+      )
+      .eq('id', messageId)
+      .maybeSingle<MessageRow>();
+
+    if (error) throw error;
+    return data ? mapMessageRow(data) : null;
+  }
+
+  async delete(messageId: string): Promise<void> {
+    const { error } = await this.supabase.from('messages').delete().eq('id', messageId);
+    if (error) throw error;
+  }
+
   async listAttachmentsForMessages(
     messageIds: string[],
   ): Promise<Map<string, MessageAttachment[]>> {

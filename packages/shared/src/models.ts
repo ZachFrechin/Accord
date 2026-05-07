@@ -35,6 +35,27 @@ export const PresenceStatus = {
 
 export type PresenceStatus = (typeof PresenceStatus)[keyof typeof PresenceStatus];
 
+export const Permission = {
+  Administrator: 'ADMINISTRATOR',
+  ManageServer: 'MANAGE_SERVER',
+  ManageRoles: 'MANAGE_ROLES',
+  ManageChannels: 'MANAGE_CHANNELS',
+  CreateInvites: 'CREATE_INVITES',
+  ViewChannel: 'VIEW_CHANNEL',
+  SendMessages: 'SEND_MESSAGES',
+  AttachFiles: 'ATTACH_FILES',
+  ConnectVoice: 'CONNECT_VOICE',
+  SpeakVoice: 'SPEAK_VOICE',
+  ManageMessages: 'MANAGE_MESSAGES',
+  MentionEveryone: 'MENTION_EVERYONE',
+  KickMembers: 'KICK_MEMBERS',
+  BanMembers: 'BAN_MEMBERS',
+} as const;
+
+export type Permission = (typeof Permission)[keyof typeof Permission];
+
+export const AllPermissions = Object.values(Permission);
+
 export interface AuthUser {
   id: UserId;
   email: string | null;
@@ -80,6 +101,7 @@ export interface ServerRole {
   name: string;
   color: string;
   mentionable: boolean;
+  permissions: Permission[];
   position: number;
   createdAt: string;
 }
@@ -96,6 +118,55 @@ export interface ChannelSummary {
   name: string;
   isPrivate: boolean;
   createdAt: string | null;
+  permissions?: Permission[];
+}
+
+export const ChannelPermissionOverwriteTargetType = {
+  Everyone: 'everyone',
+  Role: 'role',
+  Member: 'member',
+} as const;
+
+export type ChannelPermissionOverwriteTargetType =
+  (typeof ChannelPermissionOverwriteTargetType)[keyof typeof ChannelPermissionOverwriteTargetType];
+
+export interface ChannelPermissionOverwrite {
+  id: string;
+  channelId: ChannelId;
+  targetType: ChannelPermissionOverwriteTargetType;
+  targetId: RoleId | UserId | null;
+  allowPermissions: Permission[];
+  denyPermissions: Permission[];
+}
+
+export interface UpdateChannelPermissionOverwriteInput {
+  targetType: ChannelPermissionOverwriteTargetType;
+  targetId: RoleId | UserId | null;
+  allowPermissions: Permission[];
+  denyPermissions: Permission[];
+}
+
+export interface UpdateChannelPermissionsInput {
+  overwrites: UpdateChannelPermissionOverwriteInput[];
+}
+
+export interface EffectivePermissions {
+  serverId: ServerId;
+  channelId?: ChannelId;
+  permissions: Permission[];
+  roleIds: RoleId[];
+  highestRolePosition: number;
+  isOwner: boolean;
+  isAdministrator: boolean;
+}
+
+export interface ServerBanRecord {
+  serverId: ServerId;
+  userId: UserId;
+  bannedBy: UserId;
+  reason: string | null;
+  createdAt: string;
+  profile?: Pick<UserProfile, 'id' | 'displayName' | 'avatarUrl'>;
 }
 
 export interface CreateServerInput {
@@ -116,16 +187,23 @@ export interface CreateServerRoleInput {
   name: string;
   color: string;
   mentionable: boolean;
+  permissions?: Permission[];
 }
 
 export interface UpdateServerRoleInput {
   name?: string;
   color?: string;
   mentionable?: boolean;
+  permissions?: Permission[];
 }
 
 export interface UpdateMemberRolesInput {
   roleIds: RoleId[];
+}
+
+export interface BanServerMemberInput {
+  userId: UserId;
+  reason?: string | null;
 }
 
 export interface CreateChannelInput {

@@ -1,5 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import type {
+  BanServerMemberInput,
+  ChannelPermissionOverwrite,
   ChannelSummary,
   CreateChannelInput,
   CreateMessageInput,
@@ -10,10 +12,12 @@ import type {
   MessageRecord,
   RedeemInviteResult,
   ServerSummary,
+  ServerBanRecord,
   ServerMemberProfile,
   ServerRole,
   SignedAttachmentUrl,
   UpdateChannelInput,
+  UpdateChannelPermissionsInput,
   UpdateMemberRolesInput,
   UpdateProfileInput,
   UpdateServerRoleInput,
@@ -58,6 +62,17 @@ export class ApiClient {
         method: 'PATCH',
         body: JSON.stringify(input),
       }),
+    listBans: (serverId: string) => this.request<ServerBanRecord[]>(`/servers/${serverId}/bans`),
+    banMember: (serverId: string, input: BanServerMemberInput) =>
+      this.request<ServerBanRecord>(`/servers/${serverId}/bans`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    unbanMember: (serverId: string, userId: string) =>
+      this.request<{ serverId: string; userId: string }>(
+        `/servers/${serverId}/bans/${encodeURIComponent(userId)}`,
+        { method: 'DELETE' },
+      ),
   };
 
   readonly roles = {
@@ -75,6 +90,11 @@ export class ApiClient {
     delete: (serverId: string, roleId: string) =>
       this.request<{ roleId: string }>(`/servers/${serverId}/roles/${roleId}`, {
         method: 'DELETE',
+      }),
+    reorder: (serverId: string, roleIds: string[]) =>
+      this.request<ServerRole[]>(`/servers/${serverId}/roles/reorder`, {
+        method: 'POST',
+        body: JSON.stringify({ roleIds }),
       }),
     members: (serverId: string) =>
       this.request<ServerMemberProfile[]>(`/servers/${serverId}/members`),
@@ -105,6 +125,22 @@ export class ApiClient {
       this.request<DeleteChannelResult>(`/servers/${serverId}/channels/${channelId}`, {
         method: 'DELETE',
       }),
+    getPermissions: (serverId: string, channelId: string) =>
+      this.request<ChannelPermissionOverwrite[]>(
+        `/servers/${serverId}/channels/${channelId}/permissions`,
+      ),
+    updatePermissions: (
+      serverId: string,
+      channelId: string,
+      input: UpdateChannelPermissionsInput,
+    ) =>
+      this.request<ChannelPermissionOverwrite[]>(
+        `/servers/${serverId}/channels/${channelId}/permissions`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(input),
+        },
+      ),
   };
 
   readonly messages = {
@@ -117,6 +153,11 @@ export class ApiClient {
     getAttachmentUrl: (messageId: string, attachmentId: string) =>
       this.request<SignedAttachmentUrl>(
         `/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}/url`,
+      ),
+    delete: (messageId: string) =>
+      this.request<{ messageId: string; channelId: string }>(
+        `/messages/${encodeURIComponent(messageId)}`,
+        { method: 'DELETE' },
       ),
   };
 

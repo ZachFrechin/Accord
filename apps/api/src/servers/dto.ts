@@ -17,3 +17,14 @@ export class UpdateServerDto {
   @IsUrl({ require_tld: false })
   avatarUrl?: string | null;
 }
+
+export class BanServerMemberDto {
+  @IsString()
+  userId!: string;
+
+  @IsOptional()
+  @ValidateIf((_, value: unknown) => value !== null)
+  @IsString()
+  @Length(0, 500)
+  reason?: string | null;
+}

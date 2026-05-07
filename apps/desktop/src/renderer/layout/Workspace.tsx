@@ -7,10 +7,12 @@ import {
   ChannelType,
   ClientToServerEvent,
   MessagePrivacy,
+  Permission,
   ServerToClientEvent,
   type ChannelSummary,
   type MemberRemovedEvent,
   type MessageCreatedEvent,
+  type MessageDeletedEvent,
   type MessageRecord,
   type ServerMemberProfile,
   type ServerRole,
@@ -45,6 +47,7 @@ import {
   type DeviceIdentity,
 } from '../lib/e2ee-client';
 import { createRealtimeSocket } from '../lib/realtime';
+import { getServerPermissions, hasPermission } from '../lib/permissions';
 import type { SupabaseBrowserClient } from '../lib/supabase';
 import { queryClient } from '../app/query-client';
 import { useUiStore } from '../store/ui-store';
@@ -137,7 +140,18 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
   const activeChannel = channels.find((channel) => channel.id === activeChannelId) ?? null;
   const activeVoiceChannel =
     channels.find((channel) => channel.id === activeVoiceChannelId) ?? null;
-  const canManageActiveServer = activeServer?.role === 'owner' || activeServer?.role === 'admin';
+  const serverPermissions = getServerPermissions(session.user.id, members, roles);
+  const activeChannelPermissions = activeChannel?.permissions ?? serverPermissions;
+  const canManageActiveServer =
+    activeServer?.role === 'owner' ||
+    hasPermission(serverPermissions, Permission.ManageServer) ||
+    hasPermission(serverPermissions, Permission.ManageRoles) ||
+    hasPermission(serverPermissions, Permission.ManageChannels);
+  const canCreateInvite = hasPermission(serverPermissions, Permission.CreateInvites);
+  const canManageChannels = hasPermission(serverPermissions, Permission.ManageChannels);
+  const canSendMessages = hasPermission(activeChannelPermissions, Permission.SendMessages);
+  const canAttachFiles = hasPermission(activeChannelPermissions, Permission.AttachFiles);
+  const canManageMessages = hasPermission(activeChannelPermissions, Permission.ManageMessages);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,6 +250,11 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
         return [...current, event.message];
       });
     });
+    socket.on(ServerToClientEvent.MessageDeleted, (event: MessageDeletedEvent) => {
+      queryClient.setQueryData<MessageRecord[]>(['messages', event.channelId], (current = []) =>
+        current.filter((message) => message.id !== event.messageId),
+      );
+    });
     socket.on(ServerToClientEvent.VoicePresenceUpdated, (event: VoicePresenceEvent) => {
       setVoiceParticipantIds(event.channelId, event.userIds);
     });
@@ -256,6 +275,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
 
     return () => {
       socket.off(ServerToClientEvent.MessageCreated);
+      socket.off(ServerToClientEvent.MessageDeleted);
       socket.off(ServerToClientEvent.VoicePresenceUpdated);
       socket.off(ServerToClientEvent.MemberRemoved);
       socket.disconnect();
@@ -507,6 +527,15 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     },
   });
 
+  const deleteMessageMutation = useMutation({
+    mutationFn: (messageId: string) => api.messages.delete(messageId),
+    onSuccess: ({ messageId, channelId }) => {
+      queryClient.setQueryData<MessageRecord[]>(['messages', channelId], (current = []) =>
+        current.filter((message) => message.id !== messageId),
+      );
+    },
+  });
+
   const sendMessageMutation = useMutation({
     mutationFn: async (input: {
       content: string;
@@ -626,7 +655,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
           voiceStatus={voiceStatus}
           voiceParticipantsByChannel={voiceParticipantsByChannel}
           isLoading={channelsQuery.isLoading}
-          canManageServer={canManageActiveServer}
+          canManageServer={canManageChannels}
           onSelect={setActiveChannelId}
           onCreateChannel={() => {
             setCreateChannelType(ChannelType.Text);
@@ -676,14 +705,14 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
           <div className="topbar-actions">
             <IconButton
               label="Invitation"
-              disabled={!activeServerId}
+              disabled={!activeServerId || !canCreateInvite}
               onClick={() => setIsInviteOpen(true)}
             >
               <Link2 size={18} />
             </IconButton>
             <IconButton
               label="Nouveau salon"
-              disabled={!activeServerId}
+              disabled={!activeServerId || !canManageChannels}
               onClick={() => {
                 setCreateChannelType(ChannelType.Text);
                 setIsCreateChannelOpen(true);
@@ -732,9 +761,12 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
               members={members}
               roles={roles}
               conversationKey={conversationKey}
+              canManageMessages={canManageMessages}
+              onDeleteMessage={(messageId) => deleteMessageMutation.mutateAsync(messageId)}
             />
             <MessageComposer
-              disabled={!activeChannelId || sendMessageMutation.isPending}
+              disabled={!activeChannelId || !canSendMessages || sendMessageMutation.isPending}
+              canAttachFiles={canAttachFiles}
               error={composerError}
               members={members}
               roles={roles}

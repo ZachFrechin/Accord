@@ -8,9 +8,9 @@ import {
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ChannelsRepository } from '@discord2/db';
-import { ChannelType, type AuthUser, type CreateAttachmentInput } from '@discord2/shared';
+import { ChannelType, Permission, type AuthUser, type CreateAttachmentInput } from '@discord2/shared';
 import { loadServerEnv } from '@discord2/config';
-import { ServersService } from '../servers/servers.service';
+import { PermissionsService } from '../permissions/permissions.service';
 
 const maxAvatarBytes = 2 * 1024 * 1024;
 const maxMessageMediaBytes = 25 * 1024 * 1024;
@@ -28,7 +28,7 @@ export class FilesService {
 
   constructor(
     @Inject('SUPABASE_SERVICE_CLIENT') private readonly supabase: SupabaseClient,
-    private readonly serversService: ServersService,
+    private readonly permissionsService: PermissionsService,
   ) {
     this.channelsRepository = new ChannelsRepository(supabase);
   }
@@ -51,10 +51,7 @@ export class FilesService {
     body: Buffer,
     mimeType: string,
   ): Promise<{ url: string }> {
-    const membership = await this.serversService.requireMembership(user, serverId);
-    if (membership.role !== 'owner' && membership.role !== 'admin') {
-      throw new ForbiddenException('You cannot manage this server.');
-    }
+    await this.permissionsService.assertServerPermission(user, serverId, Permission.ManageServer);
 
     const extension = this.requireAvatarMimeType(mimeType);
     this.requireBodySize(body, maxAvatarBytes);
@@ -77,7 +74,7 @@ export class FilesService {
       throw new ForbiddenException('Only server text channel media uploads are supported.');
     }
 
-    await this.serversService.requireMembership(user, channel.serverId);
+    await this.permissionsService.assertChannelPermission(user, channelId, Permission.AttachFiles);
     const path = `${channelId}/${user.id}/${randomUUID()}.bin`;
     await this.upload('message-media', path, body, 'application/octet-stream');
 

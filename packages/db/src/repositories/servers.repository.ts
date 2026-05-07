@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   ServerId,
+  ServerBanRecord,
   ServerMember,
   ServerSummary,
   UpdateServerInput,
@@ -22,6 +23,18 @@ interface ServerMemberRow {
   server_id: string;
   user_id: string;
   role: ServerMember['role'];
+}
+
+interface ServerBanRow {
+  server_id: string;
+  user_id: string;
+  banned_by: string;
+  reason: string | null;
+  created_at: string;
+  profiles?: {
+    display_name: string;
+    avatar_url: string | null;
+  } | null;
 }
 
 export class ServersRepository {
@@ -93,6 +106,11 @@ export class ServersRepository {
   }
 
   async addMember(input: { serverId: ServerId; userId: UserId }): Promise<void> {
+    const banned = await this.findBan(input.serverId, input.userId);
+    if (banned) {
+      throw new Error('User is banned from this server.');
+    }
+
     const { error } = await this.supabase.from('server_members').upsert(
       {
         server_id: input.serverId,
@@ -115,6 +133,69 @@ export class ServersRepository {
       .eq('user_id', userId);
 
     if (error) throw error;
+  }
+
+  async listBans(serverId: ServerId): Promise<ServerBanRecord[]> {
+    const { data, error } = await this.supabase
+      .from('server_bans')
+      .select('server_id, user_id, banned_by, reason, created_at, profiles:user_id(display_name, avatar_url)')
+      .eq('server_id', serverId)
+      .order('created_at', { ascending: false })
+      .returns<ServerBanRow[]>();
+
+    if (error) throw error;
+
+    return data.map(mapBanRow);
+  }
+
+  async findBan(serverId: ServerId, userId: UserId): Promise<ServerBanRecord | null> {
+    const { data, error } = await this.supabase
+      .from('server_bans')
+      .select('server_id, user_id, banned_by, reason, created_at, profiles:user_id(display_name, avatar_url)')
+      .eq('server_id', serverId)
+      .eq('user_id', userId)
+      .maybeSingle<ServerBanRow>();
+
+    if (error) throw error;
+    return data ? mapBanRow(data) : null;
+  }
+
+  async banMember(input: {
+    serverId: ServerId;
+    userId: UserId;
+    bannedBy: UserId;
+    reason: string | null;
+  }): Promise<ServerBanRecord> {
+    const { data, error } = await this.supabase
+      .from('server_bans')
+      .upsert(
+        {
+          server_id: input.serverId,
+          user_id: input.userId,
+          banned_by: input.bannedBy,
+          reason: input.reason,
+        },
+        { onConflict: 'server_id,user_id' },
+      )
+      .select('server_id, user_id, banned_by, reason, created_at, profiles:user_id(display_name, avatar_url)')
+      .single<ServerBanRow>();
+
+    if (error) throw error;
+
+    await this.removeMember(input.serverId, input.userId);
+    return mapBanRow(data);
+  }
+
+  async unbanMember(serverId: ServerId, userId: UserId): Promise<{ serverId: ServerId; userId: UserId }> {
+    const { error } = await this.supabase
+      .from('server_bans')
+      .delete()
+      .eq('server_id', serverId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+
+    return { serverId, userId };
   }
 
   async findByIdForUser(serverId: ServerId, userId: UserId): Promise<ServerSummary | null> {
@@ -146,6 +227,21 @@ export class ServersRepository {
 
     return mapServerRow(data, 'member');
   }
+}
+
+function mapBanRow(row: ServerBanRow): ServerBanRecord {
+  return {
+    serverId: row.server_id,
+    userId: row.user_id,
+    bannedBy: row.banned_by,
+    reason: row.reason,
+    createdAt: row.created_at,
+    profile: {
+      id: row.user_id,
+      displayName: row.profiles?.display_name ?? 'Unknown user',
+      avatarUrl: row.profiles?.avatar_url ?? null,
+    },
+  };
 }
 
 function mapServerRow(row: ServerRow, role: ServerMember['role']): ServerSummary {

@@ -69,9 +69,25 @@ vi.mock('@discord2/db', () => ({
 const supabase = {} as SupabaseClient;
 const user: AuthUser = { id: 'user-1', email: 'user@example.com' };
 
+const permissionsService = {
+  assertServerPermission: vi.fn().mockResolvedValue({ permissions: [] }),
+  assertChannelPermission: vi.fn().mockResolvedValue({ channel: null, effective: { permissions: [] } }),
+  assertCanManageTargetMember: vi.fn().mockResolvedValue(undefined),
+  assertCanManageRole: vi.fn().mockResolvedValue(undefined),
+  listVisibleChannels: vi.fn(),
+};
+
 describe('api service behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    permissionsService.assertServerPermission.mockResolvedValue({ permissions: [] });
+    permissionsService.assertChannelPermission.mockResolvedValue({
+      channel: null,
+      effective: { permissions: [] },
+    });
+    permissionsService.assertCanManageTargetMember.mockResolvedValue(undefined);
+    permissionsService.assertCanManageRole.mockResolvedValue(undefined);
+    permissionsService.listVisibleChannels.mockReset();
     process.env.SUPABASE_URL = 'https://supabase.test';
     process.env.SUPABASE_ANON_KEY = 'anon';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
@@ -82,7 +98,7 @@ describe('api service behavior', () => {
 
   it('creates a server owned by the authenticated user', async () => {
     const { ServersService } = await import('./servers/servers.service');
-    const service = new ServersService(supabase);
+    const service = new ServersService(supabase, permissionsService as never);
     const server = {
       id: 'server-1',
       name: 'Core',
@@ -132,7 +148,7 @@ describe('api service behavior', () => {
         role: 'admin',
       }),
     };
-    const service = new ChannelsService(supabase, serversService as never);
+    const service = new ChannelsService(supabase, permissionsService as never);
     const channel = {
       id: 'channel-1',
       serverId: 'server-1',
@@ -163,7 +179,10 @@ describe('api service behavior', () => {
         role: 'member',
       }),
     };
-    const service = new ChannelsService(supabase, serversService as never);
+    const service = new ChannelsService(supabase, permissionsService as never);
+    permissionsService.assertServerPermission.mockRejectedValue(
+      new ForbiddenException('Missing server permission.'),
+    );
 
     await expect(
       service.createChannel(user, 'server-1', {
@@ -182,7 +201,7 @@ describe('api service behavior', () => {
         role: 'admin',
       }),
     };
-    const service = new ChannelsService(supabase, serversService as never);
+    const service = new ChannelsService(supabase, permissionsService as never);
     const channel = {
       id: 'channel-1',
       serverId: 'server-1',
@@ -211,7 +230,10 @@ describe('api service behavior', () => {
         role: 'member',
       }),
     };
-    const service = new ChannelsService(supabase, serversService as never);
+    const service = new ChannelsService(supabase, permissionsService as never);
+    permissionsService.assertServerPermission.mockRejectedValue(
+      new ForbiddenException('Missing server permission.'),
+    );
     repositoryMocks.channels.findById.mockResolvedValue({
       id: 'channel-1',
       serverId: 'server-1',
@@ -235,7 +257,7 @@ describe('api service behavior', () => {
         role: 'owner',
       }),
     };
-    const service = new ChannelsService(supabase, serversService as never);
+    const service = new ChannelsService(supabase, permissionsService as never);
     repositoryMocks.channels.findById.mockResolvedValue({
       id: 'channel-1',
       serverId: 'server-1',
@@ -257,7 +279,7 @@ describe('api service behavior', () => {
     const serversService = {
       requireMembership: vi.fn(),
     };
-    const service = new ChannelsService(supabase, serversService as never);
+    const service = new ChannelsService(supabase, permissionsService as never);
     repositoryMocks.channels.findById.mockResolvedValue({
       id: 'channel-1',
       serverId: 'server-2',
@@ -270,13 +292,12 @@ describe('api service behavior', () => {
     await expect(service.deleteChannel(user, 'server-1', 'channel-1')).rejects.toBeInstanceOf(
       NotFoundException,
     );
-    expect(serversService.requireMembership).not.toHaveBeenCalled();
     expect(repositoryMocks.channels.delete).not.toHaveBeenCalled();
   });
 
   it('allows owners and admins to update server settings', async () => {
     const { ServersService } = await import('./servers/servers.service');
-    const service = new ServersService(supabase);
+    const service = new ServersService(supabase, permissionsService as never);
     const updated = {
       id: 'server-1',
       name: 'Core Team',
@@ -306,7 +327,10 @@ describe('api service behavior', () => {
 
   it('rejects server settings updates from regular members', async () => {
     const { ServersService } = await import('./servers/servers.service');
-    const service = new ServersService(supabase);
+    const service = new ServersService(supabase, permissionsService as never);
+    permissionsService.assertServerPermission.mockRejectedValue(
+      new ForbiddenException('Missing server permission.'),
+    );
     repositoryMocks.servers.findMembership.mockResolvedValue({
       serverId: 'server-1',
       userId: user.id,
@@ -321,7 +345,7 @@ describe('api service behavior', () => {
 
   it('rejects avatar URLs outside the expected Supabase Storage bucket', async () => {
     const { ServersService } = await import('./servers/servers.service');
-    const service = new ServersService(supabase);
+    const service = new ServersService(supabase, permissionsService as never);
     repositoryMocks.servers.findMembership.mockResolvedValue({
       serverId: 'server-1',
       userId: user.id,
@@ -357,6 +381,7 @@ describe('api service behavior', () => {
       serversService as never,
       usersService as never,
       rolesService as never,
+      permissionsService as never,
       eventsPublisher as never,
     );
     const encrypted = {
@@ -402,7 +427,7 @@ describe('api service behavior', () => {
       },
       mentions: [],
     });
-    expect(serversService.requireMembership).toHaveBeenCalledWith(user, 'server-1');
+    expect(permissionsService.assertChannelPermission).toHaveBeenCalled();
     expect(repositoryMocks.messages.insertAttachments).toHaveBeenCalledWith('message-1', []);
     expect(eventsPublisher.publishMessageCreated).toHaveBeenCalledWith({
       channelId: 'channel-1',
@@ -430,6 +455,7 @@ describe('api service behavior', () => {
       serversService as never,
       usersService as never,
       rolesService as never,
+      permissionsService as never,
       eventsPublisher as never,
     );
     const encrypted = {
@@ -490,6 +516,7 @@ describe('api service behavior', () => {
       { requireMembership: vi.fn().mockResolvedValue({ id: 'server-1' }) } as never,
       { me: vi.fn() } as never,
       { insertMessageMentions: vi.fn(), resolveMentions: vi.fn() } as never,
+      permissionsService as never,
       { publishMessageCreated: vi.fn() } as never,
     );
     repositoryMocks.channels.findById.mockResolvedValue({
@@ -533,6 +560,7 @@ describe('api service behavior', () => {
       { requireMembership: vi.fn() } as never,
       { me: vi.fn() } as never,
       { insertMessageMentions: vi.fn(), resolveMentions: vi.fn() } as never,
+      permissionsService as never,
       { publishMessageCreated: vi.fn() } as never,
     );
     repositoryMocks.channels.findById.mockResolvedValue({
@@ -565,7 +593,7 @@ describe('api service behavior', () => {
     const serversService = {
       requireMembership: vi.fn().mockResolvedValue({ id: 'server-1', role: 'member' }),
     };
-    const service = new VoiceService(supabase, serversService as never);
+    const service = new VoiceService(supabase, permissionsService as never);
     repositoryMocks.channels.findById.mockResolvedValue({
       id: 'channel-1',
       serverId: 'server-1',
@@ -579,13 +607,13 @@ describe('api service behavior', () => {
       room: 'voice:channel-1',
       token: expect.any(String),
     });
-    expect(serversService.requireMembership).toHaveBeenCalledWith(user, 'server-1');
+    expect(permissionsService.assertChannelPermission).toHaveBeenCalled();
   });
 
   it('rejects LiveKit tokens for non-voice channels', async () => {
     const { VoiceService } = await import('./voice/voice.service');
     const serversService = { requireMembership: vi.fn() };
-    const service = new VoiceService(supabase, serversService as never);
+    const service = new VoiceService(supabase, permissionsService as never);
     repositoryMocks.channels.findById.mockResolvedValue({
       id: 'channel-1',
       serverId: 'server-1',
@@ -598,7 +626,7 @@ describe('api service behavior', () => {
     await expect(service.createJoinToken(user, 'channel-1')).rejects.toBeInstanceOf(
       NotFoundException,
     );
-    expect(serversService.requireMembership).not.toHaveBeenCalled();
+    expect(permissionsService.assertChannelPermission).not.toHaveBeenCalled();
   });
 
   it('rejects LiveKit tokens when the user is not a server member', async () => {
@@ -606,7 +634,10 @@ describe('api service behavior', () => {
     const serversService = {
       requireMembership: vi.fn().mockRejectedValue(new NotFoundException('Server not found.')),
     };
-    const service = new VoiceService(supabase, serversService as never);
+    const service = new VoiceService(supabase, permissionsService as never);
+    permissionsService.assertChannelPermission.mockRejectedValue(
+      new NotFoundException('Server not found.'),
+    );
     repositoryMocks.channels.findById.mockResolvedValue({
       id: 'channel-1',
       serverId: 'server-1',
@@ -623,7 +654,7 @@ describe('api service behavior', () => {
 
   it('redeems active invitations by adding membership and marking the invite used', async () => {
     const { InvitesService } = await import('./invites/invites.service');
-    const service = new InvitesService(supabase);
+    const service = new InvitesService(supabase, permissionsService as never);
     const server = {
       id: 'server-1',
       name: 'Core',
@@ -654,7 +685,7 @@ describe('api service behavior', () => {
 
   it('returns a public 404 for invalid invitation codes', async () => {
     const { InvitesService } = await import('./invites/invites.service');
-    const service = new InvitesService(supabase);
+    const service = new InvitesService(supabase, permissionsService as never);
     repositoryMocks.invites.findActiveByCode.mockResolvedValue(null);
 
     await expect(service.redeemInvite(user, 'BAD')).rejects.toBeInstanceOf(NotFoundException);

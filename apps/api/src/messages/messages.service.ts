@@ -10,6 +10,7 @@ import { ChannelsRepository, MessagesRepository } from '@discord2/db';
 import { normalizeMessageInput } from '@discord2/domain';
 import {
   ChannelType,
+  Permission,
   type AuthUser,
   type ChannelId,
   type CreateAttachmentInput,
@@ -19,6 +20,7 @@ import {
 import { RolesService } from '../roles/roles.service';
 import { ServersService } from '../servers/servers.service';
 import { UsersService } from '../users/users.service';
+import { PermissionsService } from '../permissions/permissions.service';
 import type { CreateMessageDto } from './dto';
 import { MessageEventsPublisher } from './message-events.publisher';
 
@@ -45,6 +47,7 @@ export class MessagesService {
     private readonly serversService: ServersService,
     private readonly usersService: UsersService,
     private readonly rolesService: RolesService,
+    private readonly permissionsService: PermissionsService,
     private readonly eventsPublisher: MessageEventsPublisher,
   ) {
     this.repository = new MessagesRepository(supabase);
@@ -56,8 +59,11 @@ export class MessagesService {
     channelId: ChannelId,
     dto: CreateMessageDto,
   ): Promise<MessageRecord> {
-    await this.requireChannelWriteAccess(user, channelId);
+    await this.requireChannelPermission(user, channelId, Permission.SendMessages);
     const attachments = validateMessageAttachments(user.id, channelId, dto.attachments ?? []);
+    if (attachments.length > 0) {
+      await this.requireChannelPermission(user, channelId, Permission.AttachFiles);
+    }
     const normalized = normalizeMessageInput({
       privacy: dto.privacy,
       content: null,
@@ -105,7 +111,7 @@ export class MessagesService {
       throw new NotFoundException('Attachment not found.');
     }
 
-    await this.requireChannelWriteAccess(user, attachment.channelId);
+    await this.requireChannelPermission(user, attachment.channelId, Permission.ViewChannel);
 
     if (!attachment.isE2ee) {
       throw new ForbiddenException('Signed URLs are only available for encrypted attachments.');
@@ -126,7 +132,7 @@ export class MessagesService {
   }
 
   async listMessages(user: AuthUser, channelId: ChannelId): Promise<MessageRecord[]> {
-    await this.requireChannelWriteAccess(user, channelId);
+    await this.requireChannelPermission(user, channelId, Permission.ViewChannel);
     const messages = await this.repository.listByChannel(channelId);
     const messageIds = messages.map((message) => message.id);
     const [mentionsByMessage, attachmentsByMessage, embedsByMessage] = await Promise.all([
@@ -142,7 +148,35 @@ export class MessagesService {
     }));
   }
 
-  private async requireChannelWriteAccess(user: AuthUser, channelId: ChannelId): Promise<string> {
+  async deleteMessage(
+    user: AuthUser,
+    messageId: string,
+  ): Promise<{ messageId: string; channelId: string }> {
+    const message = await this.repository.findById(messageId);
+    if (!message) {
+      throw new NotFoundException('Message not found.');
+    }
+
+    if (message.authorId !== user.id) {
+      await this.requireChannelPermission(user, message.channelId, Permission.ManageMessages);
+    } else {
+      await this.requireChannelPermission(user, message.channelId, Permission.ViewChannel);
+    }
+
+    await this.repository.delete(messageId);
+    await this.eventsPublisher.publishMessageDeleted({
+      channelId: message.channelId,
+      messageId,
+    });
+
+    return { messageId, channelId: message.channelId };
+  }
+
+  private async requireChannelPermission(
+    user: AuthUser,
+    channelId: ChannelId,
+    permission: Permission,
+  ): Promise<string> {
     const channel = await this.channelsRepository.findById(channelId);
     if (!channel) {
       throw new NotFoundException('Channel not found.');
@@ -156,7 +190,13 @@ export class MessagesService {
       throw new ForbiddenException('Direct messages are not supported in this iteration.');
     }
 
-    await this.serversService.requireMembership(user, channel.serverId);
+    if (permission !== Permission.SendMessages) {
+      await this.permissionsService.assertChannelPermission(user, channelId, permission);
+      return channel.serverId;
+    }
+
+    await this.permissionsService.assertChannelPermission(user, channelId, Permission.ViewChannel);
+    await this.permissionsService.assertChannelPermission(user, channelId, Permission.SendMessages);
     return channel.serverId;
   }
 }

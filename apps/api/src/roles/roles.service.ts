@@ -1,22 +1,23 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { RolesRepository, ServersRepository } from '@discord2/db';
-import { canManageServer } from '@discord2/domain';
 import type {
   AuthUser,
   MessageMention,
+  Permission as PermissionValue,
   RoleId,
   ServerId,
   ServerMemberProfile,
   ServerRole,
   UserId,
 } from '@discord2/shared';
+import { Permission } from '@discord2/shared';
+import { PermissionsService } from '../permissions/permissions.service';
 import type { CreateServerRoleDto, UpdateMemberRolesDto, UpdateServerRoleDto } from './dto';
 
 @Injectable()
@@ -24,7 +25,10 @@ export class RolesService {
   private readonly rolesRepository: RolesRepository;
   private readonly serversRepository: ServersRepository;
 
-  constructor(@Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient) {
+  constructor(
+    @Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient,
+    private readonly permissionsService: PermissionsService,
+  ) {
     this.rolesRepository = new RolesRepository(supabase);
     this.serversRepository = new ServersRepository(supabase);
   }
@@ -39,12 +43,13 @@ export class RolesService {
     serverId: ServerId,
     dto: CreateServerRoleDto,
   ): Promise<ServerRole> {
-    await this.requireManageRoles(user, serverId);
+    await this.permissionsService.assertServerPermission(user, serverId, Permission.ManageRoles);
     return this.rolesRepository.createRole({
       serverId,
       name: this.normalizeRoleName(dto.name),
       color: dto.color,
       mentionable: dto.mentionable,
+      permissions: this.normalizePermissions(dto.permissions ?? []),
     });
   }
 
@@ -54,8 +59,9 @@ export class RolesService {
     roleId: RoleId,
     dto: UpdateServerRoleDto,
   ): Promise<ServerRole> {
-    await this.requireManageRoles(user, serverId);
-    const input: Partial<Pick<ServerRole, 'name' | 'color' | 'mentionable'>> = {};
+    const existing = await this.findRoleOrThrow(serverId, roleId);
+    await this.permissionsService.assertCanManageRole(user, serverId, existing);
+    const input: Partial<Pick<ServerRole, 'name' | 'color' | 'mentionable' | 'permissions'>> = {};
 
     if (dto.name !== undefined) {
       input.name = this.normalizeRoleName(dto.name);
@@ -67,6 +73,10 @@ export class RolesService {
 
     if (dto.mentionable !== undefined) {
       input.mentionable = dto.mentionable;
+    }
+
+    if (dto.permissions !== undefined) {
+      input.permissions = this.normalizePermissions(dto.permissions);
     }
 
     if (Object.keys(input).length === 0) {
@@ -81,9 +91,19 @@ export class RolesService {
     serverId: ServerId,
     roleId: RoleId,
   ): Promise<{ roleId: RoleId }> {
-    await this.requireManageRoles(user, serverId);
+    const existing = await this.findRoleOrThrow(serverId, roleId);
+    await this.permissionsService.assertCanManageRole(user, serverId, existing);
     await this.rolesRepository.deleteRole(serverId, roleId);
     return { roleId };
+  }
+
+  async reorderRoles(
+    user: AuthUser,
+    serverId: ServerId,
+    roleIds: RoleId[],
+  ): Promise<ServerRole[]> {
+    await this.permissionsService.assertServerPermission(user, serverId, Permission.ManageRoles);
+    return this.rolesRepository.reorderRoles(serverId, roleIds);
   }
 
   async listMembers(user: AuthUser, serverId: ServerId): Promise<ServerMemberProfile[]> {
@@ -97,7 +117,12 @@ export class RolesService {
     targetUserId: UserId,
     dto: UpdateMemberRolesDto,
   ): Promise<ServerMemberProfile> {
-    await this.requireManageRoles(user, serverId);
+    await this.permissionsService.assertCanManageTargetMember(
+      user,
+      serverId,
+      targetUserId,
+      Permission.ManageRoles,
+    );
     const targetMembership = await this.serversRepository.findMembership(serverId, targetUserId);
     if (!targetMembership) {
       throw new NotFoundException('Member not found.');
@@ -108,6 +133,14 @@ export class RolesService {
     const uniqueRoleIds = Array.from(new Set(dto.roleIds));
     if (uniqueRoleIds.some((roleId) => !validRoleIds.has(roleId))) {
       throw new BadRequestException('Unknown server role.');
+    }
+
+    const rolesById = new Map(roles.map((role) => [role.id, role]));
+    for (const roleId of uniqueRoleIds) {
+      const role = rolesById.get(roleId);
+      if (role) {
+        await this.permissionsService.assertCanManageRole(user, serverId, role);
+      }
     }
 
     await this.rolesRepository.setMemberRoles({
@@ -181,17 +214,6 @@ export class RolesService {
     }
   }
 
-  private async requireManageRoles(user: AuthUser, serverId: ServerId): Promise<void> {
-    const membership = await this.serversRepository.findMembership(serverId, user.id);
-    if (!membership) {
-      throw new NotFoundException('Server not found.');
-    }
-
-    if (!canManageServer(membership)) {
-      throw new ForbiddenException('You cannot manage roles for this server.');
-    }
-  }
-
   private normalizeRoleName(name: string): string {
     const normalized = name.trim().replace(/^@+/, '');
     if (!normalized) {
@@ -199,6 +221,21 @@ export class RolesService {
     }
 
     return normalized;
+  }
+
+  private normalizePermissions(permissions: PermissionValue[]): PermissionValue[] {
+    const allowed = new Set(Object.values(Permission));
+    return Array.from(new Set(permissions)).filter((permission) => allowed.has(permission));
+  }
+
+  private async findRoleOrThrow(serverId: ServerId, roleId: RoleId): Promise<ServerRole> {
+    const roles = await this.rolesRepository.listRoles(serverId);
+    const role = roles.find((item) => item.id === roleId);
+    if (!role) {
+      throw new NotFoundException('Role not found.');
+    }
+
+    return role;
   }
 }
 

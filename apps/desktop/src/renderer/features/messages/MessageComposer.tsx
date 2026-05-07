@@ -10,6 +10,7 @@ export interface ComposerMediaDraft {
 
 interface MessageComposerProps {
   disabled: boolean;
+  canAttachFiles: boolean;
   error: string | null;
   members: ServerMemberProfile[];
   roles: ServerRole[];
@@ -18,6 +19,7 @@ interface MessageComposerProps {
 
 export function MessageComposer({
   disabled,
+  canAttachFiles,
   error,
   members,
   roles,
@@ -159,7 +161,7 @@ export function MessageComposer({
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
             multiple
-            disabled={disabled || isSending || mediaDrafts.length >= 10}
+            disabled={!canAttachFiles || disabled || isSending || mediaDrafts.length >= 10}
             onChange={(event) => {
               addFiles(event.target.files);
               event.target.value = '';

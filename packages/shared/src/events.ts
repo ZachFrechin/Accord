@@ -13,6 +13,7 @@ export const ClientToServerEvent = {
 
 export const ServerToClientEvent = {
   MessageCreated: 'message:created',
+  MessageDeleted: 'message:deleted',
   TypingStarted: 'typing:started',
   TypingStopped: 'typing:stopped',
   PresenceUpdated: 'presence:updated',
@@ -23,6 +24,7 @@ export const ServerToClientEvent = {
 
 export const InternalRealtimeEvent = {
   MessageCreated: 'message.created',
+  MessageDeleted: 'message.deleted',
   MemberRemoved: 'member.removed',
 } as const;
 
@@ -45,6 +47,11 @@ export interface VoiceJoinPayload {
 export interface MessageCreatedEvent {
   channelId: ChannelId;
   message: MessageRecord;
+}
+
+export interface MessageDeletedEvent {
+  channelId: ChannelId;
+  messageId: MessageId;
 }
 
 export interface TypingEvent {

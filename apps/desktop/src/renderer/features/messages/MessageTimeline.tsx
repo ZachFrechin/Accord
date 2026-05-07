@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { MoreHorizontal, Trash2 } from 'lucide-react';
 import { MessageEmbedType, MessagePrivacy } from '@discord2/shared';
 import type {
   MessageMention,
@@ -27,6 +28,8 @@ interface MessageTimelineProps {
   members: ServerMemberProfile[];
   roles: ServerRole[];
   conversationKey: ConversationKey | null;
+  canManageMessages: boolean;
+  onDeleteMessage: (messageId: string) => Promise<unknown>;
 }
 
 export function MessageTimeline({
@@ -37,9 +40,12 @@ export function MessageTimeline({
   members,
   roles,
   conversationKey,
+  canManageMessages,
+  onDeleteMessage,
 }: MessageTimelineProps): React.JSX.Element {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<MessageAttachment | null>(null);
+  const [openActionsMessageId, setOpenActionsMessageId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(messages.length);
   const currentMember = members.find((member) => member.userId === session.user.id);
@@ -100,6 +106,9 @@ export function MessageTimeline({
               currentRoleIds,
             );
             const clientEmbeds = createClientOnlyEmbeds(message.content);
+            const canDeleteMessage =
+              !message.id.startsWith('pending-') &&
+              (message.authorId === session.user.id || canManageMessages);
 
             return (
               <article
@@ -137,6 +146,43 @@ export function MessageTimeline({
                         ? 'Envoi...'
                         : formatMessageTime(message.createdAt)}
                     </span>
+                    {authorRole ? (
+                      <span
+                        className="message-role-tag"
+                        style={{ '--role-color': authorRole.color } as React.CSSProperties}
+                      >
+                        {authorRole.name}
+                      </span>
+                    ) : null}
+                    {canDeleteMessage ? (
+                      <div className="message-actions">
+                        <button
+                          type="button"
+                          aria-label="Actions du message"
+                          onClick={() =>
+                            setOpenActionsMessageId(
+                              openActionsMessageId === message.id ? null : message.id,
+                            )
+                          }
+                        >
+                          <MoreHorizontal size={15} />
+                        </button>
+                        {openActionsMessageId === message.id ? (
+                          <div className="message-action-menu">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenActionsMessageId(null);
+                                void onDeleteMessage(message.id);
+                              }}
+                            >
+                              <Trash2 size={14} />
+                              Supprimer
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   {message.content ? (
                     <p>{renderMessageContent(message.content, displayMentions)}</p>
@@ -287,7 +333,7 @@ function getPrimaryRole(
     member.roleIds
       .map((roleId) => roleById.get(roleId))
       .filter((role): role is ServerRole => Boolean(role))
-      .sort((left, right) => left.position - right.position)[0] ?? null
+      .sort((left, right) => right.position - left.position)[0] ?? null
   );
 }
 

@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import type { AuthUser } from '@discord2/shared';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { CreateServerRoleDto, UpdateMemberRolesDto, UpdateServerRoleDto } from './dto';
+import { CreateServerRoleDto, ReorderRolesDto, UpdateMemberRolesDto, UpdateServerRoleDto } from './dto';
 import { RolesService } from './roles.service';
 
 @Controller('servers/:serverId')
@@ -39,6 +39,15 @@ export class RolesController {
     @Param('roleId') roleId: string,
   ) {
     return this.rolesService.deleteRole(user, serverId, roleId);
+  }
+
+  @Post('roles/reorder')
+  reorderRoles(
+    @CurrentUser() user: AuthUser,
+    @Param('serverId') serverId: string,
+    @Body() body: ReorderRolesDto,
+  ) {
+    return this.rolesService.reorderRoles(user, serverId, body.roleIds);
   }
 
   @Get('members')

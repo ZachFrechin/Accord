@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post
 import type { AuthUser } from '@discord2/shared';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { MessageEventsPublisher } from '../messages/message-events.publisher';
-import { CreateServerDto, UpdateServerDto } from './dto';
+import { BanServerMemberDto, CreateServerDto, UpdateServerDto } from './dto';
 import { ServersService } from './servers.service';
 
 @Controller('servers')
@@ -40,5 +40,30 @@ export class ServersController {
   ): Promise<void> {
     const result = await this.serversService.removeMember(user, serverId, userId);
     await this.eventsPublisher.publishMemberRemoved(result);
+  }
+
+  @Get(':serverId/bans')
+  listBans(@CurrentUser() user: AuthUser, @Param('serverId') serverId: string) {
+    return this.serversService.listBans(user, serverId);
+  }
+
+  @Post(':serverId/bans')
+  async banMember(
+    @CurrentUser() user: AuthUser,
+    @Param('serverId') serverId: string,
+    @Body() body: BanServerMemberDto,
+  ) {
+    const ban = await this.serversService.banMember(user, serverId, body);
+    await this.eventsPublisher.publishMemberRemoved({ serverId, userId: body.userId });
+    return ban;
+  }
+
+  @Delete(':serverId/bans/:userId')
+  unbanMember(
+    @CurrentUser() user: AuthUser,
+    @Param('serverId') serverId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.serversService.unbanMember(user, serverId, userId);
   }
 }

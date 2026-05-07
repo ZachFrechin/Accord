@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import type { AuthUser } from '@discord2/shared';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CreateMessageDto } from './dto';
@@ -29,5 +29,10 @@ export class MessagesController {
     @Param('attachmentId') attachmentId: string,
   ) {
     return this.messagesService.getAttachmentUrl(user, messageId, attachmentId);
+  }
+
+  @Delete('messages/:messageId')
+  delete(@CurrentUser() user: AuthUser, @Param('messageId') messageId: string) {
+    return this.messagesService.deleteMessage(user, messageId);
   }
 }

@@ -1,22 +1,33 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ServersRepository } from '@discord2/db';
-import { canManageServer } from '@discord2/domain';
-import type { AuthUser, ServerId, ServerSummary, UpdateServerInput, UserId } from '@discord2/shared';
+import {
+  Permission,
+  type AuthUser,
+  type BanServerMemberInput,
+  type ServerBanRecord,
+  type ServerId,
+  type ServerSummary,
+  type UpdateServerInput,
+  type UserId,
+} from '@discord2/shared';
 import { assertPublicStorageUrl } from '../common/storage-url.validator';
+import { PermissionsService } from '../permissions/permissions.service';
 import type { CreateServerDto, UpdateServerDto } from './dto';
 
 @Injectable()
 export class ServersService {
   private readonly repository: ServersRepository;
 
-  constructor(@Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient) {
+  constructor(
+    @Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient,
+    private readonly permissionsService: PermissionsService,
+  ) {
     this.repository = new ServersRepository(supabase);
   }
 
@@ -45,26 +56,49 @@ export class ServersService {
     serverId: ServerId,
     targetUserId: UserId,
   ): Promise<{ serverId: ServerId; userId: UserId }> {
-    const membership = await this.repository.findMembership(serverId, user.id);
-    if (!membership) {
-      throw new NotFoundException('Server not found.');
-    }
-
-    if (!canManageServer(membership)) {
-      throw new ForbiddenException('You cannot manage this server.');
-    }
-
-    const targetMembership = await this.repository.findMembership(serverId, targetUserId);
-    if (!targetMembership) {
-      throw new NotFoundException('Member not found.');
-    }
-
-    if (targetMembership.role === 'owner') {
-      throw new ForbiddenException('The server owner cannot be removed.');
-    }
+    await this.permissionsService.assertCanManageTargetMember(
+      user,
+      serverId,
+      targetUserId,
+      Permission.KickMembers,
+    );
 
     await this.repository.removeMember(serverId, targetUserId);
     return { serverId, userId: targetUserId };
+  }
+
+  async listBans(user: AuthUser, serverId: ServerId): Promise<ServerBanRecord[]> {
+    await this.permissionsService.assertServerPermission(user, serverId, Permission.BanMembers);
+    return this.repository.listBans(serverId);
+  }
+
+  async banMember(
+    user: AuthUser,
+    serverId: ServerId,
+    dto: BanServerMemberInput,
+  ): Promise<ServerBanRecord> {
+    await this.permissionsService.assertCanManageTargetMember(
+      user,
+      serverId,
+      dto.userId,
+      Permission.BanMembers,
+    );
+
+    return this.repository.banMember({
+      serverId,
+      userId: dto.userId,
+      bannedBy: user.id,
+      reason: dto.reason?.trim() || null,
+    });
+  }
+
+  async unbanMember(
+    user: AuthUser,
+    serverId: ServerId,
+    targetUserId: UserId,
+  ): Promise<{ serverId: ServerId; userId: UserId }> {
+    await this.permissionsService.assertServerPermission(user, serverId, Permission.BanMembers);
+    return this.repository.unbanMember(serverId, targetUserId);
   }
 
   async updateServer(
@@ -72,14 +106,9 @@ export class ServersService {
     serverId: ServerId,
     dto: UpdateServerDto,
   ): Promise<ServerSummary> {
+    await this.permissionsService.assertServerPermission(user, serverId, Permission.ManageServer);
     const membership = await this.repository.findMembership(serverId, user.id);
-    if (!membership) {
-      throw new NotFoundException('Server not found.');
-    }
-
-    if (!canManageServer(membership)) {
-      throw new ForbiddenException('You cannot manage this server.');
-    }
+    if (!membership) throw new NotFoundException('Server not found.');
 
     const name = dto.name?.trim();
     if (name === undefined && dto.avatarUrl === undefined) {
