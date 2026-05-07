@@ -89,16 +89,20 @@ export function ChannelSidebar({
               ))
             : null}
           {textChannels.map((channel) => (
-            <button
-              className={`channel${channel.id === activeChannelId ? ' active' : ''}`}
+            <div
               key={channel.id}
-              type="button"
-              onClick={() => onSelect(channel.id)}
+              className={`channel${channel.id === activeChannelId ? ' active' : ''}`}
             >
-              {channel.isPrivate ? <Lock size={16} /> : <Hash size={16} />}
-              <span>{channel.name}</span>
+              <button
+                type="button"
+                className="channel-label"
+                onClick={() => onSelect(channel.id)}
+              >
+                {channel.isPrivate ? <Lock size={16} /> : <Hash size={16} />}
+                <span>{channel.name}</span>
+              </button>
               {renderChannelSettingsBtn(channel)}
-            </button>
+            </div>
           ))}
           {!isLoading && textChannels.length === 0 ? (
             <p className="muted">Aucun salon texte.</p>
@@ -121,18 +125,22 @@ export function ChannelSidebar({
         <nav className="channel-list" aria-label="Salons vocaux">
           {voiceChannels.map((channel) => (
             <div key={channel.id} className="voice-channel-wrapper">
-              <button
+              <div
                 className={`channel voice-channel${channel.id === activeVoiceChannelId ? ' active' : ''}`}
-                type="button"
-                onClick={() => onJoinVoiceChannel(channel.id)}
               >
-                <Mic size={16} />
-                <span>{channel.name}</span>
-                {channel.id === activeVoiceChannelId ? (
-                  <small>{voiceStatus === 'connected' ? 'live' : voiceStatus}</small>
-                ) : null}
+                <button
+                  type="button"
+                  className="channel-label"
+                  onClick={() => onJoinVoiceChannel(channel.id)}
+                >
+                  <Mic size={16} />
+                  <span>{channel.name}</span>
+                  {channel.id === activeVoiceChannelId ? (
+                    <small>{voiceStatus === 'connected' ? 'live' : voiceStatus}</small>
+                  ) : null}
+                </button>
                 {renderChannelSettingsBtn(channel)}
-              </button>
+              </div>
               <VoiceChannelParticipants
                 api={api}
                 userIds={voiceParticipantsByChannel[channel.id] ?? []}

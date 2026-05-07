@@ -377,6 +377,7 @@ function EncryptedAttachmentItem({
 }): React.JSX.Element {
   const [decrypted, setDecrypted] = useState<DecryptedAttachment | null>(null);
   const [failed, setFailed] = useState(false);
+  const isLocalPreview = attachment.url.startsWith('blob:') || attachment.storagePath.startsWith('blob:');
 
   useEffect(() => {
     if (!conversationKey || !attachment.encrypted) return;
@@ -394,10 +395,45 @@ function EncryptedAttachmentItem({
     };
   }, [attachment, conversationKey]);
 
-  if (failed || !conversationKey || !attachment.encrypted) {
+  if (isLocalPreview) {
+    if (attachment.mimeType.startsWith('image/')) {
+      return (
+        <button
+          type="button"
+          className="message-media image"
+          key={attachment.id}
+          onClick={() => onPreview(attachment)}
+        >
+          <img alt={attachment.fileName ?? 'Image en attente'} src={attachment.url} loading="lazy" />
+        </button>
+      );
+    }
+
+    if (attachment.mimeType.startsWith('video/')) {
+      return (
+        <video
+          className="message-media video"
+          controls
+          key={attachment.id}
+          preload="metadata"
+          src={attachment.url}
+        />
+      );
+    }
+  }
+
+  if (failed || !conversationKey) {
     return (
       <div className="message-file-link encrypted" key={attachment.id}>
         Fichier chiffré illisible
+      </div>
+    );
+  }
+
+  if (!attachment.encrypted) {
+    return (
+      <div className="message-file-link encrypted" key={attachment.id}>
+        Métadonnées de chiffrement absentes
       </div>
     );
   }

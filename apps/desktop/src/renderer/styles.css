@@ -930,6 +930,20 @@ input::placeholder {
     color 140ms ease;
 }
 
+.channel-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
 .channel svg {
   color: var(--text-ghost);
   transition: color 140ms ease;

@@ -3,14 +3,13 @@ import { Check, Search, Settings, Shield, Users } from 'lucide-react';
 import type { ServerMemberProfile, ServerRole, ServerSummary } from '@discord2/shared';
 import { AvatarImage } from '../../components/AvatarImage';
 import { Dialog } from '../../components/Dialog';
-import { uploadPublicImage } from '../../lib/storage-upload';
-import type { SupabaseBrowserClient } from '../../lib/supabase';
+import type { ApiClient } from '../../lib/api-client';
 
 type ServerSettingsTab = 'general' | 'roles' | 'members';
 
 interface ServerSettingsDialogProps {
   server: ServerSummary;
-  supabase: SupabaseBrowserClient;
+  api: ApiClient;
   isSaving: boolean;
   roles: ServerRole[];
   members: ServerMemberProfile[];
@@ -31,7 +30,7 @@ interface ServerSettingsDialogProps {
 
 export function ServerSettingsDialog({
   server,
-  supabase,
+  api,
   isSaving,
   roles,
   members,
@@ -60,6 +59,11 @@ export function ServerSettingsDialog({
   const [confirmKickId, setConfirmKickId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const canManageMembers = server.role === 'owner' || server.role === 'admin';
+
+  function selectAvatarFile(file: File | undefined): void {
+    setError(null);
+    setAvatarFile(file ?? null);
+  }
 
   const filteredMembers = members.filter((member) =>
     member.profile.displayName.toLocaleLowerCase().includes(memberSearch.toLocaleLowerCase()),
@@ -92,7 +96,7 @@ export function ServerSettingsDialog({
 
     try {
       const uploadedAvatarUrl = avatarFile
-        ? await uploadPublicImage(supabase, 'server-icons', server.id, avatarFile)
+        ? (await api.files.uploadServerIcon(server.id, avatarFile)).url
         : avatarUrl;
       await onSave({
         name: name.trim(),
@@ -165,7 +169,10 @@ export function ServerSettingsDialog({
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
-                      onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+                      onChange={(event) => {
+                        selectAvatarFile(event.target.files?.[0]);
+                        event.target.value = '';
+                      }}
                     />
                   </span>
                 </label>

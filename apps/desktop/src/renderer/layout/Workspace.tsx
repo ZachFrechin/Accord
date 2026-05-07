@@ -45,7 +45,6 @@ import {
   type DeviceIdentity,
 } from '../lib/e2ee-client';
 import { createRealtimeSocket } from '../lib/realtime';
-import { uploadEncryptedMessageMedia } from '../lib/storage-upload';
 import type { SupabaseBrowserClient } from '../lib/supabase';
 import { queryClient } from '../app/query-client';
 import { useUiStore } from '../store/ui-store';
@@ -538,10 +537,9 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
               identity: deviceIdentity,
               bytes: new Uint8Array(await draft.file.arrayBuffer()),
             });
-            return uploadEncryptedMessageMedia(
-              supabase,
+            return api.files.uploadEncryptedMessageMedia(
               activeChannelId,
-              session.user.id,
+              base64ToBytes(encryptedFile.ciphertext),
               encryptedFile,
             );
           }),
@@ -822,6 +820,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
         <ProfileSettingsDialog
           profile={profileQuery.data}
           session={session}
+          api={api}
           supabase={supabase}
           isSavingProfile={updateProfileMutation.isPending}
           onClose={() => setIsProfileSettingsOpen(false)}
@@ -833,7 +832,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
       {isServerSettingsOpen && activeServer && canManageActiveServer ? (
         <ServerSettingsDialog
           server={activeServer}
-          supabase={supabase}
+          api={api}
           isSaving={updateServerMutation.isPending}
           roles={roles}
           members={members}
@@ -885,4 +884,9 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
       ) : null}
     </main>
   );
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }

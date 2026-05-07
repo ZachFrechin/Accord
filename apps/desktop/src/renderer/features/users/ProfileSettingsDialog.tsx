@@ -3,12 +3,13 @@ import type { Session } from '@supabase/supabase-js';
 import type { UserProfile } from '@discord2/shared';
 import { AvatarImage } from '../../components/AvatarImage';
 import { Dialog } from '../../components/Dialog';
-import { uploadPublicImage } from '../../lib/storage-upload';
+import type { ApiClient } from '../../lib/api-client';
 import type { SupabaseBrowserClient } from '../../lib/supabase';
 
 interface ProfileSettingsDialogProps {
   profile: UserProfile;
   session: Session;
+  api: ApiClient;
   supabase: SupabaseBrowserClient;
   isSavingProfile: boolean;
   onClose: () => void;
@@ -18,6 +19,7 @@ interface ProfileSettingsDialogProps {
 export function ProfileSettingsDialog({
   profile,
   session,
+  api,
   supabase,
   isSavingProfile,
   onClose,
@@ -34,6 +36,11 @@ export function ProfileSettingsDialog({
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  function selectAvatarFile(file: File | undefined): void {
+    setProfileError(null);
+    setAvatarFile(file ?? null);
+  }
 
   useEffect(() => {
     if (!avatarFile) {
@@ -53,7 +60,7 @@ export function ProfileSettingsDialog({
 
     try {
       const uploadedAvatarUrl = avatarFile
-        ? await uploadPublicImage(supabase, 'profile-avatars', profile.id, avatarFile)
+        ? (await api.files.uploadProfileAvatar(avatarFile)).url
         : avatarUrl;
       await onSaveProfile({
         displayName: displayName.trim(),
@@ -136,7 +143,10 @@ export function ProfileSettingsDialog({
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
-                  onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+                  onChange={(event) => {
+                    selectAvatarFile(event.target.files?.[0]);
+                    event.target.value = '';
+                  }}
                 />
               </span>
             </label>

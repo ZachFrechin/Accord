@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { json, urlencoded } from 'express';
+import { json, raw, urlencoded } from 'express';
 import helmet from 'helmet';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
@@ -12,6 +12,7 @@ async function bootstrap(): Promise<void> {
     bufferLogs: true,
   });
 
+  app.use('/files/upload', raw({ type: '*/*', limit: '30mb' }));
   app.use(json({ limit: env.API_BODY_LIMIT }));
   app.use(urlencoded({ extended: false, limit: env.API_BODY_LIMIT }));
   app.use(

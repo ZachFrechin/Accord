@@ -11,17 +11,23 @@ export interface SavedInstancesState {
 }
 
 export function loadSavedInstances(): SavedInstancesState {
-  const instances = parseInstances(localStorage.getItem(instancesStorageKey));
-  const activeInstanceId = localStorage.getItem(activeInstanceStorageKey);
   const devInstance = getDevInstance();
+  const instances = sanitizeStoredInstances(
+    parseInstances(localStorage.getItem(instancesStorageKey)),
+    devInstance,
+  );
+  const activeInstanceId = localStorage.getItem(activeInstanceStorageKey);
   const merged = devInstance ? upsertInstance(instances, devInstance) : instances;
+  const nextActiveInstanceId =
+    activeInstanceId && merged.some((instance) => instance.instanceId === activeInstanceId)
+      ? activeInstanceId
+      : (merged[0]?.instanceId ?? null);
+
+  persistSanitizedInstances(merged, nextActiveInstanceId);
 
   return {
     instances: merged,
-    activeInstanceId:
-      activeInstanceId && merged.some((instance) => instance.instanceId === activeInstanceId)
-        ? activeInstanceId
-        : (devInstance?.instanceId ?? merged[0]?.instanceId ?? null),
+    activeInstanceId: nextActiveInstanceId,
   };
 }
 
@@ -120,7 +126,16 @@ function isLocalUrl(value: string): boolean {
 }
 
 function isLocalHostname(hostname: string): boolean {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost');
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
+  if (hostname.endsWith('.localhost') || hostname.endsWith('.local')) return true;
+  // RFC 1918 private ranges
+  const parts = hostname.split('.').map(Number);
+  if (parts.length === 4 && parts.every((n) => !isNaN(n))) {
+    if (parts[0] === 10) return true;
+    if (parts[0] === 172 && parts[1] !== undefined && parts[1] >= 16 && parts[1] <= 31) return true;
+    if (parts[0] === 192 && parts[1] === 168) return true;
+  }
+  return false;
 }
 
 function parseInstances(value: string | null): InstanceConfig[] {
@@ -163,7 +178,7 @@ function getDevInstance(): InstanceConfig | null {
     return null;
   }
 
-  return {
+  const instance = {
     instanceId: 'local-dev',
     instanceName: 'Local dev',
     apiUrl: trimTrailingSlash(env.VITE_API_URL),
@@ -173,6 +188,28 @@ function getDevInstance(): InstanceConfig | null {
     livekitUrl: trimTrailingSlash(env.VITE_LIVEKIT_URL),
     capabilities: ['messages:e2ee:v1', 'files:e2ee:v1', 'voice:livekit:v1'],
   };
+
+  return isLocalUrl(instance.apiUrl) ? instance : null;
+}
+
+function sanitizeStoredInstances(
+  instances: InstanceConfig[],
+  devInstance: InstanceConfig | null,
+): InstanceConfig[] {
+  if (devInstance) return instances;
+  return instances.filter((instance) => instance.instanceId !== 'local-dev');
+}
+
+function persistSanitizedInstances(
+  instances: InstanceConfig[],
+  activeInstanceId: string | null,
+): void {
+  localStorage.setItem(instancesStorageKey, JSON.stringify(instances));
+  if (activeInstanceId) {
+    localStorage.setItem(activeInstanceStorageKey, activeInstanceId);
+  } else {
+    localStorage.removeItem(activeInstanceStorageKey);
+  }
 }
 
 function trimTrailingSlash(value: string): string {

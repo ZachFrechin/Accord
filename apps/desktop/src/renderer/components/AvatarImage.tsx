@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface AvatarImageProps {
   label: string;
@@ -13,6 +13,10 @@ export function AvatarImage({
 }: AvatarImageProps): React.JSX.Element {
   const [hasImageError, setHasImageError] = useState(false);
   const initials = label.trim().slice(0, 2).toUpperCase() || '?';
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [src]);
 
   if (src && !hasImageError) {
     return (

@@ -26,6 +26,8 @@ import type {
   E2eeConversationState,
   InstanceConfig,
   PublishCryptoDeviceInput,
+  CreateAttachmentInput,
+  EncryptedPayload,
 } from '@discord2/shared';
 
 export class ApiClient {
@@ -148,6 +150,28 @@ export class ApiClient {
 
   readonly files = {
     limits: () => this.request<{ maxBytes: number; encryptedUploads: true }>('/files/limits'),
+    uploadProfileAvatar: (file: File) =>
+      this.uploadBinary<{ url: string }>('/files/upload/profile-avatar', file, file.type),
+    uploadServerIcon: (serverId: string, file: File) =>
+      this.uploadBinary<{ url: string }>(
+        `/files/upload/server-icons/${serverId}`,
+        file,
+        file.type,
+      ),
+    uploadEncryptedMessageMedia: (
+      channelId: string,
+      encryptedBytes: Uint8Array,
+      encrypted: EncryptedPayload,
+    ) =>
+      this.uploadBinary<CreateAttachmentInput>(
+        `/files/upload/message-media/${channelId}`,
+        encryptedBytes,
+        'application/octet-stream',
+      ).then((attachment) => ({
+        ...attachment,
+        encrypted,
+        isE2ee: true,
+      })),
   };
 
   readonly invites = {
@@ -181,11 +205,53 @@ export class ApiClient {
 
     if (!response.ok) {
       const message = await readErrorMessage(response);
+      if (response.status === 401) {
+        throw new Error(
+          message ||
+            'Session refusée par cette instance. Déconnecte-toi puis reconnecte-toi sur cette instance.',
+        );
+      }
       throw new Error(message || `API request failed with ${response.status}`);
     }
 
     return (await response.json()) as T;
   }
+
+  private async uploadBinary<T>(
+    path: string,
+    body: Blob | Uint8Array,
+    contentType: string,
+  ): Promise<T> {
+    const requestBody =
+      body instanceof Blob ? body : new Blob([toArrayBuffer(body)], { type: contentType });
+    const response = await fetch(`${this.instance.apiUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.session.access_token}`,
+        'Content-Type': contentType,
+      },
+      body: requestBody,
+    });
+
+    if (!response.ok) {
+      const message = await readErrorMessage(response);
+      if (response.status === 401) {
+        throw new Error(
+          message ||
+            'Session refusée par cette instance. Déconnecte-toi puis reconnecte-toi sur cette instance.',
+        );
+      }
+      throw new Error(message || `Upload failed with ${response.status}`);
+    }
+
+    return (await response.json()) as T;
+  }
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
 }
 
 async function readErrorMessage(response: Response): Promise<string | null> {

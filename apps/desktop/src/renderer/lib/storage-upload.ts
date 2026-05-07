@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CreateAttachmentInput, EncryptedPayload } from '@discord2/shared';
 
 const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
+const uploadTimeoutMs = 30_000;
 const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -24,10 +25,12 @@ export async function uploadPublicImage(
   }
 
   const path = `${ownerId}/${crypto.randomUUID()}.${extension}`;
-  const { error } = await supabase.storage.from(bucket).upload(path, file, {
-    contentType: file.type,
-    upsert: false,
-  });
+  const { error } = await withUploadTimeout(
+    supabase.storage.from(bucket).upload(path, file, {
+      contentType: file.type,
+      upsert: false,
+    }),
+  );
 
   if (error) {
     throw new Error(error.message);
@@ -47,10 +50,12 @@ export async function uploadEncryptedMessageMedia(
   const body = new Blob([new Uint8Array(encryptedBytes)], {
     type: 'application/octet-stream',
   });
-  const { error } = await supabase.storage.from('message-media').upload(path, body, {
-    contentType: 'application/octet-stream',
-    upsert: false,
-  });
+  const { error } = await withUploadTimeout(
+    supabase.storage.from('message-media').upload(path, body, {
+      contentType: 'application/octet-stream',
+      upsert: false,
+    }),
+  );
 
   if (error) {
     throw new Error(error.message);
@@ -68,4 +73,25 @@ export async function uploadEncryptedMessageMedia(
 function base64ToBytes(value: string): Uint8Array {
   const binary = atob(value);
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+async function withUploadTimeout<T>(upload: Promise<T>): Promise<T> {
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(
+        new Error(
+          'Upload Supabase sans réponse. Vérifie que l’instance active utilise la bonne URL Supabase et que les policies Storage sont appliquées.',
+        ),
+      );
+    }, uploadTimeoutMs);
+  });
+
+  try {
+    return await Promise.race([upload, timeout]);
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+    }
+  }
 }
