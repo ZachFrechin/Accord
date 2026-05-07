@@ -9,6 +9,7 @@ interface AuthScreenProps {
   instances: InstanceConfig[];
   onChangeInstance: () => void;
   onSelectInstance: (instanceId: string) => void;
+  externalError?: string | null;
 }
 
 export function AuthScreen({
@@ -17,6 +18,7 @@ export function AuthScreen({
   instances,
   onChangeInstance,
   onSelectInstance,
+  externalError = null,
 }: AuthScreenProps): React.JSX.Element {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -82,6 +84,7 @@ export function AuthScreen({
               autoComplete="current-password"
             />
           </label>
+          {externalError ? <div className="form-error">{externalError}</div> : null}
           {error ? <div className="form-error">{error}</div> : null}
           <button type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Connexion...' : 'Se connecter'}

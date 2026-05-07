@@ -6,6 +6,7 @@ const envSchema = z.object({
   SUPABASE_INTERNAL_URL: z.string().url().optional(),
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  SUPABASE_JWT_SECRET: z.string().min(16).optional(),
   API_PORT: z.coerce.number().int().positive().default(4000),
   API_CORS_ORIGINS: z.string().default('http://localhost:5173'),
   API_BODY_LIMIT: z.string().default('1mb'),

@@ -6,8 +6,8 @@ export function useSession(supabase: SupabaseBrowserClient | null): Session | nu
   const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
+    setSession(null);
     if (!supabase) {
-      setSession(null);
       return;
     }
 
