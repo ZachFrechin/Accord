@@ -17,7 +17,7 @@ export class SupabaseAuthService {
 
     const supabase = createSupabaseUserClient(
       {
-        url: this.env.SUPABASE_INTERNAL_URL ?? this.env.SUPABASE_URL,
+        url: this.env.SUPABASE_URL,
         anonKey: this.env.SUPABASE_ANON_KEY,
       },
       accessToken,

@@ -6,7 +6,7 @@ export const supabaseProvider = {
   useFactory: () => {
     const env = loadServerEnv();
     return createSupabaseServiceClient({
-      url: env.SUPABASE_INTERNAL_URL ?? env.SUPABASE_URL,
+      url: env.SUPABASE_URL,
       anonKey: env.SUPABASE_ANON_KEY,
       serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
     });
