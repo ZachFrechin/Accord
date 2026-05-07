@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { Check, Search, Settings, Shield, Users } from 'lucide-react';
 import type { ServerMemberProfile, ServerRole, ServerSummary } from '@discord2/shared';
 import { AvatarImage } from '../../components/AvatarImage';
 import { Dialog } from '../../components/Dialog';
 import { uploadPublicImage } from '../../lib/storage-upload';
+
+type ServerSettingsTab = 'general' | 'roles' | 'members';
 
 interface ServerSettingsDialogProps {
   server: ServerSummary;
@@ -36,13 +39,24 @@ export function ServerSettingsDialog({
   onDeleteRole,
   onUpdateMemberRoles,
 }: ServerSettingsDialogProps): React.JSX.Element {
+  const [activeTab, setActiveTab] = useState<ServerSettingsTab>('general');
   const [name, setName] = useState(server.name);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(server.avatarUrl);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleColor, setNewRoleColor] = useState('#8b9cff');
+  const [memberSearch, setMemberSearch] = useState('');
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(
+    members[0]?.userId ?? null,
+  );
   const [error, setError] = useState<string | null>(null);
+
+  const filteredMembers = members.filter((member) =>
+    member.profile.displayName.toLocaleLowerCase().includes(memberSearch.toLocaleLowerCase()),
+  );
+  const selectedMember =
+    members.find((member) => member.userId === selectedMemberId) ?? filteredMembers[0] ?? null;
 
   useEffect(() => {
     if (!avatarFile) {
@@ -55,6 +69,13 @@ export function ServerSettingsDialog({
 
     return () => URL.revokeObjectURL(nextPreviewUrl);
   }, [avatarFile]);
+
+  useEffect(() => {
+    const firstMember = members[0];
+    if (!selectedMemberId && firstMember) {
+      setSelectedMemberId(firstMember.userId);
+    }
+  }, [members, selectedMemberId]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -94,114 +115,230 @@ export function ServerSettingsDialog({
 
   return (
     <Dialog title="Paramètres serveur" onClose={onClose}>
-      <form className="settings-section" onSubmit={(event) => void submit(event)}>
-        <div className="avatar-field">
-          <AvatarImage className="settings-avatar" label={name} src={previewUrl ?? avatarUrl} />
-          <label className="file-field">
-            <span>Photo du serveur</span>
-            <span className="file-picker">
-              <span className="file-picker-button">Choisir une image</span>
-              <span className="file-picker-name">{avatarFile?.name ?? 'Aucune image choisie'}</span>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
-              />
-            </span>
-          </label>
-        </div>
-        <label>
-          Nom du serveur
-          <input
-            value={name}
-            minLength={1}
-            maxLength={80}
-            onChange={(event) => setName(event.target.value)}
+      <div className="server-settings-shell">
+        <nav className="settings-tabs" aria-label="Sections des paramètres serveur">
+          <SettingsTab
+            active={activeTab === 'general'}
+            icon={<Settings size={16} />}
+            label="Général"
+            onClick={() => setActiveTab('general')}
           />
-        </label>
-        {error ? <div className="form-error">{error}</div> : null}
-        <div className="form-actions">
-          <button type="submit" disabled={isSaving || !name.trim()}>
-            Sauvegarder le serveur
-          </button>
-        </div>
-      </form>
-      <section className="settings-section">
-        <h3>Rôles</h3>
-        <form className="role-create-row" onSubmit={(event) => void createRole(event)}>
-          <input
-            value={newRoleName}
-            maxLength={40}
-            placeholder="Nom du rôle"
-            onChange={(event) => setNewRoleName(event.target.value)}
+          <SettingsTab
+            active={activeTab === 'roles'}
+            icon={<Shield size={16} />}
+            label="Rôles"
+            onClick={() => setActiveTab('roles')}
           />
-          <input
-            type="color"
-            value={newRoleColor}
-            aria-label="Couleur du rôle"
-            onChange={(event) => setNewRoleColor(event.target.value)}
+          <SettingsTab
+            active={activeTab === 'members'}
+            icon={<Users size={16} />}
+            label="Membres"
+            onClick={() => setActiveTab('members')}
           />
-          <button type="submit" disabled={isSavingRole || !newRoleName.trim()}>
-            Ajouter
-          </button>
-        </form>
-        <div className="role-list">
-          {roles.map((role) => (
-            <RoleEditor
-              key={role.id}
-              role={role}
-              disabled={isSavingRole}
-              onSave={onUpdateRole}
-              onDelete={onDeleteRole}
-            />
-          ))}
-          {!isLoadingRoles && roles.length === 0 ? (
-            <p className="muted">Aucun rôle personnalisé.</p>
+        </nav>
+
+        <div className="server-settings-panel">
+          {activeTab === 'general' ? (
+            <form className="settings-section" onSubmit={(event) => void submit(event)}>
+              <div className="avatar-field">
+                <AvatarImage
+                  className="settings-avatar"
+                  label={name}
+                  src={previewUrl ?? avatarUrl}
+                />
+                <label className="file-field">
+                  <span>Photo du serveur</span>
+                  <span className="file-picker">
+                    <span className="file-picker-button">Choisir une image</span>
+                    <span className="file-picker-name">
+                      {avatarFile?.name ?? 'Aucune image choisie'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+                    />
+                  </span>
+                </label>
+              </div>
+              <label>
+                Nom du serveur
+                <input
+                  value={name}
+                  minLength={1}
+                  maxLength={80}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </label>
+              {error ? <div className="form-error">{error}</div> : null}
+              <div className="form-actions">
+                <button type="submit" disabled={isSaving || !name.trim()}>
+                  Sauvegarder le serveur
+                </button>
+              </div>
+            </form>
+          ) : null}
+
+          {activeTab === 'roles' ? (
+            <section className="settings-section">
+              <div className="settings-section-heading">
+                <div>
+                  <h3>Rôles</h3>
+                  <p>Définis les rôles visibles dans le chat et mentionnables.</p>
+                </div>
+              </div>
+              <form className="role-create-row" onSubmit={(event) => void createRole(event)}>
+                <input
+                  value={newRoleName}
+                  maxLength={40}
+                  placeholder="Nom du rôle"
+                  onChange={(event) => setNewRoleName(event.target.value)}
+                />
+                <input
+                  type="color"
+                  value={newRoleColor}
+                  aria-label="Couleur du rôle"
+                  onChange={(event) => setNewRoleColor(event.target.value)}
+                />
+                <button type="submit" disabled={isSavingRole || !newRoleName.trim()}>
+                  Ajouter
+                </button>
+              </form>
+              <div className="role-list">
+                {roles.map((role) => (
+                  <RoleEditor
+                    key={role.id}
+                    role={role}
+                    disabled={isSavingRole}
+                    onSave={onUpdateRole}
+                    onDelete={onDeleteRole}
+                  />
+                ))}
+                {!isLoadingRoles && roles.length === 0 ? (
+                  <p className="muted">Aucun rôle personnalisé.</p>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+
+          {activeTab === 'members' ? (
+            <section className="settings-section members-settings">
+              <div className="settings-section-heading">
+                <div>
+                  <h3>Membres</h3>
+                  <p>Sélectionne un membre puis ajuste ses rôles sans matrice de cases.</p>
+                </div>
+              </div>
+              <div className="members-management">
+                <div className="member-picker">
+                  <label className="search-field">
+                    <Search size={15} />
+                    <input
+                      value={memberSearch}
+                      aria-label="Rechercher un membre"
+                      placeholder="Rechercher un membre"
+                      onChange={(event) => setMemberSearch(event.target.value)}
+                    />
+                  </label>
+                  <div className="member-picker-list">
+                    {filteredMembers.map((member) => (
+                      <button
+                        type="button"
+                        className={`member-picker-row${
+                          selectedMember?.userId === member.userId ? ' active' : ''
+                        }`}
+                        aria-pressed={selectedMember?.userId === member.userId}
+                        key={member.userId}
+                        onClick={() => setSelectedMemberId(member.userId)}
+                      >
+                        <AvatarImage
+                          className="member-role-avatar"
+                          label={member.profile.displayName}
+                          src={member.profile.avatarUrl}
+                        />
+                        <span>
+                          <strong>{member.profile.displayName}</strong>
+                          <small>{member.role}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="member-role-detail">
+                  {selectedMember ? (
+                    <>
+                      <div className="member-detail-header">
+                        <AvatarImage
+                          className="member-detail-avatar"
+                          label={selectedMember.profile.displayName}
+                          src={selectedMember.profile.avatarUrl}
+                        />
+                        <div>
+                          <strong>{selectedMember.profile.displayName}</strong>
+                          <span>{selectedMember.role}</span>
+                        </div>
+                      </div>
+                      <div className="role-toggle-grid">
+                        {roles.map((role) => {
+                          const selected = selectedMember.roleIds.includes(role.id);
+                          const nextRoleIds = selected
+                            ? selectedMember.roleIds.filter((roleId) => roleId !== role.id)
+                            : [...selectedMember.roleIds, role.id];
+
+                          return (
+                            <button
+                              type="button"
+                              className={`role-toggle-card${selected ? ' selected' : ''}`}
+                              disabled={isSavingRole}
+                              aria-pressed={selected}
+                              key={role.id}
+                              style={{ '--role-color': role.color } as React.CSSProperties}
+                              onClick={() =>
+                                void onUpdateMemberRoles(selectedMember.userId, nextRoleIds)
+                              }
+                            >
+                              <span className="role-toggle-color" />
+                              <span>{role.name}</span>
+                              {selected ? <Check size={15} /> : null}
+                            </button>
+                          );
+                        })}
+                        {roles.length === 0 ? (
+                          <p className="muted">Crée un rôle avant d’en assigner aux membres.</p>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="muted">Aucun membre trouvé.</p>
+                  )}
+                </div>
+              </div>
+            </section>
           ) : null}
         </div>
-      </section>
-      <section className="settings-section">
-        <h3>Membres</h3>
-        <div className="member-role-list">
-          {members.map((member) => (
-            <div className="member-role-row" key={member.userId}>
-              <AvatarImage
-                className="member-role-avatar"
-                label={member.profile.displayName}
-                src={member.profile.avatarUrl}
-              />
-              <div>
-                <strong>{member.profile.displayName}</strong>
-                <span>{member.role}</span>
-              </div>
-              <div className="member-role-pills">
-                {roles.map((role) => {
-                  const checked = member.roleIds.includes(role.id);
-                  return (
-                    <label className="role-check" key={role.id}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={isSavingRole}
-                        onChange={(event) => {
-                          const nextRoleIds = event.target.checked
-                            ? [...member.roleIds, role.id]
-                            : member.roleIds.filter((roleId) => roleId !== role.id);
-                          void onUpdateMemberRoles(member.userId, nextRoleIds);
-                        }}
-                      />
-                      <span style={{ '--role-color': role.color } as React.CSSProperties}>
-                        {role.name}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      </div>
     </Dialog>
+  );
+}
+
+interface SettingsTabProps {
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}
+
+function SettingsTab({ active, icon, label, onClick }: SettingsTabProps): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      className={`settings-tab${active ? ' active' : ''}`}
+      aria-current={active ? 'page' : undefined}
+      onClick={onClick}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
   );
 }
 
@@ -235,7 +372,8 @@ function RoleEditor({ role, disabled, onSave, onDelete }: RoleEditorProps): Reac
           checked={mentionable}
           onChange={(event) => setMentionable(event.target.checked)}
         />
-        Mentionnable
+        <span className="toggle-switch" aria-hidden="true" />
+        <span className="toggle-label">Mentionnable</span>
       </label>
       <button
         type="button"

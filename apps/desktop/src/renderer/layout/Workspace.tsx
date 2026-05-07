@@ -550,6 +550,8 @@ export function Workspace({ session }: WorkspaceProps): React.JSX.Element {
               messages={messagesQuery.data ?? []}
               isLoading={messagesQuery.isLoading}
               session={session}
+              members={members}
+              roles={roles}
             />
             <MessageComposer
               disabled={!activeChannelId || sendMessageMutation.isPending}

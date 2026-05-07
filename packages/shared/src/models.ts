@@ -1,7 +1,9 @@
 import type {
+  AttachmentId,
   ChannelId,
   ConversationId,
   DeviceId,
+  EmbedId,
   InviteId,
   MessageId,
   RoleId,
@@ -155,12 +157,59 @@ export interface EncryptedPayload {
   senderDeviceId: DeviceId;
 }
 
+export const MessageEmbedType = {
+  YouTube: 'youtube',
+  Image: 'image',
+  Link: 'link',
+} as const;
+
+export type MessageEmbedType = (typeof MessageEmbedType)[keyof typeof MessageEmbedType];
+
+export interface MessageAttachment {
+  id: AttachmentId;
+  url: string;
+  storagePath: string;
+  mimeType: string;
+  byteSize: number;
+  fileName?: string;
+  width?: number;
+  height?: number;
+  durationMs?: number;
+  isE2ee: boolean;
+}
+
+export interface MessageEmbed {
+  id: EmbedId;
+  type: MessageEmbedType;
+  url: string;
+  title?: string;
+  description?: string;
+  thumbnailUrl?: string;
+  provider?: string;
+  embedUrl?: string;
+}
+
+export interface CreateAttachmentInput {
+  storagePath: string;
+  mimeType: string;
+  byteSize: number;
+  fileName?: string;
+}
+
+export interface CreateMessageInput {
+  content?: string;
+  privacy: MessagePrivacy;
+  attachments?: CreateAttachmentInput[];
+}
+
 export interface MessageRecord {
   id: MessageId;
   channelId: ChannelId;
   authorId: UserId;
   author?: Pick<UserProfile, 'id' | 'displayName' | 'avatarUrl'>;
   mentions?: MessageMention[];
+  attachments: MessageAttachment[];
+  embeds: MessageEmbed[];
   privacy: MessagePrivacy;
   content: string | null;
   encrypted: EncryptedPayload | null;

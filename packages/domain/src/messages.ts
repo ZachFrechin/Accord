@@ -5,19 +5,22 @@ export interface CreateMessageInput {
   privacy: MessagePrivacy;
   content?: string | null;
   encrypted?: EncryptedPayload | null;
+  attachments?: unknown[];
 }
 
 export function normalizeMessageInput(input: CreateMessageInput): CreateMessageInput {
   if (input.privacy === MessagePrivacy.Public) {
     const content = input.content?.trim();
-    if (!content) {
+    const hasAttachments = (input.attachments?.length ?? 0) > 0;
+    if (!content && !hasAttachments) {
       throw new ValidationAppError('Public messages require plaintext content.');
     }
 
     return {
       privacy: MessagePrivacy.Public,
-      content,
+      content: content || null,
       encrypted: null,
+      attachments: input.attachments ?? [],
     };
   }
 

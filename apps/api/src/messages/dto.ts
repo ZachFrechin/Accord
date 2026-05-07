@@ -6,6 +6,8 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsArray,
+  Max,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -33,6 +35,25 @@ export class EncryptedPayloadDto {
   senderDeviceId!: string;
 }
 
+export class CreateAttachmentDto {
+  @IsString()
+  @IsNotEmpty()
+  storagePath!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  mimeType!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(25 * 1024 * 1024)
+  byteSize!: number;
+
+  @IsString()
+  @IsOptional()
+  fileName?: string;
+}
+
 export class CreateMessageDto {
   @IsEnum(MessagePrivacy)
   privacy!: MessagePrivacy;
@@ -46,4 +67,10 @@ export class CreateMessageDto {
   @Type(() => EncryptedPayloadDto)
   @IsOptional()
   encrypted?: EncryptedPayloadDto;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateAttachmentDto)
+  @IsOptional()
+  attachments?: CreateAttachmentDto[];
 }

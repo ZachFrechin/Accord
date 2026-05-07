@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import type { MessageMention, MessageRecord } from '@discord2/shared';
+import type {
+  MessageMention,
+  MessageRecord,
+  ServerMemberProfile,
+  ServerRole,
+} from '@discord2/shared';
 import { AvatarImage } from '../../components/AvatarImage';
 import { ProfilePopup } from '../users/ProfilePopup';
 
@@ -8,16 +13,22 @@ interface MessageTimelineProps {
   messages: MessageRecord[];
   isLoading: boolean;
   session: Session;
+  members: ServerMemberProfile[];
+  roles: ServerRole[];
 }
 
 export function MessageTimeline({
   messages,
   isLoading,
   session,
+  members,
+  roles,
 }: MessageTimelineProps): React.JSX.Element {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(messages.length);
+  const currentMember = members.find((member) => member.userId === session.user.id);
+  const currentRoleIds = new Set(currentMember?.roleIds ?? []);
 
   useEffect(() => {
     const list = listRef.current;
@@ -60,40 +71,56 @@ export function MessageTimeline({
     <>
       <div className="messages-wrapper">
         <div className="message-list" ref={listRef}>
-          {messages.map((message) => (
-            <article
-              className={`message-row${message.id.startsWith('pending-') ? ' pending' : ''}`}
-              key={message.id}
-            >
-              <AvatarImage
-                label={message.author?.displayName ?? 'Utilisateur'}
-                src={message.author?.avatarUrl}
-              />
-              <div className="message-body">
-                <div className="message-meta">
-                  <strong
-                    className="author-name"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedUserId(message.authorId)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        setSelectedUserId(message.authorId);
+          {messages.map((message) => {
+            const authorRole = getPrimaryRole(message.authorId, members, roles);
+            const isMentioningCurrentUser = isMessageMentioningCurrentUser(
+              message.mentions ?? [],
+              session.user.id,
+              currentRoleIds,
+            );
+
+            return (
+              <article
+                className={`message-row${message.id.startsWith('pending-') ? ' pending' : ''}${
+                  isMentioningCurrentUser ? ' mentioned-current-user' : ''
+                }`}
+                key={message.id}
+              >
+                <AvatarImage
+                  label={message.author?.displayName ?? 'Utilisateur'}
+                  src={message.author?.avatarUrl}
+                />
+                <div className="message-body">
+                  <div className="message-meta">
+                    <strong
+                      className="author-name"
+                      role="button"
+                      tabIndex={0}
+                      style={
+                        authorRole
+                          ? ({ '--author-role-color': authorRole.color } as React.CSSProperties)
+                          : undefined
                       }
-                    }}
-                  >
-                    {message.author?.displayName ?? 'Utilisateur'}
-                  </strong>
-                  <span>
-                    {message.id.startsWith('pending-')
-                      ? 'Envoi...'
-                      : formatMessageTime(message.createdAt)}
-                  </span>
+                      onClick={() => setSelectedUserId(message.authorId)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          setSelectedUserId(message.authorId);
+                        }
+                      }}
+                    >
+                      {message.author?.displayName ?? 'Utilisateur'}
+                    </strong>
+                    <span>
+                      {message.id.startsWith('pending-')
+                        ? 'Envoi...'
+                        : formatMessageTime(message.createdAt)}
+                    </span>
+                  </div>
+                  <p>{renderMessageContent(message.content, message.mentions ?? [])}</p>
                 </div>
-                <p>{renderMessageContent(message.content, message.mentions ?? [])}</p>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       </div>
       {selectedUserId ? (
@@ -105,6 +132,39 @@ export function MessageTimeline({
       ) : null}
     </>
   );
+}
+
+function getPrimaryRole(
+  userId: string,
+  members: ServerMemberProfile[],
+  roles: ServerRole[],
+): ServerRole | null {
+  const member = members.find((candidate) => candidate.userId === userId);
+  if (!member) {
+    return null;
+  }
+
+  const roleById = new Map(roles.map((role) => [role.id, role]));
+  return (
+    member.roleIds
+      .map((roleId) => roleById.get(roleId))
+      .filter((role): role is ServerRole => Boolean(role))
+      .sort((left, right) => left.position - right.position)[0] ?? null
+  );
+}
+
+function isMessageMentioningCurrentUser(
+  mentions: MessageMention[],
+  userId: string,
+  roleIds: Set<string>,
+): boolean {
+  return mentions.some((mention) => {
+    if (mention.type === 'user') {
+      return mention.userId === userId;
+    }
+
+    return roleIds.has(mention.roleId);
+  });
 }
 
 function renderMessageContent(
