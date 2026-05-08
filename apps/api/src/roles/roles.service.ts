@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { RolesRepository, ServersRepository } from '@discord2/db';
 import type {
@@ -97,11 +92,7 @@ export class RolesService {
     return { roleId };
   }
 
-  async reorderRoles(
-    user: AuthUser,
-    serverId: ServerId,
-    roleIds: RoleId[],
-  ): Promise<ServerRole[]> {
+  async reorderRoles(user: AuthUser, serverId: ServerId, roleIds: RoleId[]): Promise<ServerRole[]> {
     await this.permissionsService.assertServerPermission(user, serverId, Permission.ManageRoles);
     return this.rolesRepository.reorderRoles(serverId, roleIds);
   }

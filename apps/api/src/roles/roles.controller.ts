@@ -1,7 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import type { AuthUser } from '@discord2/shared';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { CreateServerRoleDto, ReorderRolesDto, UpdateMemberRolesDto, UpdateServerRoleDto } from './dto';
+import {
+  CreateServerRoleDto,
+  ReorderRolesDto,
+  UpdateMemberRolesDto,
+  UpdateServerRoleDto,
+} from './dto';
 import { RolesService } from './roles.service';
 
 @Controller('servers/:serverId')

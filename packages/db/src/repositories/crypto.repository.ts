@@ -161,9 +161,11 @@ export class CryptoRepository {
     return data.map(mapKeyRow);
   }
 
-  async findConversationById(
-    conversationId: ConversationId,
-  ): Promise<{ conversationId: ConversationId; channelId: ChannelId; currentKeyVersion: number } | null> {
+  async findConversationById(conversationId: ConversationId): Promise<{
+    conversationId: ConversationId;
+    channelId: ChannelId;
+    currentKeyVersion: number;
+  } | null> {
     const { data, error } = await this.supabase
       .from('e2ee_conversations')
       .select('id, channel_id, current_key_version')

@@ -38,6 +38,7 @@ const repositoryMocks = vi.hoisted(() => ({
   servers: {
     addMember: vi.fn(),
     create: vi.fn(),
+    findBan: vi.fn(),
     findByIdForUser: vi.fn(),
     findMembership: vi.fn(),
     listForUser: vi.fn(),
@@ -71,7 +72,9 @@ const user: AuthUser = { id: 'user-1', email: 'user@example.com' };
 
 const permissionsService = {
   assertServerPermission: vi.fn().mockResolvedValue({ permissions: [] }),
-  assertChannelPermission: vi.fn().mockResolvedValue({ channel: null, effective: { permissions: [] } }),
+  assertChannelPermission: vi
+    .fn()
+    .mockResolvedValue({ channel: null, effective: { permissions: [] } }),
   assertCanManageTargetMember: vi.fn().mockResolvedValue(undefined),
   assertCanManageRole: vi.fn().mockResolvedValue(undefined),
   listVisibleChannels: vi.fn(),
@@ -88,6 +91,7 @@ describe('api service behavior', () => {
     permissionsService.assertCanManageTargetMember.mockResolvedValue(undefined);
     permissionsService.assertCanManageRole.mockResolvedValue(undefined);
     permissionsService.listVisibleChannels.mockReset();
+    repositoryMocks.servers.findBan.mockResolvedValue(null);
     process.env.SUPABASE_URL = 'https://supabase.test';
     process.env.SUPABASE_ANON_KEY = 'anon';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';

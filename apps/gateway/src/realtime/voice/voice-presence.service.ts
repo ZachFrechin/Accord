@@ -14,7 +14,12 @@ export class VoicePresenceService {
       channelId,
       userIds,
     };
-    this.roomService.emitToVoice(server, channelId, ServerToClientEvent.VoicePresenceUpdated, payload);
+    this.roomService.emitToVoice(
+      server,
+      channelId,
+      ServerToClientEvent.VoicePresenceUpdated,
+      payload,
+    );
     this.roomService.emitToChannelFromServer(
       server,
       channelId,

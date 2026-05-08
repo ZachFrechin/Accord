@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ChannelsRepository } from '@discord2/db';
 import {
@@ -107,7 +102,10 @@ export class ChannelsService {
     }));
 
     for (const overwrite of normalized) {
-      if (overwrite.targetType !== ChannelPermissionOverwriteTargetType.Everyone && !overwrite.targetId) {
+      if (
+        overwrite.targetType !== ChannelPermissionOverwriteTargetType.Everyone &&
+        !overwrite.targetId
+      ) {
         throw new BadRequestException('Permission overwrite target is required.');
       }
     }

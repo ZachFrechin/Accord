@@ -172,16 +172,18 @@ export class ApiClient {
     getConversation: (channelId: string) =>
       this.request<E2eeConversationState>(`/crypto/conversations/${channelId}`),
     bootstrapConversation: (channelId: string, input: BootstrapConversationInput) =>
-      this.request<ConversationBootstrapResult>(
-        `/crypto/conversations/${channelId}/bootstrap`,
-        {
-          method: 'POST',
-          body: JSON.stringify(input),
-        },
-      ),
+      this.request<ConversationBootstrapResult>(`/crypto/conversations/${channelId}/bootstrap`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
     addConversationKeys: (
       conversationId: string,
-      wrappedKeys: Array<{ conversationId: string; deviceId: string; keyVersion: number; wrappedKey: string }>,
+      wrappedKeys: Array<{
+        conversationId: string;
+        deviceId: string;
+        keyVersion: number;
+        wrappedKey: string;
+      }>,
     ) =>
       this.request<unknown>(`/crypto/conversations/${encodeURIComponent(conversationId)}/keys`, {
         method: 'POST',
@@ -194,11 +196,7 @@ export class ApiClient {
     uploadProfileAvatar: (file: File) =>
       this.uploadBinary<{ url: string }>('/files/upload/profile-avatar', file, file.type),
     uploadServerIcon: (serverId: string, file: File) =>
-      this.uploadBinary<{ url: string }>(
-        `/files/upload/server-icons/${serverId}`,
-        file,
-        file.type,
-      ),
+      this.uploadBinary<{ url: string }>(`/files/upload/server-icons/${serverId}`, file, file.type),
     uploadEncryptedMessageMedia: (
       channelId: string,
       encryptedBytes: Uint8Array,

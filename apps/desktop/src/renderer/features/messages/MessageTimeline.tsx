@@ -97,9 +97,9 @@ export function MessageTimeline({
             const isE2ee = message.privacy === MessagePrivacy.EndToEndEncrypted;
             const displayMentions = isE2ee
               ? detectClientMentions(message.content, members, roles)
-              : (message.mentions && message.mentions.length > 0
+              : message.mentions && message.mentions.length > 0
                 ? message.mentions
-                : detectClientMentions(message.content, members, roles));
+                : detectClientMentions(message.content, members, roles);
             const isMentioningCurrentUser = isMessageMentioningCurrentUser(
               displayMentions,
               session.user.id,
@@ -192,7 +192,9 @@ export function MessageTimeline({
                     conversationKey={conversationKey}
                     onPreview={setPreviewAttachment}
                   />
-                  <MessageEmbeds embeds={isE2ee ? clientEmbeds : [...message.embeds, ...clientEmbeds]} />
+                  <MessageEmbeds
+                    embeds={isE2ee ? clientEmbeds : [...message.embeds, ...clientEmbeds]}
+                  />
                 </div>
               </article>
             );
@@ -200,11 +202,7 @@ export function MessageTimeline({
         </div>
       </div>
       {selectedUserId ? (
-        <ProfilePopup
-          userId={selectedUserId}
-          api={api}
-          onClose={() => setSelectedUserId(null)}
-        />
+        <ProfilePopup userId={selectedUserId} api={api} onClose={() => setSelectedUserId(null)} />
       ) : null}
       {previewAttachment ? (
         <div
@@ -267,37 +265,39 @@ function hasMention(content: string, label: string): boolean {
 
 function createClientOnlyEmbeds(content: string | null): MessageEmbed[] {
   if (!content) return [];
-  return extractUrls(content).slice(0, 4).map((url, index) => {
-    const youtubeId = getYouTubeId(url);
-    if (youtubeId) {
-      return {
-        id: `client-youtube-${index}-${url}`,
-        type: MessageEmbedType.YouTube,
-        url,
-        title: 'YouTube',
-        provider: 'YouTube',
-        embedUrl: `https://www.youtube-nocookie.com/embed/${youtubeId}`,
-      };
-    }
+  return extractUrls(content)
+    .slice(0, 4)
+    .map((url, index) => {
+      const youtubeId = getYouTubeId(url);
+      if (youtubeId) {
+        return {
+          id: `client-youtube-${index}-${url}`,
+          type: MessageEmbedType.YouTube,
+          url,
+          title: 'YouTube',
+          provider: 'YouTube',
+          embedUrl: `https://www.youtube-nocookie.com/embed/${youtubeId}`,
+        };
+      }
 
-    if (/\.(png|jpe?g|webp|gif)(\?.*)?$/iu.test(url)) {
+      if (/\.(png|jpe?g|webp|gif)(\?.*)?$/iu.test(url)) {
+        return {
+          id: `client-image-${index}-${url}`,
+          type: MessageEmbedType.Image,
+          url,
+          title: new URL(url).hostname,
+          thumbnailUrl: url,
+        };
+      }
+
       return {
-        id: `client-image-${index}-${url}`,
-        type: MessageEmbedType.Image,
+        id: `client-link-${index}-${url}`,
+        type: MessageEmbedType.Link,
         url,
         title: new URL(url).hostname,
-        thumbnailUrl: url,
+        provider: new URL(url).hostname,
       };
-    }
-
-    return {
-      id: `client-link-${index}-${url}`,
-      type: MessageEmbedType.Link,
-      url,
-      title: new URL(url).hostname,
-      provider: new URL(url).hostname,
-    };
-  });
+    });
 }
 
 function extractUrls(content: string): string[] {
@@ -423,7 +423,8 @@ function EncryptedAttachmentItem({
 }): React.JSX.Element {
   const [decrypted, setDecrypted] = useState<DecryptedAttachment | null>(null);
   const [failed, setFailed] = useState(false);
-  const isLocalPreview = attachment.url.startsWith('blob:') || attachment.storagePath.startsWith('blob:');
+  const isLocalPreview =
+    attachment.url.startsWith('blob:') || attachment.storagePath.startsWith('blob:');
 
   useEffect(() => {
     if (!conversationKey || !attachment.encrypted) return;
@@ -450,7 +451,11 @@ function EncryptedAttachmentItem({
           key={attachment.id}
           onClick={() => onPreview(attachment)}
         >
-          <img alt={attachment.fileName ?? 'Image en attente'} src={attachment.url} loading="lazy" />
+          <img
+            alt={attachment.fileName ?? 'Image en attente'}
+            src={attachment.url}
+            loading="lazy"
+          />
         </button>
       );
     }

@@ -74,11 +74,7 @@ export async function ensureConversationKey(input: {
       throw new Error('Clé locale absente pour ce salon.');
     }
 
-    const key = await unwrapConversationKey(
-      wrapped.wrappedKey,
-      input.identity,
-      wrapped.keyVersion,
-    );
+    const key = await unwrapConversationKey(wrapped.wrappedKey, input.identity, wrapped.keyVersion);
     await persistConversationKey(cacheKey, key);
 
     // Auto-distribute to devices that are missing from the current key version.
@@ -239,9 +235,7 @@ async function distributeKeyToNewDevices(
   try {
     const serverDevices = await input.api.crypto.listServerDevices(input.serverId);
     const coveredAtCurrentVersion = new Set(
-      existingKeys
-        .filter((k) => k.keyVersion === key.version)
-        .map((k) => k.deviceId),
+      existingKeys.filter((k) => k.keyVersion === key.version).map((k) => k.deviceId),
     );
     const uncoveredDevices = serverDevices.filter(
       (device) => !coveredAtCurrentVersion.has(device.id),

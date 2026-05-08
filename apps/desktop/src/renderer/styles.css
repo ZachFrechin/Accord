@@ -619,6 +619,57 @@ input::placeholder {
   box-shadow: var(--shadow-md);
 }
 
+.primary-button,
+.secondary-button,
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  min-width: 0;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.primary-button {
+  color: var(--bg-btn-primary-text);
+  background: var(--bg-btn-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.primary-button:hover:not(:disabled) {
+  background: var(--bg-btn-primary-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.secondary-button {
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+  background: var(--bg-surface);
+  box-shadow: none;
+}
+
+.secondary-button:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-input);
+  background: var(--bg-surface-hover);
+}
+
+.danger-button {
+  color: #fff;
+  background: var(--text-error);
+  box-shadow: none;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-error) 86%, #000);
+}
+
 /* ── Workspace ──────────────────────────────────────── */
 
 .workspace-shell {
@@ -1818,7 +1869,11 @@ input::placeholder {
 }
 
 .dialog:has(.server-settings-shell) {
-  width: min(960px, 100%);
+  width: min(68rem, 100%);
+}
+
+.dialog:has(.channel-perm-panel) {
+  width: min(46rem, 100%);
 }
 
 .dialog header {
@@ -1888,32 +1943,6 @@ input::placeholder {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-}
-
-.dialog-actions .secondary-button,
-.dialog-actions .danger-button {
-  box-shadow: none;
-}
-
-.dialog-actions .secondary-button {
-  color: var(--text-secondary);
-  background: var(--bg-surface);
-}
-
-.dialog-actions .secondary-button:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: var(--bg-surface-hover);
-  box-shadow: none;
-}
-
-.dialog-actions .danger-button {
-  color: #fff;
-  background: var(--text-error);
-}
-
-.dialog-actions .danger-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-error) 86%, #000);
-  box-shadow: none;
 }
 
 .delete-link-btn {
@@ -2135,8 +2164,7 @@ input::placeholder {
   border-radius: 7px;
 }
 
-.role-create-row button,
-.role-editor button:not(.delete-link-btn) {
+.role-create-row button {
   min-height: 38px;
   padding: 0 12px;
   border-radius: 8px;
@@ -2146,8 +2174,7 @@ input::placeholder {
   font-weight: 700;
 }
 
-.role-create-row button:hover:not(:disabled),
-.role-editor button:not(.delete-link-btn):hover:not(:disabled) {
+.role-create-row button:hover:not(:disabled) {
   background: var(--bg-btn-primary-hover);
 }
 
@@ -2386,6 +2413,29 @@ input::placeholder {
   gap: 12px;
   padding: 14px;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.member-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-input) 70%, transparent);
+}
+
+.member-admin-actions span {
+  flex: 1 1 12rem;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.member-admin-actions .secondary-button,
+.member-admin-actions .danger-button {
+  min-height: 34px;
 }
 
 .member-detail-avatar {
@@ -2842,6 +2892,471 @@ input[type='range']::-moz-range-thumb {
   border-radius: 3px;
   background: linear-gradient(90deg, #4ade80, #facc15, #ef4444);
   transition: width 80ms linear;
+}
+
+/* ── Role editor permissions ────────────────────────── */
+
+.role-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+}
+
+.role-editor-row {
+  display: grid;
+  grid-template-columns: minmax(11rem, 1fr) 44px auto minmax(9rem, auto);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.role-editor-row > input[type='text'],
+.role-editor-row > input:not([type]) {
+  min-width: 0;
+}
+
+.role-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.role-editor-actions .primary-button,
+.role-editor-actions .delete-link-btn {
+  min-height: 36px;
+}
+
+.role-permissions-editor {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-input) 78%, transparent);
+}
+
+.permission-group {
+  display: grid;
+  gap: 8px;
+}
+
+.permission-group h4 {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.permission-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 7px;
+}
+
+.permission-chip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  background: var(--bg-input);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.permission-chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.permission-chip:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-input-focus);
+  background: var(--bg-surface-hover);
+}
+
+.permission-chip.selected {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-input));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.permission-chip-toggle {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 5px;
+  min-inline-size: 3.25rem;
+  min-block-size: 24px;
+  padding: 0 7px;
+  border: 1px solid var(--border-input);
+  border-radius: 999px;
+  color: var(--text-ghost);
+  background: var(--bg-surface-raised);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.permission-chip-knob {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 999px;
+  background: var(--text-ghost);
+}
+
+.permission-chip.selected .permission-chip-toggle {
+  border-color: transparent;
+  color: var(--accent-text);
+  background: var(--accent);
+}
+
+.permission-chip.selected .permission-chip-knob {
+  background: var(--accent-text);
+}
+
+.role-permissions-footer {
+  display: flex;
+  justify-content: flex-end;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.server-channel-settings-list,
+.ban-list {
+  display: grid;
+  gap: 8px;
+}
+
+.server-channel-settings-row,
+.ban-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  text-align: left;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.server-channel-settings-row:hover {
+  color: var(--text-primary);
+  border-color: var(--border-input-focus);
+  background: var(--bg-surface-hover);
+}
+
+.server-channel-settings-row span,
+.ban-row span {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.server-channel-settings-row small,
+.ban-row small {
+  color: var(--text-ghost);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ban-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+/* ── Edit channel tabs ──────────────────────────────── */
+
+.edit-channel-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-surface);
+}
+
+.edit-channel-tab {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background 140ms ease;
+}
+
+.edit-channel-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}
+
+.edit-channel-tab.active {
+  color: var(--text-primary);
+  background: var(--bg-active);
+}
+
+/* ── Channel permission overwrite UI ────────────────── */
+
+.channel-perm-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.channel-perm-shell {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.35fr) minmax(0, 1fr);
+  gap: 12px;
+  min-height: min(28rem, 54dvh);
+  min-width: 0;
+}
+
+.channel-perm-targets {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  overflow-y: auto;
+}
+
+.channel-perm-target {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 100ms,
+    color 100ms;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-perm-target:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.channel-perm-target.active {
+  border-color: var(--border-input-focus);
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.channel-perm-detail {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  overflow-y: auto;
+}
+
+.channel-perm-summary {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-input) 74%, transparent);
+}
+
+.channel-perm-summary strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-perm-summary span {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.perm-overwrite-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-input);
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.perm-overwrite-row:hover {
+  border-color: var(--border-input);
+  background: var(--bg-surface-hover);
+}
+
+.perm-overwrite-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+}
+
+.perm-state-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(6.2rem, auto));
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.perm-state-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-inline-size: 0;
+  block-size: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 9px;
+  background: var(--bg-surface-raised);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 120ms,
+    border-color 120ms,
+    color 120ms;
+}
+
+.perm-state-btn:hover {
+  border-color: var(--border-input-focus);
+  color: var(--text-secondary);
+}
+
+.perm-state-btn.perm-allow.active {
+  border-color: #4ade80;
+  background: color-mix(in srgb, #4ade80 18%, var(--bg-surface));
+  color: #4ade80;
+}
+
+.perm-state-btn.perm-deny.active {
+  border-color: #f87171;
+  background: color-mix(in srgb, #f87171 18%, var(--bg-surface));
+  color: #f87171;
+}
+
+.channel-perm-panel > button {
+  justify-self: end;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--bg-btn-primary-text);
+  background: var(--bg-btn-primary);
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+}
+
+.channel-perm-panel > button:hover:not(:disabled) {
+  background: var(--bg-btn-primary-hover);
+  box-shadow: var(--shadow-md);
+}
+
+@media (max-width: 760px) {
+  .role-editor-row,
+  .channel-perm-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .role-editor-actions {
+    justify-content: stretch;
+  }
+
+  .role-editor-actions .primary-button,
+  .role-editor-actions .delete-link-btn {
+    flex: 1 1 8rem;
+  }
+
+  .settings-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .server-channel-settings-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .server-channel-settings-row small {
+    display: none;
+  }
+}
+
+@media (max-width: 540px) {
+  .perm-overwrite-row,
+  .perm-state-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .perm-state-btn {
+    inline-size: 100%;
+  }
+
+  .member-admin-actions .secondary-button,
+  .member-admin-actions .danger-button {
+    flex: 1 1 8rem;
+  }
 }
 
 /* ── Scrollbar ──────────────────────────────────────── */

@@ -138,7 +138,9 @@ export class ServersRepository {
   async listBans(serverId: ServerId): Promise<ServerBanRecord[]> {
     const { data, error } = await this.supabase
       .from('server_bans')
-      .select('server_id, user_id, banned_by, reason, created_at, profiles:user_id(display_name, avatar_url)')
+      .select(
+        'server_id, user_id, banned_by, reason, created_at, profiles:user_id(display_name, avatar_url)',
+      )
       .eq('server_id', serverId)
       .order('created_at', { ascending: false })
       .returns<ServerBanRow[]>();
@@ -151,7 +153,9 @@ export class ServersRepository {
   async findBan(serverId: ServerId, userId: UserId): Promise<ServerBanRecord | null> {
     const { data, error } = await this.supabase
       .from('server_bans')
-      .select('server_id, user_id, banned_by, reason, created_at, profiles:user_id(display_name, avatar_url)')
+      .select(
+        'server_id, user_id, banned_by, reason, created_at, profiles:user_id(display_name, avatar_url)',
+      )
       .eq('server_id', serverId)
       .eq('user_id', userId)
       .maybeSingle<ServerBanRow>();
@@ -177,7 +181,9 @@ export class ServersRepository {
         },
         { onConflict: 'server_id,user_id' },
       )
-      .select('server_id, user_id, banned_by, reason, created_at, profiles:user_id(display_name, avatar_url)')
+      .select(
+        'server_id, user_id, banned_by, reason, created_at, profiles:user_id(display_name, avatar_url)',
+      )
       .single<ServerBanRow>();
 
     if (error) throw error;
@@ -186,7 +192,10 @@ export class ServersRepository {
     return mapBanRow(data);
   }
 
-  async unbanMember(serverId: ServerId, userId: UserId): Promise<{ serverId: ServerId; userId: UserId }> {
+  async unbanMember(
+    serverId: ServerId,
+    userId: UserId,
+  ): Promise<{ serverId: ServerId; userId: UserId }> {
     const { error } = await this.supabase
       .from('server_bans')
       .delete()

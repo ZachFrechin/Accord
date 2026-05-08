@@ -8,7 +8,9 @@ import { Public } from '../auth/public.decorator';
 export class InstanceController {
   @Public()
   @Get('client-config')
-  getClientConfig(@Req() request: { protocol?: string; get?: (name: string) => string | undefined }): InstanceConfig {
+  getClientConfig(
+    @Req() request: { protocol?: string; get?: (name: string) => string | undefined },
+  ): InstanceConfig {
     const env = loadServerEnv();
     const apiUrl = resolvePublicApiUrl(env.API_PUBLIC_URL, request);
     const instanceId =

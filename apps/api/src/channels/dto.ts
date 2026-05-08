@@ -1,4 +1,12 @@
-import { ArrayMaxSize, IsArray, IsEnum, IsOptional, IsString, Length, ValidateNested } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsEnum,
+  IsOptional,
+  IsString,
+  Length,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ChannelPermissionOverwriteTargetType, ChannelType, Permission } from '@discord2/shared';
 

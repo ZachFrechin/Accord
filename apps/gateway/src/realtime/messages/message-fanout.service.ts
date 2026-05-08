@@ -49,7 +49,9 @@ export class MessageFanoutService implements OnApplicationShutdown {
       InternalRealtimeEvent.MessageDeleted,
       InternalRealtimeEvent.MemberRemoved,
     );
-    this.logger.log('Subscribed to message.created, message.deleted and member.removed Redis events.');
+    this.logger.log(
+      'Subscribed to message.created, message.deleted and member.removed Redis events.',
+    );
   }
 
   private forwardMessageDeleted(server: Server, payload: string): void {

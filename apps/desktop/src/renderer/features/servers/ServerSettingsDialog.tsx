@@ -1,17 +1,84 @@
 import { useEffect, useState } from 'react';
-import { Check, Search, Settings, Shield, Users } from 'lucide-react';
-import type { ServerMemberProfile, ServerRole, ServerSummary } from '@discord2/shared';
+import {
+  Ban,
+  Check,
+  Hash,
+  Mic,
+  Search,
+  Settings,
+  Shield,
+  SlidersHorizontal,
+  Users,
+} from 'lucide-react';
+import {
+  ChannelType,
+  Permission,
+  type ChannelSummary,
+  type ServerBanRecord,
+  type ServerMemberProfile,
+  type ServerRole,
+  type ServerSummary,
+} from '@discord2/shared';
 import { AvatarImage } from '../../components/AvatarImage';
 import { Dialog } from '../../components/Dialog';
 import type { ApiClient } from '../../lib/api-client';
 
-type ServerSettingsTab = 'general' | 'roles' | 'members';
+type ServerSettingsTab = 'general' | 'roles' | 'channels' | 'members' | 'bans';
+
+const PERMISSION_GROUPS: Array<{ title: string; permissions: Permission[] }> = [
+  {
+    title: 'Général',
+    permissions: [
+      Permission.Administrator,
+      Permission.ManageServer,
+      Permission.ManageRoles,
+      Permission.ManageChannels,
+      Permission.CreateInvites,
+    ],
+  },
+  {
+    title: 'Messages',
+    permissions: [
+      Permission.ViewChannel,
+      Permission.SendMessages,
+      Permission.AttachFiles,
+      Permission.ManageMessages,
+      Permission.MentionEveryone,
+    ],
+  },
+  {
+    title: 'Vocal',
+    permissions: [Permission.ConnectVoice, Permission.SpeakVoice],
+  },
+  {
+    title: 'Modération',
+    permissions: [Permission.KickMembers, Permission.BanMembers],
+  },
+];
+
+const PERMISSION_LABELS: Record<Permission, string> = {
+  [Permission.Administrator]: 'Administrateur',
+  [Permission.ManageServer]: 'Gérer le serveur',
+  [Permission.ManageRoles]: 'Gérer les rôles',
+  [Permission.ManageChannels]: 'Gérer les salons',
+  [Permission.CreateInvites]: 'Créer des invitations',
+  [Permission.ViewChannel]: 'Voir les salons',
+  [Permission.SendMessages]: 'Envoyer des messages',
+  [Permission.AttachFiles]: 'Joindre des fichiers',
+  [Permission.ConnectVoice]: 'Rejoindre le vocal',
+  [Permission.SpeakVoice]: 'Parler en vocal',
+  [Permission.ManageMessages]: 'Gérer les messages',
+  [Permission.MentionEveryone]: 'Mentionner @everyone',
+  [Permission.KickMembers]: 'Expulser des membres',
+  [Permission.BanMembers]: 'Bannir des membres',
+};
 
 interface ServerSettingsDialogProps {
   server: ServerSummary;
   api: ApiClient;
   isSaving: boolean;
   roles: ServerRole[];
+  channels: ChannelSummary[];
   members: ServerMemberProfile[];
   isLoadingRoles: boolean;
   isSavingRole: boolean;
@@ -21,11 +88,13 @@ interface ServerSettingsDialogProps {
   onCreateRole: (input: { name: string; color: string; mentionable: boolean }) => Promise<void>;
   onUpdateRole: (
     roleId: string,
-    input: { name: string; color: string; mentionable: boolean },
+    input: { name: string; color: string; mentionable: boolean; permissions: Permission[] },
   ) => Promise<void>;
   onDeleteRole: (roleId: string) => Promise<void>;
   onUpdateMemberRoles: (userId: string, roleIds: string[]) => Promise<void>;
   onRemoveMember?: (userId: string) => Promise<void>;
+  onBanMember?: (userId: string, reason: string | null) => Promise<void>;
+  onEditChannel: (channel: ChannelSummary) => void;
 }
 
 export function ServerSettingsDialog({
@@ -33,6 +102,7 @@ export function ServerSettingsDialog({
   api,
   isSaving,
   roles,
+  channels,
   members,
   isLoadingRoles,
   isSavingRole,
@@ -44,6 +114,8 @@ export function ServerSettingsDialog({
   onDeleteRole,
   onUpdateMemberRoles,
   onRemoveMember,
+  onBanMember,
+  onEditChannel,
 }: ServerSettingsDialogProps): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<ServerSettingsTab>('general');
   const [name, setName] = useState(server.name);
@@ -56,7 +128,10 @@ export function ServerSettingsDialog({
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(
     members[0]?.userId ?? null,
   );
-  const [confirmKickId, setConfirmKickId] = useState<string | null>(null);
+  const [confirmBanId, setConfirmBanId] = useState<string | null>(null);
+  const [bans, setBans] = useState<ServerBanRecord[]>([]);
+  const [isLoadingBans, setIsLoadingBans] = useState(false);
+  const [bansError, setBansError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const canManageMembers = server.role === 'owner' || server.role === 'admin';
 
@@ -89,6 +164,33 @@ export function ServerSettingsDialog({
       setSelectedMemberId(firstMember.userId);
     }
   }, [members, selectedMemberId]);
+
+  useEffect(() => {
+    if (activeTab !== 'bans') return;
+    let cancelled = false;
+    setIsLoadingBans(true);
+    setBansError(null);
+    api.servers
+      .listBans(server.id)
+      .then((records) => {
+        if (!cancelled) setBans(records);
+      })
+      .catch((loadError: unknown) => {
+        if (!cancelled) {
+          setBansError(
+            loadError instanceof Error
+              ? loadError.message
+              : 'Impossible de charger les bannissements.',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingBans(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, api, server.id]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -143,10 +245,22 @@ export function ServerSettingsDialog({
             onClick={() => setActiveTab('roles')}
           />
           <SettingsTab
+            active={activeTab === 'channels'}
+            icon={<SlidersHorizontal size={16} />}
+            label="Salons"
+            onClick={() => setActiveTab('channels')}
+          />
+          <SettingsTab
             active={activeTab === 'members'}
             icon={<Users size={16} />}
             label="Membres"
             onClick={() => setActiveTab('members')}
+          />
+          <SettingsTab
+            active={activeTab === 'bans'}
+            icon={<Ban size={16} />}
+            label="Bans"
+            onClick={() => setActiveTab('bans')}
           />
         </nav>
 
@@ -237,6 +351,33 @@ export function ServerSettingsDialog({
             </section>
           ) : null}
 
+          {activeTab === 'channels' ? (
+            <section className="settings-section">
+              <div className="settings-section-heading">
+                <div>
+                  <h3>Salons</h3>
+                  <p>Ouvre les paramètres d’un salon pour régler ses overrides de permissions.</p>
+                </div>
+              </div>
+              <div className="server-channel-settings-list">
+                {channels.map((channel) => (
+                  <button
+                    type="button"
+                    className="server-channel-settings-row"
+                    key={channel.id}
+                    onClick={() => onEditChannel(channel)}
+                  >
+                    {channel.type === ChannelType.Voice ? <Mic size={16} /> : <Hash size={16} />}
+                    <span>{channel.name}</span>
+                    <small>{channel.type === ChannelType.Voice ? 'Vocal' : 'Texte'}</small>
+                    <SlidersHorizontal size={16} />
+                  </button>
+                ))}
+                {channels.length === 0 ? <p className="muted">Aucun salon.</p> : null}
+              </div>
+            </section>
+          ) : null}
+
           {activeTab === 'members' ? (
             <section className="settings-section members-settings">
               <div className="settings-section-heading">
@@ -259,67 +400,24 @@ export function ServerSettingsDialog({
                   <div className="member-picker-list">
                     {filteredMembers.map((member) => (
                       <div className="member-picker-row-wrap" key={member.userId}>
-                        {confirmKickId === member.userId ? (
-                          <div className="member-kick-confirm">
-                            <span>Retirer {member.profile.displayName} ?</span>
-                            <button
-                              type="button"
-                              className="kick-confirm-btn"
-                              disabled={isRemovingMember}
-                              onClick={() => {
-                                void onRemoveMember?.(member.userId).then(() => {
-                                  setConfirmKickId(null);
-                                  if (selectedMemberId === member.userId) {
-                                    setSelectedMemberId(null);
-                                  }
-                                });
-                              }}
-                            >
-                              Confirmer
-                            </button>
-                            <button
-                              type="button"
-                              className="kick-cancel-btn"
-                              disabled={isRemovingMember}
-                              onClick={() => setConfirmKickId(null)}
-                            >
-                              Annuler
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            className={`member-picker-row${
-                              selectedMember?.userId === member.userId ? ' active' : ''
-                            }`}
-                            aria-pressed={selectedMember?.userId === member.userId}
-                            onClick={() => setSelectedMemberId(member.userId)}
-                          >
-                            <AvatarImage
-                              className="member-role-avatar"
-                              label={member.profile.displayName}
-                              src={member.profile.avatarUrl}
-                            />
-                            <span>
-                              <strong>{member.profile.displayName}</strong>
-                              <small>{member.role}</small>
-                            </span>
-                            {canManageMembers && member.role !== 'owner' && onRemoveMember ? (
-                              <button
-                                type="button"
-                                className="member-kick-btn"
-                                title="Retirer du serveur"
-                                disabled={isRemovingMember}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setConfirmKickId(member.userId);
-                                }}
-                              >
-                                ✕
-                              </button>
-                            ) : null}
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          className={`member-picker-row${
+                            selectedMember?.userId === member.userId ? ' active' : ''
+                          }`}
+                          aria-pressed={selectedMember?.userId === member.userId}
+                          onClick={() => setSelectedMemberId(member.userId)}
+                        >
+                          <AvatarImage
+                            className="member-role-avatar"
+                            label={member.profile.displayName}
+                            src={member.profile.avatarUrl}
+                          />
+                          <span>
+                            <strong>{member.profile.displayName}</strong>
+                            <small>{member.role}</small>
+                          </span>
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -338,6 +436,63 @@ export function ServerSettingsDialog({
                           <span>{selectedMember.role}</span>
                         </div>
                       </div>
+                      {canManageMembers && selectedMember.role !== 'owner' ? (
+                        <div className="member-admin-actions">
+                          {confirmBanId === selectedMember.userId ? (
+                            <>
+                              <span>Bannir ce membre ?</span>
+                              <button
+                                type="button"
+                                className="danger-button"
+                                disabled={isRemovingMember}
+                                onClick={() => {
+                                  void onBanMember?.(selectedMember.userId, null).then(() => {
+                                    setConfirmBanId(null);
+                                    setSelectedMemberId(null);
+                                  });
+                                }}
+                              >
+                                Confirmer
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                disabled={isRemovingMember}
+                                onClick={() => setConfirmBanId(null)}
+                              >
+                                Annuler
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              {onRemoveMember ? (
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  disabled={isRemovingMember}
+                                  onClick={() => {
+                                    void onRemoveMember(selectedMember.userId).then(() =>
+                                      setSelectedMemberId(null),
+                                    );
+                                  }}
+                                >
+                                  Expulser
+                                </button>
+                              ) : null}
+                              {onBanMember ? (
+                                <button
+                                  type="button"
+                                  className="danger-button"
+                                  disabled={isRemovingMember}
+                                  onClick={() => setConfirmBanId(selectedMember.userId)}
+                                >
+                                  Bannir
+                                </button>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                      ) : null}
                       <div className="role-toggle-grid">
                         {roles.map((role) => {
                           const selected = selectedMember.roleIds.includes(role.id);
@@ -375,6 +530,50 @@ export function ServerSettingsDialog({
               </div>
             </section>
           ) : null}
+
+          {activeTab === 'bans' ? (
+            <section className="settings-section">
+              <div className="settings-section-heading">
+                <div>
+                  <h3>Bannissements</h3>
+                  <p>Les membres bannis ne peuvent plus rejoindre le serveur via invitation.</p>
+                </div>
+              </div>
+              {bansError ? <div className="form-error">{bansError}</div> : null}
+              <div className="ban-list">
+                {isLoadingBans ? <p className="muted">Chargement des bannissements...</p> : null}
+                {!isLoadingBans && bans.length === 0 ? (
+                  <p className="muted">Aucun membre banni.</p>
+                ) : null}
+                {bans.map((ban) => (
+                  <div className="ban-row" key={ban.userId}>
+                    <AvatarImage
+                      className="member-role-avatar"
+                      label={ban.profile?.displayName ?? ban.userId}
+                      src={ban.profile?.avatarUrl ?? null}
+                    />
+                    <span>
+                      <strong>{ban.profile?.displayName ?? ban.userId}</strong>
+                      <small>{ban.reason || 'Aucune raison indiquée'}</small>
+                    </span>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => {
+                        void api.servers.unbanMember(server.id, ban.userId).then(() => {
+                          setBans((current) =>
+                            current.filter((item) => item.userId !== ban.userId),
+                          );
+                        });
+                      }}
+                    >
+                      Débannir
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
       </div>
     </Dialog>
@@ -407,7 +606,7 @@ interface RoleEditorProps {
   disabled: boolean;
   onSave: (
     roleId: string,
-    input: { name: string; color: string; mentionable: boolean },
+    input: { name: string; color: string; mentionable: boolean; permissions: Permission[] },
   ) => Promise<void>;
   onDelete: (roleId: string) => Promise<void>;
 }
@@ -416,40 +615,88 @@ function RoleEditor({ role, disabled, onSave, onDelete }: RoleEditorProps): Reac
   const [name, setName] = useState(role.name);
   const [color, setColor] = useState(role.color);
   const [mentionable, setMentionable] = useState(role.mentionable);
+  const [permissions, setPermissions] = useState<Permission[]>(role.permissions ?? []);
+
+  function togglePermission(perm: Permission): void {
+    setPermissions((prev) =>
+      prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm],
+    );
+  }
 
   return (
     <div className="role-editor">
-      <input value={name} maxLength={40} onChange={(event) => setName(event.target.value)} />
-      <input
-        type="color"
-        value={color}
-        aria-label={`Couleur ${role.name}`}
-        onChange={(event) => setColor(event.target.value)}
-      />
-      <label className="role-mentionable">
+      <div className="role-editor-row">
+        <input value={name} maxLength={40} onChange={(event) => setName(event.target.value)} />
         <input
-          type="checkbox"
-          checked={mentionable}
-          onChange={(event) => setMentionable(event.target.checked)}
+          type="color"
+          value={color}
+          aria-label={`Couleur ${role.name}`}
+          onChange={(event) => setColor(event.target.value)}
         />
-        <span className="toggle-switch" aria-hidden="true" />
-        <span className="toggle-label">Mentionnable</span>
-      </label>
-      <button
-        type="button"
-        disabled={disabled || !name.trim()}
-        onClick={() => void onSave(role.id, { name: name.trim(), color, mentionable })}
-      >
-        Sauver
-      </button>
-      <button
-        type="button"
-        className="delete-link-btn"
-        disabled={disabled}
-        onClick={() => void onDelete(role.id)}
-      >
-        Supprimer
-      </button>
+        <label className="role-mentionable">
+          <input
+            type="checkbox"
+            checked={mentionable}
+            onChange={(event) => setMentionable(event.target.checked)}
+          />
+          <span className="toggle-switch" aria-hidden="true" />
+          <span className="toggle-label">Mentionnable</span>
+        </label>
+        <div className="role-editor-actions">
+          <button
+            type="button"
+            className="primary-button"
+            disabled={disabled || !name.trim()}
+            onClick={() =>
+              void onSave(role.id, { name: name.trim(), color, mentionable, permissions })
+            }
+          >
+            Sauver
+          </button>
+          <button
+            type="button"
+            className="delete-link-btn"
+            disabled={disabled}
+            onClick={() => void onDelete(role.id)}
+          >
+            Supprimer
+          </button>
+        </div>
+      </div>
+      <div className="role-permissions-editor">
+        {PERMISSION_GROUPS.map((group) => (
+          <section className="permission-group" key={group.title}>
+            <h4>{group.title}</h4>
+            <div className="permission-chip-grid">
+              {group.permissions.map((perm) => {
+                const selected = permissions.includes(perm);
+                return (
+                  <button
+                    type="button"
+                    key={perm}
+                    className={`permission-chip${selected ? ' selected' : ''}`}
+                    aria-pressed={selected}
+                    disabled={disabled}
+                    onClick={() => togglePermission(perm)}
+                  >
+                    <span className="permission-chip-label">{PERMISSION_LABELS[perm]}</span>
+                    <span className="permission-chip-toggle" aria-hidden="true">
+                      <span className="permission-chip-knob" />
+                      <span>{selected ? 'On' : 'Off'}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+        <div className="role-permissions-footer">
+          <span>
+            {permissions.length} permission{permissions.length > 1 ? 's' : ''} activée
+            {permissions.length > 1 ? 's' : ''}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

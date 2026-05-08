@@ -6,10 +6,8 @@ import {
   type ChannelPermissionOverwrite,
   type ChannelSummary,
   type Permission,
-  type RoleId,
   type ServerId,
   type UpdateChannelPermissionOverwriteInput,
-  type UserId,
 } from '@discord2/shared';
 
 interface ChannelRow {
@@ -66,7 +64,10 @@ export class ChannelsRepository {
     return data.map(mapChannelRow);
   }
 
-  async listVisibleByServer(serverId: ServerId, channelIds: ChannelId[]): Promise<ChannelSummary[]> {
+  async listVisibleByServer(
+    serverId: ServerId,
+    channelIds: ChannelId[],
+  ): Promise<ChannelSummary[]> {
     if (channelIds.length === 0) return [];
 
     const { data, error } = await this.supabase
@@ -135,18 +136,20 @@ export class ChannelsRepository {
     if (deleteError) throw deleteError;
 
     if (overwrites.length > 0) {
-      const { error: insertError } = await this.supabase.from('channel_permission_overwrites').insert(
-        overwrites.map((overwrite) => ({
-          channel_id: channelId,
-          target_type: overwrite.targetType,
-          target_id:
-            overwrite.targetType === ChannelPermissionOverwriteTargetType.Everyone
-              ? null
-              : overwrite.targetId,
-          allow_permissions: overwrite.allowPermissions,
-          deny_permissions: overwrite.denyPermissions,
-        })),
-      );
+      const { error: insertError } = await this.supabase
+        .from('channel_permission_overwrites')
+        .insert(
+          overwrites.map((overwrite) => ({
+            channel_id: channelId,
+            target_type: overwrite.targetType,
+            target_id:
+              overwrite.targetType === ChannelPermissionOverwriteTargetType.Everyone
+                ? null
+                : overwrite.targetId,
+            allow_permissions: overwrite.allowPermissions,
+            deny_permissions: overwrite.denyPermissions,
+          })),
+        );
 
       if (insertError) throw insertError;
     }
@@ -222,7 +225,7 @@ function mapOverwriteRow(row: ChannelPermissionOverwriteRow): ChannelPermissionO
     id: row.id,
     channelId: row.channel_id,
     targetType: row.target_type,
-    targetId: row.target_id as RoleId | UserId | null,
+    targetId: row.target_id,
     allowPermissions: row.allow_permissions ?? [],
     denyPermissions: row.deny_permissions ?? [],
   };

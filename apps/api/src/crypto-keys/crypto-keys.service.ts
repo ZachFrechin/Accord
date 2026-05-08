@@ -98,7 +98,11 @@ export class CryptoKeysService {
     const serverId = await this.requireTextChannelMembership(user, conversation.channelId);
     const devices = await this.repository.listActiveDevicesForServer(serverId);
     assertWrappedKeysTargetKnownDevices(
-      wrappedKeys.map((k) => ({ deviceId: k.deviceId, keyVersion: k.keyVersion, wrappedKey: k.wrappedKey })),
+      wrappedKeys.map((k) => ({
+        deviceId: k.deviceId,
+        keyVersion: k.keyVersion,
+        wrappedKey: k.wrappedKey,
+      })),
       devices,
     );
     await this.requireAnyOwnDevice(user);
@@ -114,7 +118,10 @@ export class CryptoKeysService {
     await this.repository.revokeDevice(deviceId, user.id);
   }
 
-  private async requireTextChannelMembership(user: AuthUser, channelId: ChannelId): Promise<ServerId> {
+  private async requireTextChannelMembership(
+    user: AuthUser,
+    channelId: ChannelId,
+  ): Promise<ServerId> {
     const channel = await this.channelsRepository.findById(channelId);
     if (!channel || !channel.serverId) {
       throw new NotFoundException('Channel not found.');

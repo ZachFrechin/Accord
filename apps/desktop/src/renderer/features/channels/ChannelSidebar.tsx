@@ -93,11 +93,7 @@ export function ChannelSidebar({
               key={channel.id}
               className={`channel${channel.id === activeChannelId ? ' active' : ''}`}
             >
-              <button
-                type="button"
-                className="channel-label"
-                onClick={() => onSelect(channel.id)}
-              >
+              <button type="button" className="channel-label" onClick={() => onSelect(channel.id)}>
                 {channel.isPrivate ? <Lock size={16} /> : <Hash size={16} />}
                 <span>{channel.name}</span>
               </button>

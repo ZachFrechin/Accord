@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ServersRepository } from '@discord2/db';
 import {

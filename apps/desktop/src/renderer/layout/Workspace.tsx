@@ -212,7 +212,15 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     return () => {
       cancelled = true;
     };
-  }, [activeChannelId, activeServerId, api, deviceIdentity, instance, messagesQuery.data, session.user.id]);
+  }, [
+    activeChannelId,
+    activeServerId,
+    api,
+    deviceIdentity,
+    instance,
+    messagesQuery.data,
+    session.user.id,
+  ]);
 
   useEffect(() => {
     if (!activeServerId && servers.length > 0) {
@@ -267,8 +275,9 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
         queryClient.removeQueries({ queryKey: ['channels', event.serverId] });
         queryClient.removeQueries({ queryKey: ['members', event.serverId] });
       } else {
-        queryClient.setQueryData<ServerMemberProfile[]>(['members', event.serverId], (current = []) =>
-          current.filter((m) => m.userId !== event.userId),
+        queryClient.setQueryData<ServerMemberProfile[]>(
+          ['members', event.serverId],
+          (current = []) => current.filter((m) => m.userId !== event.userId),
         );
       }
     });
@@ -464,11 +473,18 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
   });
 
   const updateRoleMutation = useMutation({
-    mutationFn: (input: { roleId: string; name: string; color: string; mentionable: boolean }) =>
+    mutationFn: (input: {
+      roleId: string;
+      name: string;
+      color: string;
+      mentionable: boolean;
+      permissions: Permission[];
+    }) =>
       api.roles.update(activeServerId!, input.roleId, {
         name: input.name,
         color: input.color,
         mentionable: input.mentionable,
+        permissions: input.permissions,
       }),
     onSuccess: (role) => {
       queryClient.setQueryData<ServerRole[]>(['roles', activeServerId], (current = []) =>
@@ -524,6 +540,16 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
           ),
         );
       }
+    },
+  });
+
+  const banMemberMutation = useMutation({
+    mutationFn: (input: { userId: string; reason?: string | null }) =>
+      api.servers.banMember(activeServerId!, input),
+    onSuccess: (_, input) => {
+      queryClient.setQueryData<ServerMemberProfile[]>(['members', activeServerId], (current = []) =>
+        current.filter((member) => member.userId !== input.userId),
+      );
     },
   });
 
@@ -806,6 +832,9 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
       {editingChannel ? (
         <EditChannelDialog
           channel={editingChannel}
+          serverId={editingChannel.serverId ?? activeServerId!}
+          api={api}
+          roles={roles}
           isSubmitting={updateChannelMutation.isPending}
           isDeleting={deleteChannelMutation.isPending}
           onClose={() => setEditingChannel(null)}
@@ -867,6 +896,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
           api={api}
           isSaving={updateServerMutation.isPending}
           roles={roles}
+          channels={channels}
           members={members}
           isLoadingRoles={rolesQuery.isLoading || membersQuery.isLoading}
           isSavingRole={
@@ -875,7 +905,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
             deleteRoleMutation.isPending ||
             updateMemberRolesMutation.isPending
           }
-          isRemovingMember={removeMemberMutation.isPending}
+          isRemovingMember={removeMemberMutation.isPending || banMemberMutation.isPending}
           onClose={() => setIsServerSettingsOpen(false)}
           onSave={async (input) => {
             await updateServerMutation.mutateAsync(input);
@@ -884,7 +914,13 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
             await createRoleMutation.mutateAsync(input);
           }}
           onUpdateRole={async (roleId, input) => {
-            await updateRoleMutation.mutateAsync({ roleId, ...input });
+            await updateRoleMutation.mutateAsync({
+              roleId,
+              name: input.name,
+              color: input.color,
+              mentionable: input.mentionable,
+              permissions: input.permissions,
+            });
           }}
           onDeleteRole={async (roleId) => {
             await deleteRoleMutation.mutateAsync(roleId);
@@ -894,6 +930,13 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
           }}
           onRemoveMember={async (userId) => {
             await removeMemberMutation.mutateAsync(userId);
+          }}
+          onBanMember={async (userId, reason) => {
+            await banMemberMutation.mutateAsync({ userId, reason });
+          }}
+          onEditChannel={(channel) => {
+            setIsServerSettingsOpen(false);
+            setEditingChannel(channel);
           }}
         />
       ) : null}

@@ -8,7 +8,12 @@ import {
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ChannelsRepository } from '@discord2/db';
-import { ChannelType, Permission, type AuthUser, type CreateAttachmentInput } from '@discord2/shared';
+import {
+  ChannelType,
+  Permission,
+  type AuthUser,
+  type CreateAttachmentInput,
+} from '@discord2/shared';
 import { loadServerEnv } from '@discord2/config';
 import { PermissionsService } from '../permissions/permissions.service';
 

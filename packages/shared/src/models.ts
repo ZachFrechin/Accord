@@ -134,14 +134,14 @@ export interface ChannelPermissionOverwrite {
   id: string;
   channelId: ChannelId;
   targetType: ChannelPermissionOverwriteTargetType;
-  targetId: RoleId | UserId | null;
+  targetId: string | null;
   allowPermissions: Permission[];
   denyPermissions: Permission[];
 }
 
 export interface UpdateChannelPermissionOverwriteInput {
   targetType: ChannelPermissionOverwriteTargetType;
-  targetId: RoleId | UserId | null;
+  targetId: string | null;
   allowPermissions: Permission[];
   denyPermissions: Permission[];
 }

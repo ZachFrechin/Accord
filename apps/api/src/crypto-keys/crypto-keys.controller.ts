@@ -62,10 +62,7 @@ export class CryptoKeysController {
 
   @Delete('devices/:deviceId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  revokeDevice(
-    @CurrentUser() user: AuthUser,
-    @Param('deviceId') deviceId: string,
-  ): Promise<void> {
+  revokeDevice(@CurrentUser() user: AuthUser, @Param('deviceId') deviceId: string): Promise<void> {
     return this.service.revokeDevice(user, deviceId);
   }
 

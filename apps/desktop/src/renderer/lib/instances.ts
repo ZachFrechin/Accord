@@ -77,7 +77,10 @@ export function validateInstanceConfig(config: InstanceConfig): void {
   }
 }
 
-function normalizeManifest(config: Partial<InstanceConfig>, fallbackApiUrl: string): InstanceConfig {
+function normalizeManifest(
+  config: Partial<InstanceConfig>,
+  fallbackApiUrl: string,
+): InstanceConfig {
   if (
     !config.instanceId ||
     !config.instanceName ||
@@ -151,12 +154,12 @@ function parseInstances(value: string | null): InstanceConfig[] {
 function isInstanceConfigShape(value: InstanceConfig): value is InstanceConfig {
   return Boolean(
     value?.instanceId &&
-      value.instanceName &&
-      value.apiUrl &&
-      value.supabaseUrl &&
-      value.supabaseAnonKey &&
-      value.gatewayUrl &&
-      value.livekitUrl,
+    value.instanceName &&
+    value.apiUrl &&
+    value.supabaseUrl &&
+    value.supabaseAnonKey &&
+    value.gatewayUrl &&
+    value.livekitUrl,
   );
 }
 

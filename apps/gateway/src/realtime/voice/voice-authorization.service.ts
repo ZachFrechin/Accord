@@ -107,7 +107,8 @@ function applyChannelOverwrites(
   roleAllow.forEach((permission) => permissions.add(permission));
 
   for (const overwrite of overwrites.filter(
-    (item) => item.targetType === ChannelPermissionOverwriteTargetType.Member && item.targetId === userId,
+    (item) =>
+      item.targetType === ChannelPermissionOverwriteTargetType.Member && item.targetId === userId,
   )) {
     applyOverwrite(permissions, overwrite);
   }

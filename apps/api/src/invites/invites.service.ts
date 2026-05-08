@@ -2,7 +2,12 @@ import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nest
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { customAlphabet } from 'nanoid';
 import { InvitesRepository, ServersRepository } from '@discord2/db';
-import { Permission, type AuthUser, type RedeemInviteResult, type ServerId } from '@discord2/shared';
+import {
+  Permission,
+  type AuthUser,
+  type RedeemInviteResult,
+  type ServerId,
+} from '@discord2/shared';
 import { PermissionsService } from '../permissions/permissions.service';
 import type { CreateInviteDto } from './dto';
 

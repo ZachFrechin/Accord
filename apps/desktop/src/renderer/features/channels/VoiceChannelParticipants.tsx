@@ -40,7 +40,10 @@ export function VoiceChannelParticipants({
                   style={{ zIndex: userIds.length - index }}
                 />
               ) : (
-                <div className="voice-participant-avatar fallback" style={{ zIndex: userIds.length - index }}>
+                <div
+                  className="voice-participant-avatar fallback"
+                  style={{ zIndex: userIds.length - index }}
+                >
                   {label.charAt(0).toUpperCase()}
                 </div>
               )}

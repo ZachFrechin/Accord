@@ -106,7 +106,8 @@ export class PermissionsService {
       return channels.map((channel) => ({ ...channel, permissions: [...AllPermissions] }));
     }
 
-    const overwritesByChannel = await this.channelsRepository.listPermissionOverwritesForServer(serverId);
+    const overwritesByChannel =
+      await this.channelsRepository.listPermissionOverwritesForServer(serverId);
     return channels.flatMap((channel) => {
       const permissions = applyChannelOverwrites(
         new Set(serverPermissions.permissions),
