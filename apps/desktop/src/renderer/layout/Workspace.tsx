@@ -249,6 +249,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
 
     socket.on('connect', () => setRealtimeStatus('connected'));
     socket.on('disconnect', () => setRealtimeStatus('disconnected'));
+    socket.on('connect_error', () => setRealtimeStatus('disconnected'));
     socket.on(ServerToClientEvent.MessageCreated, (event: MessageCreatedEvent) => {
       queryClient.setQueryData<MessageRecord[]>(['messages', event.channelId], (current = []) => {
         if (current.some((message) => message.id === event.message.id)) {
@@ -287,11 +288,16 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
       socket.off(ServerToClientEvent.MessageDeleted);
       socket.off(ServerToClientEvent.VoicePresenceUpdated);
       socket.off(ServerToClientEvent.MemberRemoved);
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('connect_error');
       socket.disconnect();
-      socketRef.current = null;
-      setRealtimeStatus('disconnected');
+      if (socketRef.current === socket) {
+        socketRef.current = null;
+        setRealtimeStatus('disconnected');
+      }
     };
-  }, [instance, session, setRealtimeStatus, setVoiceParticipantIds]);
+  }, [instance, session.access_token, session.user.id, setRealtimeStatus, setVoiceParticipantIds]);
 
   useEffect(() => {
     if (!activeChannelId) {

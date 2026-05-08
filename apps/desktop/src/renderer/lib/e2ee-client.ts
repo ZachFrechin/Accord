@@ -52,55 +52,56 @@ export async function ensureConversationKey(input: {
   serverId: string;
   channelId: string;
   identity: DeviceIdentity;
+  keyVersion?: number;
 }): Promise<ConversationKey> {
   const cacheKey = `${input.instance.instanceId}:${input.userId}:${input.channelId}`;
-  const cached = memoryKeys.get(cacheKey);
-  if (cached) return cached;
-
-  const stored = localStorage.getItem(`${keyPrefix}:${cacheKey}`);
-  if (stored) {
-    const key = await readProtectedJson<ConversationKeySnapshot>(stored);
-    const conversationKey = { version: key.version, bytes: base64ToBytes(key.bytes) };
-    memoryKeys.set(cacheKey, conversationKey);
-    return conversationKey;
-  }
+  const requestedVersion = input.keyVersion;
+  const cached = await readCachedConversationKey(cacheKey, requestedVersion);
+  if (cached && requestedVersion) return cached;
 
   try {
     const state = await input.api.crypto.getConversation(input.channelId);
+    const targetVersion = requestedVersion ?? state.currentKeyVersion;
     const wrapped = state.keys
-      .filter((key) => key.deviceId === input.identity.deviceId)
+      .filter((key) => key.deviceId === input.identity.deviceId && key.keyVersion === targetVersion)
       .sort((left, right) => right.keyVersion - left.keyVersion)[0];
-    if (!wrapped) {
+
+    if (wrapped) {
+      const key = await unwrapConversationKey(
+        wrapped.wrappedKey,
+        input.identity,
+        wrapped.keyVersion,
+      );
+      await persistConversationKey(cacheKey, key);
+
+      // Auto-distribute to devices that are missing from the current key version.
+      if (!requestedVersion && key.version === state.currentKeyVersion) {
+        void distributeKeyToNewDevices(input, state.conversationId, key, state.keys);
+      }
+
+      return key;
+    }
+
+    if (requestedVersion) {
       throw new Error('Clé locale absente pour ce salon.');
     }
 
-    const key = await unwrapConversationKey(wrapped.wrappedKey, input.identity, wrapped.keyVersion);
+    const key = await createReplacementConversationKey(input, state.currentKeyVersion + 1);
     await persistConversationKey(cacheKey, key);
-
-    // Auto-distribute to devices that are missing from the current key version.
-    void distributeKeyToNewDevices(input, state.conversationId, key, state.keys);
-
     return key;
   } catch (error) {
     if (error instanceof Error && !/not available|introuvable|404/i.test(error.message)) {
+      const fallback = await readCachedConversationKey(cacheKey, requestedVersion);
+      if (fallback) return fallback;
       throw error;
     }
   }
 
-  const key = await generateConversationKey(1);
-  const devices = await input.api.crypto.listServerDevices(input.serverId);
-  const wrappedKeys = await Promise.all(
-    devices.map(async (device) => ({
-      deviceId: device.id,
-      keyVersion: key.version,
-      wrappedKey: await wrapConversationKey(key, device.publicKey),
-    })),
-  );
-  await input.api.crypto.bootstrapConversation(input.channelId, {
-    deviceId: input.identity.deviceId,
-    currentKeyVersion: key.version,
-    wrappedKeys,
-  });
+  if (requestedVersion) {
+    throw new Error('Clé locale absente pour ce salon.');
+  }
+
+  const key = await createReplacementConversationKey(input, 1);
   await persistConversationKey(cacheKey, key);
   return key;
 }
@@ -125,14 +126,9 @@ export async function decryptMessages(input: {
     return input.messages;
   }
 
-  const key = await ensureConversationKey({
-    api: input.api,
-    instance: input.instance,
-    userId: input.userId,
-    serverId: input.serverId,
-    channelId: input.channelId,
-    identity: input.identity,
-  });
+  const serverId = input.serverId;
+  const channelId = input.channelId;
+  const identity = input.identity;
 
   return Promise.all(
     input.messages.map(async (message) => {
@@ -141,6 +137,15 @@ export async function decryptMessages(input: {
       }
 
       try {
+        const key = await ensureConversationKey({
+          api: input.api,
+          instance: input.instance,
+          userId: input.userId,
+          serverId,
+          channelId,
+          identity,
+          keyVersion: message.encrypted.keyVersion,
+        });
         return {
           ...message,
           content: await decryptMessage(message.encrypted, key),
@@ -219,6 +224,34 @@ export async function rotateConversationKey(input: {
   await persistConversationKey(cacheKey, newKey);
 }
 
+async function createReplacementConversationKey(
+  input: {
+    api: ApiClient;
+    instance: InstanceConfig;
+    userId: string;
+    serverId: string;
+    channelId: string;
+    identity: DeviceIdentity;
+  },
+  version: number,
+): Promise<ConversationKey> {
+  const key = await generateConversationKey(version);
+  const devices = await input.api.crypto.listServerDevices(input.serverId);
+  const wrappedKeys = await Promise.all(
+    devices.map(async (device) => ({
+      deviceId: device.id,
+      keyVersion: key.version,
+      wrappedKey: await wrapConversationKey(key, device.publicKey),
+    })),
+  );
+  await input.api.crypto.bootstrapConversation(input.channelId, {
+    deviceId: input.identity.deviceId,
+    currentKeyVersion: key.version,
+    wrappedKeys,
+  });
+  return key;
+}
+
 async function distributeKeyToNewDevices(
   input: {
     api: ApiClient;
@@ -257,14 +290,71 @@ async function distributeKeyToNewDevices(
 }
 
 async function persistConversationKey(cacheKey: string, key: ConversationKey): Promise<void> {
+  memoryKeys.set(versionedCacheKey(cacheKey, key.version), key);
   memoryKeys.set(cacheKey, key);
   localStorage.setItem(
-    `${keyPrefix}:${cacheKey}`,
+    `${keyPrefix}:${cacheKey}:${key.version}`,
     await writeProtectedJson({
       version: key.version,
       bytes: bytesToBase64(key.bytes),
     }),
   );
+  localStorage.setItem(`${keyPrefix}:${cacheKey}:latest`, String(key.version));
+}
+
+async function readCachedConversationKey(
+  cacheKey: string,
+  version?: number,
+): Promise<ConversationKey | null> {
+  if (version) {
+    const memoryKey = versionedCacheKey(cacheKey, version);
+    const cached = memoryKeys.get(memoryKey);
+    if (cached) return cached;
+    return readStoredConversationKey(cacheKey, version);
+  }
+
+  const cached = memoryKeys.get(cacheKey);
+  if (cached) return cached;
+
+  const latestVersion = Number(localStorage.getItem(`${keyPrefix}:${cacheKey}:latest`));
+  if (!Number.isInteger(latestVersion) || latestVersion < 1) {
+    const legacy = await readLegacyConversationKey(cacheKey);
+    if (legacy) {
+      await persistConversationKey(cacheKey, legacy);
+      return legacy;
+    }
+    return null;
+  }
+
+  return (
+    memoryKeys.get(versionedCacheKey(cacheKey, latestVersion)) ??
+    readStoredConversationKey(cacheKey, latestVersion)
+  );
+}
+
+function versionedCacheKey(cacheKey: string, version: number): string {
+  return `${cacheKey}:${version}`;
+}
+
+async function readStoredConversationKey(
+  cacheKey: string,
+  version: number,
+): Promise<ConversationKey | null> {
+  const stored = localStorage.getItem(`${keyPrefix}:${cacheKey}:${version}`);
+  if (!stored) return null;
+
+  const key = await readProtectedJson<ConversationKeySnapshot>(stored);
+  const conversationKey = { version: key.version, bytes: base64ToBytes(key.bytes) };
+  memoryKeys.set(versionedCacheKey(cacheKey, key.version), conversationKey);
+  return conversationKey;
+}
+
+async function readLegacyConversationKey(cacheKey: string): Promise<ConversationKey | null> {
+  const stored = localStorage.getItem(`${keyPrefix}:${cacheKey}`);
+  if (!stored) return null;
+
+  const key = await readProtectedJson<ConversationKeySnapshot>(stored);
+  return { version: key.version, bytes: base64ToBytes(key.bytes) };
 }
 
 async function writeProtectedJson(value: unknown): Promise<string> {
