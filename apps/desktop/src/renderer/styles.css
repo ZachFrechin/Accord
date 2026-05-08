@@ -2402,7 +2402,7 @@ input::placeholder {
 
 .member-role-detail {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
   overflow: hidden;
 }
 
@@ -2420,7 +2420,7 @@ input::placeholder {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 12px 14px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--bg-input) 70%, transparent);
 }
@@ -2449,7 +2449,8 @@ input::placeholder {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
   align-content: start;
   gap: 8px;
-  min-height: 0;
+  max-block-size: min(18rem, 38dvh);
+  min-block-size: 0;
   overflow-y: auto;
   padding: 14px;
 }

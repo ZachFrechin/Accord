@@ -8,6 +8,7 @@ import {
   type MemberRemovedEvent,
   type MessageCreatedEvent,
   type MessageDeletedEvent,
+  type ServerStateChangedEvent,
 } from '@discord2/shared';
 import { RoomService } from '../rooms/room.service';
 
@@ -39,6 +40,8 @@ export class MessageFanoutService implements OnApplicationShutdown {
         this.forwardMessageCreated(server, payload);
       } else if (channel === InternalRealtimeEvent.MessageDeleted) {
         this.forwardMessageDeleted(server, payload);
+      } else if (channel === InternalRealtimeEvent.ServerStateChanged) {
+        this.forwardServerStateChanged(server, payload);
       } else if (channel === InternalRealtimeEvent.MemberRemoved) {
         this.forwardMemberRemoved(server, payload);
       }
@@ -47,11 +50,10 @@ export class MessageFanoutService implements OnApplicationShutdown {
     void this.redis.subscribe(
       InternalRealtimeEvent.MessageCreated,
       InternalRealtimeEvent.MessageDeleted,
+      InternalRealtimeEvent.ServerStateChanged,
       InternalRealtimeEvent.MemberRemoved,
     );
-    this.logger.log(
-      'Subscribed to message.created, message.deleted and member.removed Redis events.',
-    );
+    this.logger.log('Subscribed to realtime Redis events.');
   }
 
   private forwardMessageDeleted(server: Server, payload: string): void {
@@ -100,6 +102,23 @@ export class MessageFanoutService implements OnApplicationShutdown {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown parse error';
       this.logger.warn(`Invalid member.removed payload: ${message}`);
+    }
+  }
+
+  private forwardServerStateChanged(server: Server, payload: string): void {
+    try {
+      const event = JSON.parse(payload) as ServerStateChangedEvent;
+      for (const userId of event.userIds) {
+        this.roomService.emitToUserFromServer(
+          server,
+          userId,
+          ServerToClientEvent.ServerStateChanged,
+          event,
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown parse error';
+      this.logger.warn(`Invalid server.state_changed payload: ${message}`);
     }
   }
 }

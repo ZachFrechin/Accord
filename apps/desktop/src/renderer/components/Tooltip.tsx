@@ -56,7 +56,6 @@ export function Tooltip({ label, children }: TooltipProps): React.JSX.Element {
             fontWeight: 600,
             lineHeight: 1.2,
             whiteSpace: 'nowrap',
-            animation: 'tooltipIn 140ms ease',
           }}
           role="tooltip"
         >

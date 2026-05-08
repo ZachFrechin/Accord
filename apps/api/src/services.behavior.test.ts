@@ -80,6 +80,10 @@ const permissionsService = {
   listVisibleChannels: vi.fn(),
 };
 
+const eventsPublisher = {
+  publishServerStateChanged: vi.fn().mockResolvedValue(undefined),
+};
+
 describe('api service behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -91,7 +95,9 @@ describe('api service behavior', () => {
     permissionsService.assertCanManageTargetMember.mockResolvedValue(undefined);
     permissionsService.assertCanManageRole.mockResolvedValue(undefined);
     permissionsService.listVisibleChannels.mockReset();
+    repositoryMocks.roles.listMembers.mockResolvedValue([]);
     repositoryMocks.servers.findBan.mockResolvedValue(null);
+    eventsPublisher.publishServerStateChanged.mockResolvedValue(undefined);
     process.env.SUPABASE_URL = 'https://supabase.test';
     process.env.SUPABASE_ANON_KEY = 'anon';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
@@ -152,7 +158,11 @@ describe('api service behavior', () => {
         role: 'admin',
       }),
     };
-    const service = new ChannelsService(supabase, permissionsService as never);
+    const service = new ChannelsService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
     const channel = {
       id: 'channel-1',
       serverId: 'server-1',
@@ -183,7 +193,11 @@ describe('api service behavior', () => {
         role: 'member',
       }),
     };
-    const service = new ChannelsService(supabase, permissionsService as never);
+    const service = new ChannelsService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
     permissionsService.assertServerPermission.mockRejectedValue(
       new ForbiddenException('Missing server permission.'),
     );
@@ -205,7 +219,11 @@ describe('api service behavior', () => {
         role: 'admin',
       }),
     };
-    const service = new ChannelsService(supabase, permissionsService as never);
+    const service = new ChannelsService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
     const channel = {
       id: 'channel-1',
       serverId: 'server-1',
@@ -234,7 +252,11 @@ describe('api service behavior', () => {
         role: 'member',
       }),
     };
-    const service = new ChannelsService(supabase, permissionsService as never);
+    const service = new ChannelsService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
     permissionsService.assertServerPermission.mockRejectedValue(
       new ForbiddenException('Missing server permission.'),
     );
@@ -261,7 +283,11 @@ describe('api service behavior', () => {
         role: 'owner',
       }),
     };
-    const service = new ChannelsService(supabase, permissionsService as never);
+    const service = new ChannelsService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
     repositoryMocks.channels.findById.mockResolvedValue({
       id: 'channel-1',
       serverId: 'server-1',
@@ -283,7 +309,11 @@ describe('api service behavior', () => {
     const serversService = {
       requireMembership: vi.fn(),
     };
-    const service = new ChannelsService(supabase, permissionsService as never);
+    const service = new ChannelsService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
     repositoryMocks.channels.findById.mockResolvedValue({
       id: 'channel-1',
       serverId: 'server-2',

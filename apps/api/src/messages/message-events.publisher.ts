@@ -6,6 +6,7 @@ import {
   type MemberRemovedEvent,
   type MessageCreatedEvent,
   type MessageDeletedEvent,
+  type ServerStateChangedEvent,
 } from '@discord2/shared';
 
 @Injectable()
@@ -36,6 +37,10 @@ export class MessageEventsPublisher implements OnApplicationShutdown {
 
   async publishMessageDeleted(event: MessageDeletedEvent): Promise<void> {
     await this.publish(InternalRealtimeEvent.MessageDeleted, event);
+  }
+
+  async publishServerStateChanged(event: ServerStateChangedEvent): Promise<void> {
+    await this.publish(InternalRealtimeEvent.ServerStateChanged, event);
   }
 
   async publishMemberRemoved(event: MemberRemovedEvent): Promise<void> {

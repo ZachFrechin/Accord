@@ -14,6 +14,7 @@ export const ClientToServerEvent = {
 export const ServerToClientEvent = {
   MessageCreated: 'message:created',
   MessageDeleted: 'message:deleted',
+  ServerStateChanged: 'server:state-changed',
   TypingStarted: 'typing:started',
   TypingStopped: 'typing:stopped',
   PresenceUpdated: 'presence:updated',
@@ -25,6 +26,7 @@ export const ServerToClientEvent = {
 export const InternalRealtimeEvent = {
   MessageCreated: 'message.created',
   MessageDeleted: 'message.deleted',
+  ServerStateChanged: 'server.state_changed',
   MemberRemoved: 'member.removed',
 } as const;
 
@@ -72,6 +74,13 @@ export interface VoicePresenceEvent {
 export interface MemberRemovedEvent {
   serverId: ServerId;
   userId: UserId;
+}
+
+export interface ServerStateChangedEvent {
+  serverId: ServerId;
+  userIds: UserId[];
+  reason: 'roles' | 'members' | 'channels' | 'permissions';
+  targetUserId?: UserId;
 }
 
 export interface MessageAck {

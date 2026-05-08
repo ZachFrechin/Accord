@@ -16,6 +16,7 @@ import {
   type MessageRecord,
   type ServerMemberProfile,
   type ServerRole,
+  type ServerStateChangedEvent,
   type ServerSummary,
   type VoicePresenceEvent,
   type InstanceConfig,
@@ -243,6 +244,19 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
   }, [activeChannelId, channels, setActiveChannelId]);
 
   useEffect(() => {
+    if (!activeChannelId || channels.length === 0) {
+      return;
+    }
+
+    if (channels.some((channel) => channel.id === activeChannelId)) {
+      return;
+    }
+
+    const firstTextChannel = channels.find((channel) => channel.type === ChannelType.Text);
+    setActiveChannelId(firstTextChannel?.id ?? channels[0]?.id ?? null);
+  }, [activeChannelId, channels, setActiveChannelId]);
+
+  useEffect(() => {
     setRealtimeStatus('connecting');
     const socket = createRealtimeSocket(session.access_token, instance);
     socketRef.current = socket;
@@ -267,6 +281,12 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     socket.on(ServerToClientEvent.VoicePresenceUpdated, (event: VoicePresenceEvent) => {
       setVoiceParticipantIds(event.channelId, event.userIds);
     });
+    socket.on(ServerToClientEvent.ServerStateChanged, (event: ServerStateChangedEvent) => {
+      void queryClient.invalidateQueries({ queryKey: ['roles', event.serverId] });
+      void queryClient.invalidateQueries({ queryKey: ['members', event.serverId] });
+      void queryClient.invalidateQueries({ queryKey: ['channels', event.serverId] });
+      void queryClient.invalidateQueries({ queryKey: ['channel-permissions', event.serverId] });
+    });
 
     socket.on(ServerToClientEvent.MemberRemoved, (event: MemberRemovedEvent) => {
       if (event.userId === session.user.id) {
@@ -287,6 +307,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
       socket.off(ServerToClientEvent.MessageCreated);
       socket.off(ServerToClientEvent.MessageDeleted);
       socket.off(ServerToClientEvent.VoicePresenceUpdated);
+      socket.off(ServerToClientEvent.ServerStateChanged);
       socket.off(ServerToClientEvent.MemberRemoved);
       socket.off('connect');
       socket.off('disconnect');

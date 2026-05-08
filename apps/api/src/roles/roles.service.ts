@@ -12,6 +12,7 @@ import type {
   UserId,
 } from '@discord2/shared';
 import { Permission } from '@discord2/shared';
+import { MessageEventsPublisher } from '../messages/message-events.publisher';
 import { PermissionsService } from '../permissions/permissions.service';
 import type { CreateServerRoleDto, UpdateMemberRolesDto, UpdateServerRoleDto } from './dto';
 
@@ -23,6 +24,7 @@ export class RolesService {
   constructor(
     @Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient,
     private readonly permissionsService: PermissionsService,
+    private readonly eventsPublisher: MessageEventsPublisher,
   ) {
     this.rolesRepository = new RolesRepository(supabase);
     this.serversRepository = new ServersRepository(supabase);
@@ -39,13 +41,15 @@ export class RolesService {
     dto: CreateServerRoleDto,
   ): Promise<ServerRole> {
     await this.permissionsService.assertServerPermission(user, serverId, Permission.ManageRoles);
-    return this.rolesRepository.createRole({
+    const role = await this.rolesRepository.createRole({
       serverId,
       name: this.normalizeRoleName(dto.name),
       color: dto.color,
       mentionable: dto.mentionable,
       permissions: this.normalizePermissions(dto.permissions ?? []),
     });
+    await this.publishServerStateChanged(serverId, 'roles');
+    return role;
   }
 
   async updateRole(
@@ -78,7 +82,9 @@ export class RolesService {
       throw new BadRequestException('At least one role setting is required.');
     }
 
-    return this.rolesRepository.updateRole(serverId, roleId, input);
+    const role = await this.rolesRepository.updateRole(serverId, roleId, input);
+    await this.publishServerStateChanged(serverId, 'roles');
+    return role;
   }
 
   async deleteRole(
@@ -89,12 +95,15 @@ export class RolesService {
     const existing = await this.findRoleOrThrow(serverId, roleId);
     await this.permissionsService.assertCanManageRole(user, serverId, existing);
     await this.rolesRepository.deleteRole(serverId, roleId);
+    await this.publishServerStateChanged(serverId, 'roles');
     return { roleId };
   }
 
   async reorderRoles(user: AuthUser, serverId: ServerId, roleIds: RoleId[]): Promise<ServerRole[]> {
     await this.permissionsService.assertServerPermission(user, serverId, Permission.ManageRoles);
-    return this.rolesRepository.reorderRoles(serverId, roleIds);
+    const roles = await this.rolesRepository.reorderRoles(serverId, roleIds);
+    await this.publishServerStateChanged(serverId, 'roles');
+    return roles;
   }
 
   async listMembers(user: AuthUser, serverId: ServerId): Promise<ServerMemberProfile[]> {
@@ -146,6 +155,7 @@ export class RolesService {
       throw new NotFoundException('Member not found.');
     }
 
+    await this.publishServerStateChanged(serverId, 'members', targetUserId);
     return updated;
   }
 
@@ -227,6 +237,20 @@ export class RolesService {
     }
 
     return role;
+  }
+
+  private async publishServerStateChanged(
+    serverId: ServerId,
+    reason: 'roles' | 'members',
+    targetUserId?: UserId,
+  ): Promise<void> {
+    const members = await this.rolesRepository.listMembers(serverId);
+    await this.eventsPublisher.publishServerStateChanged({
+      serverId,
+      userIds: members.map((member) => member.userId),
+      reason,
+      ...(targetUserId ? { targetUserId } : {}),
+    });
   }
 }
 

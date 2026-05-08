@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ChannelsRepository } from '@discord2/db';
+import { ChannelsRepository, RolesRepository } from '@discord2/db';
 import {
   ChannelPermissionOverwriteTargetType,
   ChannelType,
@@ -12,18 +12,22 @@ import {
   type DeleteChannelResult,
   type ServerId,
 } from '@discord2/shared';
+import { MessageEventsPublisher } from '../messages/message-events.publisher';
 import { PermissionsService } from '../permissions/permissions.service';
 import type { CreateChannelDto, UpdateChannelDto, UpdateChannelPermissionsDto } from './dto';
 
 @Injectable()
 export class ChannelsService {
   private readonly repository: ChannelsRepository;
+  private readonly rolesRepository: RolesRepository;
 
   constructor(
     @Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient,
     private readonly permissionsService: PermissionsService,
+    private readonly eventsPublisher: MessageEventsPublisher,
   ) {
     this.repository = new ChannelsRepository(supabase);
+    this.rolesRepository = new RolesRepository(supabase);
   }
 
   async listChannels(user: AuthUser, serverId: ServerId): Promise<ChannelSummary[]> {
@@ -43,17 +47,21 @@ export class ChannelsService {
     }
 
     if (dto.type === ChannelType.Text) {
-      return this.repository.createTextChannel({
+      const channel = await this.repository.createTextChannel({
         serverId,
         name,
       });
+      await this.publishServerStateChanged(serverId, 'channels');
+      return channel;
     }
 
     if (dto.type === ChannelType.Voice) {
-      return this.repository.createVoiceChannel({
+      const channel = await this.repository.createVoiceChannel({
         serverId,
         name,
       });
+      await this.publishServerStateChanged(serverId, 'channels');
+      return channel;
     }
 
     throw new BadRequestException('Unsupported channel type.');
@@ -72,7 +80,9 @@ export class ChannelsService {
       throw new BadRequestException('Channel name is required.');
     }
 
-    return this.repository.update(channelId, { name });
+    const channel = await this.repository.update(channelId, { name });
+    await this.publishServerStateChanged(serverId, 'channels');
+    return channel;
   }
 
   async listChannelPermissions(
@@ -110,7 +120,9 @@ export class ChannelsService {
       }
     }
 
-    return this.repository.replacePermissionOverwrites(channelId, normalized);
+    const overwrites = await this.repository.replacePermissionOverwrites(channelId, normalized);
+    await this.publishServerStateChanged(serverId, 'permissions');
+    return overwrites;
   }
 
   async deleteChannel(
@@ -120,6 +132,7 @@ export class ChannelsService {
   ): Promise<DeleteChannelResult> {
     await this.requireManageableServerChannel(user, serverId, channelId);
     await this.repository.delete(channelId);
+    await this.publishServerStateChanged(serverId, 'channels');
     return { channelId };
   }
 
@@ -140,5 +153,17 @@ export class ChannelsService {
     await this.permissionsService.assertServerPermission(user, serverId, Permission.ManageChannels);
 
     return channel;
+  }
+
+  private async publishServerStateChanged(
+    serverId: ServerId,
+    reason: 'channels' | 'permissions',
+  ): Promise<void> {
+    const members = await this.rolesRepository.listMembers(serverId);
+    await this.eventsPublisher.publishServerStateChanged({
+      serverId,
+      userIds: members.map((member) => member.userId),
+      reason,
+    });
   }
 }
