@@ -79,7 +79,7 @@ export interface MemberRemovedEvent {
 export interface ServerStateChangedEvent {
   serverId: ServerId;
   userIds: UserId[];
-  reason: 'roles' | 'members' | 'channels' | 'permissions';
+  reason: 'server' | 'roles' | 'members' | 'channels' | 'permissions' | 'bans';
   targetUserId?: UserId;
 }
 

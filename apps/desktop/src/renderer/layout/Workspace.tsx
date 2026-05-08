@@ -82,6 +82,8 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
   const [joinError, setJoinError] = useState<string | null>(null);
   const [inviteCodeId, setInviteCodeId] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const activeChannelIdRef = useRef<string | null>(null);
+  const voiceChannelIdsRef = useRef<string[]>([]);
   const {
     activeServerId,
     activeChannelId,
@@ -153,6 +155,16 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
   const canSendMessages = hasPermission(activeChannelPermissions, Permission.SendMessages);
   const canAttachFiles = hasPermission(activeChannelPermissions, Permission.AttachFiles);
   const canManageMessages = hasPermission(activeChannelPermissions, Permission.ManageMessages);
+
+  useEffect(() => {
+    activeChannelIdRef.current = activeChannelId;
+  }, [activeChannelId]);
+
+  useEffect(() => {
+    voiceChannelIdsRef.current = channels
+      .filter((channel) => channel.type === ChannelType.Voice)
+      .map((channel) => channel.id);
+  }, [channels]);
 
   useEffect(() => {
     let cancelled = false;
@@ -260,8 +272,41 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     setRealtimeStatus('connecting');
     const socket = createRealtimeSocket(session.access_token, instance);
     socketRef.current = socket;
+    const joinCurrentRooms = (): void => {
+      const channelId = activeChannelIdRef.current;
+      if (channelId) {
+        socket.emit(ClientToServerEvent.ChannelJoin, { channelId });
+      }
 
-    socket.on('connect', () => setRealtimeStatus('connected'));
+      for (const voiceChannelId of voiceChannelIdsRef.current) {
+        socket.emit(ClientToServerEvent.ChannelJoin, { channelId: voiceChannelId });
+      }
+    };
+    const refreshServerState = (event: ServerStateChangedEvent): void => {
+      void queryClient.invalidateQueries({ queryKey: ['servers'], refetchType: 'active' });
+      void queryClient.invalidateQueries({
+        queryKey: ['roles', event.serverId],
+        refetchType: 'active',
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['members', event.serverId],
+        refetchType: 'active',
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['channels', event.serverId],
+        refetchType: 'active',
+      });
+      void queryClient.invalidateQueries({
+        predicate: (query) =>
+          query.queryKey[0] === 'channel-permissions' && query.queryKey[1] === event.serverId,
+        refetchType: 'active',
+      });
+    };
+
+    socket.on('connect', () => {
+      setRealtimeStatus('connected');
+      joinCurrentRooms();
+    });
     socket.on('disconnect', () => setRealtimeStatus('disconnected'));
     socket.on('connect_error', () => setRealtimeStatus('disconnected'));
     socket.on(ServerToClientEvent.MessageCreated, (event: MessageCreatedEvent) => {
@@ -281,12 +326,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     socket.on(ServerToClientEvent.VoicePresenceUpdated, (event: VoicePresenceEvent) => {
       setVoiceParticipantIds(event.channelId, event.userIds);
     });
-    socket.on(ServerToClientEvent.ServerStateChanged, (event: ServerStateChangedEvent) => {
-      void queryClient.invalidateQueries({ queryKey: ['roles', event.serverId] });
-      void queryClient.invalidateQueries({ queryKey: ['members', event.serverId] });
-      void queryClient.invalidateQueries({ queryKey: ['channels', event.serverId] });
-      void queryClient.invalidateQueries({ queryKey: ['channel-permissions', event.serverId] });
-    });
+    socket.on(ServerToClientEvent.ServerStateChanged, refreshServerState);
 
     socket.on(ServerToClientEvent.MemberRemoved, (event: MemberRemovedEvent) => {
       if (event.userId === session.user.id) {
@@ -302,6 +342,8 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
         );
       }
     });
+
+    socket.connect();
 
     return () => {
       socket.off(ServerToClientEvent.MessageCreated);

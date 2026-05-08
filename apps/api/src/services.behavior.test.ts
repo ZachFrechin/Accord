@@ -34,6 +34,7 @@ const repositoryMocks = vi.hoisted(() => ({
     listMentionsForMessages: vi.fn(),
     listMembers: vi.fn(),
     listRoles: vi.fn(),
+    setMemberRoles: vi.fn(),
   },
   servers: {
     addMember: vi.fn(),
@@ -108,7 +109,11 @@ describe('api service behavior', () => {
 
   it('creates a server owned by the authenticated user', async () => {
     const { ServersService } = await import('./servers/servers.service');
-    const service = new ServersService(supabase, permissionsService as never);
+    const service = new ServersService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
     const server = {
       id: 'server-1',
       name: 'Core',
@@ -331,7 +336,11 @@ describe('api service behavior', () => {
 
   it('allows owners and admins to update server settings', async () => {
     const { ServersService } = await import('./servers/servers.service');
-    const service = new ServersService(supabase, permissionsService as never);
+    const service = new ServersService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
     const updated = {
       id: 'server-1',
       name: 'Core Team',
@@ -361,7 +370,11 @@ describe('api service behavior', () => {
 
   it('rejects server settings updates from regular members', async () => {
     const { ServersService } = await import('./servers/servers.service');
-    const service = new ServersService(supabase, permissionsService as never);
+    const service = new ServersService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
     permissionsService.assertServerPermission.mockRejectedValue(
       new ForbiddenException('Missing server permission.'),
     );
@@ -379,7 +392,11 @@ describe('api service behavior', () => {
 
   it('rejects avatar URLs outside the expected Supabase Storage bucket', async () => {
     const { ServersService } = await import('./servers/servers.service');
-    const service = new ServersService(supabase, permissionsService as never);
+    const service = new ServersService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
     repositoryMocks.servers.findMembership.mockResolvedValue({
       serverId: 'server-1',
       userId: user.id,
@@ -392,6 +409,65 @@ describe('api service behavior', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(repositoryMocks.servers.update).not.toHaveBeenCalled();
+  });
+
+  it('publishes a server state update after changing member roles', async () => {
+    const { RolesService } = await import('./roles/roles.service');
+    const service = new RolesService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
+    const role = {
+      id: 'role-1',
+      serverId: 'server-1',
+      name: 'Modo',
+      color: '#7c3aed',
+      mentionable: true,
+      permissions: [],
+      position: 1,
+      createdAt: '2026-05-06T00:00:00.000Z',
+    };
+    const members = [
+      {
+        serverId: 'server-1',
+        userId: user.id,
+        role: 'owner',
+        roleIds: [],
+        profile: { id: user.id, displayName: 'Owner', avatarUrl: null },
+      },
+      {
+        serverId: 'server-1',
+        userId: 'user-2',
+        role: 'member',
+        roleIds: ['role-1'],
+        profile: { id: 'user-2', displayName: 'Member', avatarUrl: null },
+      },
+    ];
+    repositoryMocks.servers.findMembership.mockResolvedValue({
+      serverId: 'server-1',
+      userId: 'user-2',
+      role: 'member',
+    });
+    repositoryMocks.roles.listRoles.mockResolvedValue([role]);
+    repositoryMocks.roles.setMemberRoles.mockResolvedValue(undefined);
+    repositoryMocks.roles.listMembers.mockResolvedValue(members);
+
+    await expect(
+      service.updateMemberRoles(user, 'server-1', 'user-2', { roleIds: ['role-1'] }),
+    ).resolves.toEqual(members[1]);
+
+    expect(repositoryMocks.roles.setMemberRoles).toHaveBeenCalledWith({
+      serverId: 'server-1',
+      userId: 'user-2',
+      roleIds: ['role-1'],
+    });
+    expect(eventsPublisher.publishServerStateChanged).toHaveBeenCalledWith({
+      serverId: 'server-1',
+      userIds: [user.id, 'user-2'],
+      reason: 'members',
+      targetUserId: 'user-2',
+    });
   });
 
   it('publishes a message.created event after persisting an E2EE text message', async () => {
@@ -688,7 +764,11 @@ describe('api service behavior', () => {
 
   it('redeems active invitations by adding membership and marking the invite used', async () => {
     const { InvitesService } = await import('./invites/invites.service');
-    const service = new InvitesService(supabase, permissionsService as never);
+    const service = new InvitesService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
     const server = {
       id: 'server-1',
       name: 'Core',
@@ -719,7 +799,11 @@ describe('api service behavior', () => {
 
   it('returns a public 404 for invalid invitation codes', async () => {
     const { InvitesService } = await import('./invites/invites.service');
-    const service = new InvitesService(supabase, permissionsService as never);
+    const service = new InvitesService(
+      supabase,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
     repositoryMocks.invites.findActiveByCode.mockResolvedValue(null);
 
     await expect(service.redeemInvite(user, 'BAD')).rejects.toBeInstanceOf(NotFoundException);

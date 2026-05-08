@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ServersRepository } from '@discord2/db';
+import { RolesRepository, ServersRepository } from '@discord2/db';
 import {
   Permission,
   type AuthUser,
@@ -12,18 +12,22 @@ import {
   type UserId,
 } from '@discord2/shared';
 import { assertPublicStorageUrl } from '../common/storage-url.validator';
+import { MessageEventsPublisher } from '../messages/message-events.publisher';
 import { PermissionsService } from '../permissions/permissions.service';
 import type { CreateServerDto, UpdateServerDto } from './dto';
 
 @Injectable()
 export class ServersService {
   private readonly repository: ServersRepository;
+  private readonly rolesRepository: RolesRepository;
 
   constructor(
     @Inject('SUPABASE_SERVICE_CLIENT') supabase: SupabaseClient,
     private readonly permissionsService: PermissionsService,
+    private readonly eventsPublisher: MessageEventsPublisher,
   ) {
     this.repository = new ServersRepository(supabase);
+    this.rolesRepository = new RolesRepository(supabase);
   }
 
   listServers(user: AuthUser): Promise<ServerSummary[]> {
@@ -59,6 +63,7 @@ export class ServersService {
     );
 
     await this.repository.removeMember(serverId, targetUserId);
+    await this.publishServerStateChanged(serverId, 'members');
     return { serverId, userId: targetUserId };
   }
 
@@ -79,12 +84,15 @@ export class ServersService {
       Permission.BanMembers,
     );
 
-    return this.repository.banMember({
+    const ban = await this.repository.banMember({
       serverId,
       userId: dto.userId,
       bannedBy: user.id,
       reason: dto.reason?.trim() || null,
     });
+    await this.publishServerStateChanged(serverId, 'members');
+    await this.publishServerStateChanged(serverId, 'bans');
+    return ban;
   }
 
   async unbanMember(
@@ -93,7 +101,9 @@ export class ServersService {
     targetUserId: UserId,
   ): Promise<{ serverId: ServerId; userId: UserId }> {
     await this.permissionsService.assertServerPermission(user, serverId, Permission.BanMembers);
-    return this.repository.unbanMember(serverId, targetUserId);
+    const result = await this.repository.unbanMember(serverId, targetUserId);
+    await this.publishServerStateChanged(serverId, 'bans');
+    return result;
   }
 
   async updateServer(
@@ -125,10 +135,23 @@ export class ServersService {
     }
 
     const updated = await this.repository.update(serverId, input);
+    await this.publishServerStateChanged(serverId, 'server');
 
     return {
       ...updated,
       role: membership.role,
     };
+  }
+
+  private async publishServerStateChanged(
+    serverId: ServerId,
+    reason: 'server' | 'members' | 'bans',
+  ): Promise<void> {
+    const members = await this.rolesRepository.listMembers(serverId);
+    await this.eventsPublisher.publishServerStateChanged({
+      serverId,
+      userIds: members.map((member) => member.userId),
+      reason,
+    });
   }
 }

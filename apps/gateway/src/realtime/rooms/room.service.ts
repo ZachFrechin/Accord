@@ -5,16 +5,16 @@ import type { AuthenticatedSocket } from '../types/authenticated-socket';
 
 @Injectable()
 export class RoomService {
-  joinUserRoom(client: AuthenticatedSocket, userId: UserId): void {
-    void client.join(this.userRoom(userId));
+  async joinUserRoom(client: AuthenticatedSocket, userId: UserId): Promise<void> {
+    await client.join(this.userRoom(userId));
   }
 
-  joinChannel(client: AuthenticatedSocket, channelId: ChannelId): void {
-    void client.join(this.channelRoom(channelId));
+  async joinChannel(client: AuthenticatedSocket, channelId: ChannelId): Promise<void> {
+    await client.join(this.channelRoom(channelId));
   }
 
-  leaveChannel(client: AuthenticatedSocket, channelId: ChannelId): void {
-    void client.leave(this.channelRoom(channelId));
+  async leaveChannel(client: AuthenticatedSocket, channelId: ChannelId): Promise<void> {
+    await client.leave(this.channelRoom(channelId));
   }
 
   emitToChannel<TPayload>(

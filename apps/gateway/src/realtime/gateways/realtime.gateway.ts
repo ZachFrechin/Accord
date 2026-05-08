@@ -57,7 +57,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   async handleConnection(client: AuthenticatedSocket): Promise<void> {
     try {
       const user = await this.authService.authenticateSocket(client);
-      this.roomService.joinUserRoom(client, user.id);
+      await this.roomService.joinUserRoom(client, user.id);
       this.presenceService.publishOnline(this.server, user);
     } catch {
       client.disconnect(true);
@@ -80,21 +80,21 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   }
 
   @SubscribeMessage(ClientToServerEvent.ChannelJoin)
-  joinChannel(
+  async joinChannel(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: ChannelJoinPayload,
-  ): void {
+  ): Promise<void> {
     this.authService.requireUser(client);
-    this.roomService.joinChannel(client, payload.channelId);
+    await this.roomService.joinChannel(client, payload.channelId);
   }
 
   @SubscribeMessage(ClientToServerEvent.ChannelLeave)
-  leaveChannel(
+  async leaveChannel(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: ChannelJoinPayload,
-  ): void {
+  ): Promise<void> {
     this.authService.requireUser(client);
-    this.roomService.leaveChannel(client, payload.channelId);
+    await this.roomService.leaveChannel(client, payload.channelId);
   }
 
   @SubscribeMessage(ClientToServerEvent.TypingStart)
