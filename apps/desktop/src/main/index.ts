@@ -16,6 +16,7 @@ function createMainWindow(): void {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      backgroundThrottling: false,
     },
   });
 

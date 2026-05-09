@@ -304,6 +304,26 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
   }, [session.access_token]);
 
   useEffect(() => {
+    function nudgeReconnect(): void {
+      const socket = socketRef.current;
+      if (socket && !socket.connected) {
+        socket.connect();
+      }
+    }
+    function onVisibility(): void {
+      if (document.visibilityState === 'visible') nudgeReconnect();
+    }
+    window.addEventListener('focus', nudgeReconnect);
+    window.addEventListener('online', nudgeReconnect);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', nudgeReconnect);
+      window.removeEventListener('online', nudgeReconnect);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
     setRealtimeStatus('connecting');
     const userId = session.user.id;
     const socket = createRealtimeSocket(() => accessTokenRef.current, instance);
