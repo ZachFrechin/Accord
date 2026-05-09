@@ -202,7 +202,6 @@ export class ApiClient {
     addConversationKeys: (
       conversationId: string,
       wrappedKeys: Array<{
-        conversationId: string;
         deviceId: string;
         keyVersion: number;
         wrappedKey: string;

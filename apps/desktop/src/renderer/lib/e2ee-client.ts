@@ -170,7 +170,7 @@ export async function decryptMessages(input: {
   const neededVersions = new Set<number>();
   for (const message of e2eeMessages) {
     if (!message.encrypted) continue;
-    const memoKey = `${userId}:${channelId}:${message.id}:${message.encrypted.keyVersion}`;
+    const memoKey = `${userId}:${channelId}:${message.id}:${message.encrypted.keyVersion}:${message.encrypted.nonce}`;
     if (!decryptedTextMemo.has(memoKey)) {
       neededVersions.add(message.encrypted.keyVersion);
     }
@@ -201,7 +201,7 @@ export async function decryptMessages(input: {
       if (message.privacy !== MessagePrivacy.EndToEndEncrypted || !message.encrypted) {
         return message;
       }
-      const memoKey = `${userId}:${channelId}:${message.id}:${message.encrypted.keyVersion}`;
+      const memoKey = `${userId}:${channelId}:${message.id}:${message.encrypted.keyVersion}:${message.encrypted.nonce}`;
       const memoed = decryptedTextMemo.get(memoKey);
       if (memoed !== undefined) {
         return { ...message, content: memoed };
@@ -341,7 +341,6 @@ async function distributeKeyToNewDevices(
 
     const wrappedKeys = await Promise.all(
       uncoveredDevices.map(async (device) => ({
-        conversationId,
         deviceId: device.id,
         keyVersion: key.version,
         wrappedKey: await wrapConversationKey(key, device.publicKey),

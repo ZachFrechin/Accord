@@ -942,6 +942,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
         ) : (
           <>
             <MessageTimeline
+              key={activeChannelId ?? 'no-channel'}
               messages={decryptedMessages}
               isLoading={messagesQuery.isLoading}
               session={session}

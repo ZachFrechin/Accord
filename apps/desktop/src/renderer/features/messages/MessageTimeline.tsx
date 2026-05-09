@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { Check, Edit3, MoreHorizontal, SmilePlus, Trash2, X } from 'lucide-react';
+import { ArrowDown, Check, Edit3, MoreHorizontal, SmilePlus, Trash2, X } from 'lucide-react';
 import { MessageEmbedType, MessagePrivacy } from '@discord2/shared';
 import type {
   MessageMention,
@@ -56,49 +56,77 @@ export function MessageTimeline({
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<MessageAttachment | null>(null);
   const [openActionsMessageId, setOpenActionsMessageId] = useState<string | null>(null);
+  const [actionMenuDirection, setActionMenuDirection] = useState<'down' | 'up'>('down');
+
+  function toggleActionMenu(messageId: string, trigger: HTMLElement): void {
+    if (openActionsMessageId === messageId) {
+      setOpenActionsMessageId(null);
+      return;
+    }
+    const list = listRef.current;
+    if (list) {
+      const triggerRect = trigger.getBoundingClientRect();
+      const listRect = list.getBoundingClientRect();
+      const spaceBelow = listRect.bottom - triggerRect.bottom;
+      setActionMenuDirection(spaceBelow < 220 ? 'up' : 'down');
+    } else {
+      setActionMenuDirection('down');
+    }
+    setOpenActionsMessageId(messageId);
+  }
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
-  const prevCountRef = useRef(messages.length);
-  const oldestMessageIdRef = useRef<string | null>(messages[0]?.id ?? null);
+  const isNearBottomRef = useRef(true);
   const pendingScrollAnchorRef = useRef<{ height: number; top: number } | null>(null);
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const currentMember = members.find((member) => member.userId === session.user.id);
   const currentRoleIds = new Set(currentMember?.roleIds ?? []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
 
-    const previousOldestId = oldestMessageIdRef.current;
-    const newOldestId = messages[0]?.id ?? null;
-    const grewAtBottom = messages.length > prevCountRef.current && newOldestId === previousOldestId;
-    const grewAtTop =
-      messages.length > prevCountRef.current && newOldestId !== previousOldestId && previousOldestId !== null;
-
-    if (grewAtTop && pendingScrollAnchorRef.current) {
+    if (pendingScrollAnchorRef.current) {
       const { height, top } = pendingScrollAnchorRef.current;
       list.scrollTop = list.scrollHeight - height + top;
       pendingScrollAnchorRef.current = null;
-    } else if (grewAtBottom) {
-      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
-    } else if (prevCountRef.current === 0 && messages.length > 0) {
-      list.scrollTop = list.scrollHeight;
+      return;
     }
 
-    prevCountRef.current = messages.length;
-    oldestMessageIdRef.current = newOldestId;
+    if (isNearBottomRef.current) {
+      list.scrollTop = list.scrollHeight;
+    }
   }, [messages]);
 
   function handleScroll(event: React.UIEvent<HTMLDivElement>): void {
-    if (!hasMoreMessages || isLoadingMoreMessages) return;
     const list = event.currentTarget;
-    if (list.scrollTop > 80) return;
-    pendingScrollAnchorRef.current = {
-      height: list.scrollHeight,
-      top: list.scrollTop,
-    };
-    onLoadMoreMessages();
+    const distanceFromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+    const nearBottom = distanceFromBottom < 100;
+    isNearBottomRef.current = nearBottom;
+    setShowJumpToBottom(!nearBottom);
+
+    if (
+      hasMoreMessages &&
+      !isLoadingMoreMessages &&
+      list.scrollTop <= 80 &&
+      !pendingScrollAnchorRef.current
+    ) {
+      pendingScrollAnchorRef.current = {
+        height: list.scrollHeight,
+        top: list.scrollTop,
+      };
+      onLoadMoreMessages();
+    }
+  }
+
+  function jumpToBottom(): void {
+    const list = listRef.current;
+    if (!list) return;
+    list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    isNearBottomRef.current = true;
+    setShowJumpToBottom(false);
   }
 
   if (isLoading) {
@@ -131,6 +159,17 @@ export function MessageTimeline({
   return (
     <>
       <div className="messages-wrapper">
+        {showJumpToBottom ? (
+          <button
+            type="button"
+            className="jump-to-bottom"
+            aria-label="Aller au dernier message"
+            onClick={jumpToBottom}
+          >
+            <ArrowDown size={16} />
+            Récents
+          </button>
+        ) : null}
         <div className="message-list" ref={listRef} onScroll={handleScroll}>
           {isLoadingMoreMessages ? (
             <div className="messages-loading-more">Chargement…</div>
@@ -210,16 +249,14 @@ export function MessageTimeline({
                         <button
                           type="button"
                           aria-label="Actions du message"
-                          onClick={() =>
-                            setOpenActionsMessageId(
-                              openActionsMessageId === message.id ? null : message.id,
-                            )
-                          }
+                          onClick={(event) => toggleActionMenu(message.id, event.currentTarget)}
                         >
                           <MoreHorizontal size={15} />
                         </button>
                         {openActionsMessageId === message.id ? (
-                          <div className="message-action-menu">
+                          <div
+                            className={`message-action-menu${actionMenuDirection === 'up' ? ' open-up' : ''}`}
+                          >
                             {canReactToMessage ? (
                               <div className="message-reaction-picker" aria-label="Réactions">
                                 {COMMON_REACTIONS.map((emoji) => (
@@ -341,11 +378,7 @@ export function MessageTimeline({
                           type="button"
                           className="message-reaction add"
                           aria-label="Ajouter une réaction"
-                          onClick={() =>
-                            setOpenActionsMessageId(
-                              openActionsMessageId === message.id ? null : message.id,
-                            )
-                          }
+                          onClick={(event) => toggleActionMenu(message.id, event.currentTarget)}
                         >
                           <SmilePlus size={14} />
                         </button>

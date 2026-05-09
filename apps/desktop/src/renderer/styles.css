@@ -1462,6 +1462,11 @@ input::placeholder {
   box-shadow: var(--shadow-menu);
 }
 
+.message-action-menu.open-up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
 .message-action-item {
   display: flex;
   align-items: center;
@@ -3069,6 +3074,36 @@ input[type='range']::-moz-range-thumb {
 
 .messages-history-end {
   opacity: 0.6;
+}
+
+.messages-wrapper {
+  position: relative;
+}
+
+.jump-to-bottom {
+  position: absolute;
+  bottom: 16px;
+  right: 24px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-input);
+  border-radius: 999px;
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: background 120ms, transform 120ms, border-color 120ms;
+}
+
+.jump-to-bottom:hover {
+  background: var(--bg-surface);
+  border-color: var(--border-input-focus);
+  transform: translateY(-1px);
 }
 
 /* ── Role editor permissions ────────────────────────── */
