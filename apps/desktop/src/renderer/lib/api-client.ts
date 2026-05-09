@@ -146,7 +146,15 @@ export class ApiClient {
   };
 
   readonly messages = {
-    list: (channelId: string) => this.request<MessageRecord[]>(`/channels/${channelId}/messages`),
+    list: (channelId: string, params: { limit?: number; before?: string } = {}) => {
+      const search = new URLSearchParams();
+      if (params.limit !== undefined) search.set('limit', String(params.limit));
+      if (params.before) search.set('before', params.before);
+      const qs = search.toString();
+      return this.request<MessageRecord[]>(
+        `/channels/${channelId}/messages${qs ? `?${qs}` : ''}`,
+      );
+    },
     create: (channelId: string, input: CreateMessageInput) =>
       this.request<MessageRecord>(`/channels/${channelId}/messages`, {
         method: 'POST',

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
 import type { Session } from '@supabase/supabase-js';
 import type { Socket } from 'socket.io-client';
 import { Hash, Link2, Plus } from 'lucide-react';
@@ -50,6 +50,15 @@ import {
   type DeviceIdentity,
 } from '../lib/e2ee-client';
 import { createRealtimeSocket } from '../lib/realtime';
+import {
+  appendMessage,
+  flattenMessagePages,
+  mapMessages,
+  removeMessage,
+  replaceMessage,
+  replacePending,
+  type MessagesInfiniteData,
+} from '../lib/messages-cache';
 import { getServerPermissions, hasPermission } from '../lib/permissions';
 import type { SupabaseBrowserClient } from '../lib/supabase';
 import { queryClient } from '../app/query-client';
@@ -86,6 +95,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
   const socketRef = useRef<Socket | null>(null);
   const activeChannelIdRef = useRef<string | null>(null);
   const voiceChannelIdsRef = useRef<string[]>([]);
+  const accessTokenRef = useRef(session.access_token);
   const {
     activeServerId,
     activeChannelId,
@@ -121,11 +131,26 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     queryFn: () => api.channels.list(activeServerId!),
     enabled: Boolean(activeServerId),
   });
-  const messagesQuery = useQuery({
+  const MESSAGE_PAGE_SIZE = 30;
+  const messagesQuery = useInfiniteQuery({
     queryKey: ['messages', activeChannelId],
-    queryFn: () => api.messages.list(activeChannelId!),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      api.messages.list(activeChannelId!, {
+        limit: MESSAGE_PAGE_SIZE,
+        ...(pageParam ? { before: pageParam } : {}),
+      }),
+    getNextPageParam: (lastPage) => {
+      if (lastPage.length < MESSAGE_PAGE_SIZE) return undefined;
+      return lastPage[0]?.createdAt;
+    },
     enabled: Boolean(activeChannelId),
+    staleTime: 60_000,
   });
+  const flatMessages = useMemo(
+    () => flattenMessagePages(messagesQuery.data),
+    [messagesQuery.data],
+  );
   const rolesQuery = useQuery({
     queryKey: ['roles', activeServerId],
     queryFn: () => api.roles.list(activeServerId!),
@@ -215,13 +240,13 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
       serverId: activeServerId,
       channelId: activeChannelId,
       identity: deviceIdentity,
-      messages: messagesQuery.data ?? [],
+      messages: flatMessages,
     })
       .then((messages) => {
         if (!cancelled) setDecryptedMessages(messages);
       })
       .catch(() => {
-        if (!cancelled) setDecryptedMessages(messagesQuery.data ?? []);
+        if (!cancelled) setDecryptedMessages(flatMessages);
       });
 
     return () => {
@@ -233,7 +258,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     api,
     deviceIdentity,
     instance,
-    messagesQuery.data,
+    flatMessages,
     session.user.id,
   ]);
 
@@ -271,8 +296,17 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
   }, [activeChannelId, channels, setActiveChannelId]);
 
   useEffect(() => {
+    accessTokenRef.current = session.access_token;
+    const socket = socketRef.current;
+    if (socket && !socket.connected) {
+      socket.connect();
+    }
+  }, [session.access_token]);
+
+  useEffect(() => {
     setRealtimeStatus('connecting');
-    const socket = createRealtimeSocket(session.access_token, instance);
+    const userId = session.user.id;
+    const socket = createRealtimeSocket(() => accessTokenRef.current, instance);
     socketRef.current = socket;
     const joinCurrentRooms = (): void => {
       const channelId = activeChannelIdRef.current;
@@ -312,31 +346,24 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     socket.on('disconnect', () => setRealtimeStatus('disconnected'));
     socket.on('connect_error', () => setRealtimeStatus('disconnected'));
     socket.on(ServerToClientEvent.MessageCreated, (event: MessageCreatedEvent) => {
-      queryClient.setQueryData<MessageRecord[]>(['messages', event.channelId], (current = []) => {
-        if (current.some((message) => message.id === event.message.id)) {
-          return current;
-        }
-
-        return [...current, event.message];
-      });
+      queryClient.setQueryData<MessagesInfiniteData>(['messages', event.channelId], (current) =>
+        appendMessage(current, event.message),
+      );
     });
     socket.on(ServerToClientEvent.MessageDeleted, (event: MessageDeletedEvent) => {
-      queryClient.setQueryData<MessageRecord[]>(['messages', event.channelId], (current = []) =>
-        current.filter((message) => message.id !== event.messageId),
+      queryClient.setQueryData<MessagesInfiniteData>(['messages', event.channelId], (current) =>
+        removeMessage(current, event.messageId),
       );
     });
     socket.on(ServerToClientEvent.MessageUpdated, (event: MessageUpdatedEvent) => {
-      queryClient.setQueryData<MessageRecord[]>(['messages', event.channelId], (current = []) =>
-        current.map((message) => (message.id === event.message.id ? event.message : message)),
+      queryClient.setQueryData<MessagesInfiniteData>(['messages', event.channelId], (current) =>
+        replaceMessage(current, event.message),
       );
     });
     socket.on(ServerToClientEvent.MessageReactionUpdated, (event: MessageReactionUpdatedEvent) => {
-      queryClient.setQueryData<MessageRecord[]>(['messages', event.channelId], (current = []) =>
-        current.map((message) => {
-          if (message.id !== event.messageId) {
-            return message;
-          }
-
+      queryClient.setQueryData<MessagesInfiniteData>(['messages', event.channelId], (current) =>
+        mapMessages(current, (message) => {
+          if (message.id !== event.messageId) return message;
           const previousByEmoji = new Map(
             message.reactions.map((reaction) => [reaction.emoji, reaction.reactedByCurrentUser]),
           );
@@ -345,7 +372,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
             reactions: event.reactions.map((reaction) => ({
               ...reaction,
               reactedByCurrentUser:
-                event.userId === session.user.id
+                event.userId === userId
                   ? reaction.reactedByCurrentUser
                   : (previousByEmoji.get(reaction.emoji) ?? false),
             })),
@@ -359,7 +386,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     socket.on(ServerToClientEvent.ServerStateChanged, refreshServerState);
 
     socket.on(ServerToClientEvent.MemberRemoved, (event: MemberRemovedEvent) => {
-      if (event.userId === session.user.id) {
+      if (event.userId === userId) {
         queryClient.setQueryData<ServerSummary[]>(['servers'], (current = []) =>
           current.filter((s) => s.id !== event.serverId),
         );
@@ -392,7 +419,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
         setRealtimeStatus('disconnected');
       }
     };
-  }, [instance, session.access_token, session.user.id, setRealtimeStatus, setVoiceParticipantIds]);
+  }, [instance, session.user.id, setRealtimeStatus, setVoiceParticipantIds]);
 
   useEffect(() => {
     if (!activeChannelId) {
@@ -528,26 +555,20 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     mutationFn: api.users.updateMe,
     onSuccess: (profile) => {
       queryClient.setQueryData(['me'], profile);
-      queryClient.setQueriesData<MessageRecord[]>({ queryKey: ['messages'] }, (current) => {
-        if (!current) {
-          return current;
-        }
-
-        return current.map((message) => {
-          if (message.authorId !== profile.id) {
-            return message;
-          }
-
-          return {
-            ...message,
-            author: {
-              id: profile.id,
-              displayName: profile.displayName,
-              avatarUrl: profile.avatarUrl,
-            },
-          };
-        });
-      });
+      queryClient.setQueriesData<MessagesInfiniteData>({ queryKey: ['messages'] }, (current) =>
+        mapMessages(current, (message) =>
+          message.authorId === profile.id
+            ? {
+                ...message,
+                author: {
+                  id: profile.id,
+                  displayName: profile.displayName,
+                  avatarUrl: profile.avatarUrl,
+                },
+              }
+            : message,
+        ),
+      );
     },
   });
 
@@ -657,8 +678,8 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
   const deleteMessageMutation = useMutation({
     mutationFn: (messageId: string) => api.messages.delete(messageId),
     onSuccess: ({ messageId, channelId }) => {
-      queryClient.setQueryData<MessageRecord[]>(['messages', channelId], (current = []) =>
-        current.filter((message) => message.id !== messageId),
+      queryClient.setQueryData<MessagesInfiniteData>(['messages', channelId], (current) =>
+        removeMessage(current, messageId),
       );
     },
   });
@@ -682,8 +703,8 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
       return api.messages.update(input.messageId, { encrypted });
     },
     onSuccess: (message) => {
-      queryClient.setQueryData<MessageRecord[]>(['messages', message.channelId], (current = []) =>
-        current.map((item) => (item.id === message.id ? message : item)),
+      queryClient.setQueryData<MessagesInfiniteData>(['messages', message.channelId], (current) =>
+        replaceMessage(current, message),
       );
     },
   });
@@ -692,8 +713,10 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     mutationFn: (input: { messageId: string; emoji: string }) =>
       api.messages.toggleReaction(input.messageId, input.emoji),
     onSuccess: ({ messageId, channelId, reactions }) => {
-      queryClient.setQueryData<MessageRecord[]>(['messages', channelId], (current = []) =>
-        current.map((message) => (message.id === messageId ? { ...message, reactions } : message)),
+      queryClient.setQueryData<MessagesInfiniteData>(['messages', channelId], (current) =>
+        mapMessages(current, (message) =>
+          message.id === messageId ? { ...message, reactions } : message,
+        ),
       );
     },
   });
@@ -753,7 +776,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
       setComposerError(null);
       const channelId = activeChannelId!;
       await queryClient.cancelQueries({ queryKey: ['messages', channelId] });
-      const previous = queryClient.getQueryData<MessageRecord[]>(['messages', channelId]) ?? [];
+      const previous = queryClient.getQueryData<MessagesInfiniteData>(['messages', channelId]);
       const optimistic: MessageRecord = {
         id: `pending-${crypto.randomUUID()}`,
         channelId,
@@ -782,7 +805,9 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
           avatarUrl: profileQuery.data.avatarUrl,
         };
       }
-      queryClient.setQueryData<MessageRecord[]>(['messages', channelId], [...previous, optimistic]);
+      queryClient.setQueryData<MessagesInfiniteData>(['messages', channelId], (current) =>
+        appendMessage(current, optimistic),
+      );
       return { previous, channelId };
     },
     onError: (_error, _input, context) => {
@@ -791,17 +816,10 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
       }
     },
     onSuccess: (message, _input, context) => {
-      if (!context) {
-        return;
-      }
-
-      queryClient.setQueryData<MessageRecord[]>(['messages', context.channelId], (current = []) => {
-        const withoutPending = current.filter((item) => !item.id.startsWith('pending-'));
-        if (withoutPending.some((item) => item.id === message.id)) {
-          return withoutPending;
-        }
-        return [...withoutPending, message];
-      });
+      if (!context) return;
+      queryClient.setQueryData<MessagesInfiniteData>(['messages', context.channelId], (current) =>
+        replacePending(current, message),
+      );
     },
   });
 
@@ -932,6 +950,11 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
               roles={roles}
               conversationKey={conversationKey}
               canManageMessages={canManageMessages}
+              hasMoreMessages={messagesQuery.hasNextPage}
+              isLoadingMoreMessages={messagesQuery.isFetchingNextPage}
+              onLoadMoreMessages={() => {
+                void messagesQuery.fetchNextPage();
+              }}
               onDeleteMessage={(messageId) => deleteMessageMutation.mutateAsync(messageId)}
               onEditMessage={(messageId, content, channelId) =>
                 updateMessageMutation.mutateAsync({ messageId, content, channelId })

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import type { AuthUser } from '@discord2/shared';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CreateMessageDto, ToggleMessageReactionDto, UpdateMessageDto } from './dto';
@@ -9,8 +9,19 @@ export class MessagesController {
   constructor(private readonly messagesService: MessagesService) {}
 
   @Get('channels/:channelId/messages')
-  list(@CurrentUser() user: AuthUser, @Param('channelId') channelId: string) {
-    return this.messagesService.listMessages(user, channelId);
+  list(
+    @CurrentUser() user: AuthUser,
+    @Param('channelId') channelId: string,
+    @Query('limit') limit?: string,
+    @Query('before') before?: string,
+  ) {
+    const options: { limit?: number; before?: string } = {};
+    if (limit !== undefined) {
+      const parsed = Number(limit);
+      if (Number.isFinite(parsed)) options.limit = parsed;
+    }
+    if (before) options.before = before;
+    return this.messagesService.listMessages(user, channelId, options);
   }
 
   @Post('channels/:channelId/messages')

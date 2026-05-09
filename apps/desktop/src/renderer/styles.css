@@ -3056,6 +3056,21 @@ input[type='range']::-moz-range-thumb {
   transition: width 80ms linear;
 }
 
+/* ── Message timeline pagination ────────────────────── */
+
+.messages-loading-more,
+.messages-history-end {
+  padding: 10px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.messages-history-end {
+  opacity: 0.6;
+}
+
 /* ── Role editor permissions ────────────────────────── */
 
 .role-editor {

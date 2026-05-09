@@ -169,22 +169,31 @@ export class MessagesRepository {
     return data.map(mapEmbedRow);
   }
 
-  async listByChannel(channelId: ChannelId, limit = 50): Promise<MessageWithAuthor[]> {
-    const { data, error } = await this.supabase
+  async listByChannel(
+    channelId: ChannelId,
+    options: { limit?: number; before?: string } = {},
+  ): Promise<MessageWithAuthor[]> {
+    const limit = Math.min(Math.max(options.limit ?? 30, 1), 100);
+    let query = this.supabase
       .from('messages')
       .select(
         'id, channel_id, author_id, privacy, content, encrypted_payload, created_at, edited_at, profiles:author_id(display_name, avatar_url)',
       )
       .eq('channel_id', channelId)
-      .order('created_at', { ascending: true })
-      .limit(limit)
-      .returns<MessageRow[]>();
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (options.before) {
+      query = query.lt('created_at', options.before);
+    }
+
+    const { data, error } = await query.returns<MessageRow[]>();
 
     if (error) {
       throw error;
     }
 
-    return data.map(mapMessageWithAuthorRow);
+    return data.map(mapMessageWithAuthorRow).reverse();
   }
 
   async findById(messageId: string): Promise<MessageRecord | null> {

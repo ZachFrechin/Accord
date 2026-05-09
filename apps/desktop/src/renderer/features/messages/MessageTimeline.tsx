@@ -29,6 +29,9 @@ interface MessageTimelineProps {
   roles: ServerRole[];
   conversationKey: ConversationKey | null;
   canManageMessages: boolean;
+  hasMoreMessages: boolean;
+  isLoadingMoreMessages: boolean;
+  onLoadMoreMessages: () => void;
   onDeleteMessage: (messageId: string) => Promise<unknown>;
   onEditMessage: (messageId: string, content: string, channelId: string) => Promise<unknown>;
   onToggleReaction: (messageId: string, emoji: string) => Promise<unknown>;
@@ -43,6 +46,9 @@ export function MessageTimeline({
   roles,
   conversationKey,
   canManageMessages,
+  hasMoreMessages,
+  isLoadingMoreMessages,
+  onLoadMoreMessages,
   onDeleteMessage,
   onEditMessage,
   onToggleReaction,
@@ -55,6 +61,8 @@ export function MessageTimeline({
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(messages.length);
+  const oldestMessageIdRef = useRef<string | null>(messages[0]?.id ?? null);
+  const pendingScrollAnchorRef = useRef<{ height: number; top: number } | null>(null);
   const currentMember = members.find((member) => member.userId === session.user.id);
   const currentRoleIds = new Set(currentMember?.roleIds ?? []);
 
@@ -62,11 +70,36 @@ export function MessageTimeline({
     const list = listRef.current;
     if (!list) return;
 
-    if (messages.length > prevCountRef.current) {
+    const previousOldestId = oldestMessageIdRef.current;
+    const newOldestId = messages[0]?.id ?? null;
+    const grewAtBottom = messages.length > prevCountRef.current && newOldestId === previousOldestId;
+    const grewAtTop =
+      messages.length > prevCountRef.current && newOldestId !== previousOldestId && previousOldestId !== null;
+
+    if (grewAtTop && pendingScrollAnchorRef.current) {
+      const { height, top } = pendingScrollAnchorRef.current;
+      list.scrollTop = list.scrollHeight - height + top;
+      pendingScrollAnchorRef.current = null;
+    } else if (grewAtBottom) {
       list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    } else if (prevCountRef.current === 0 && messages.length > 0) {
+      list.scrollTop = list.scrollHeight;
     }
+
     prevCountRef.current = messages.length;
-  }, [messages.length]);
+    oldestMessageIdRef.current = newOldestId;
+  }, [messages]);
+
+  function handleScroll(event: React.UIEvent<HTMLDivElement>): void {
+    if (!hasMoreMessages || isLoadingMoreMessages) return;
+    const list = event.currentTarget;
+    if (list.scrollTop > 80) return;
+    pendingScrollAnchorRef.current = {
+      height: list.scrollHeight,
+      top: list.scrollTop,
+    };
+    onLoadMoreMessages();
+  }
 
   if (isLoading) {
     return (
@@ -98,7 +131,12 @@ export function MessageTimeline({
   return (
     <>
       <div className="messages-wrapper">
-        <div className="message-list" ref={listRef}>
+        <div className="message-list" ref={listRef} onScroll={handleScroll}>
+          {isLoadingMoreMessages ? (
+            <div className="messages-loading-more">Chargement…</div>
+          ) : !hasMoreMessages && messages.length >= 30 ? (
+            <div className="messages-history-end">Début de l’historique</div>
+          ) : null}
           {messages.map((message) => {
             const authorRole = getPrimaryRole(message.authorId, members, roles);
             const isE2ee = message.privacy === MessagePrivacy.EndToEndEncrypted;

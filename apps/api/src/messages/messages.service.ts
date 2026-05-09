@@ -133,9 +133,13 @@ export class MessagesService {
     };
   }
 
-  async listMessages(user: AuthUser, channelId: ChannelId): Promise<MessageRecord[]> {
+  async listMessages(
+    user: AuthUser,
+    channelId: ChannelId,
+    options: { limit?: number; before?: string } = {},
+  ): Promise<MessageRecord[]> {
     await this.requireChannelPermission(user, channelId, Permission.ViewChannel);
-    const messages = await this.repository.listByChannel(channelId);
+    const messages = await this.repository.listByChannel(channelId, options);
     const messageIds = messages.map((message) => message.id);
     const [mentionsByMessage, attachmentsByMessage, embedsByMessage, reactionsByMessage] =
       await Promise.all([

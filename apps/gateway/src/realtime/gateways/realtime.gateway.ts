@@ -34,6 +34,8 @@ const env = loadServerEnv();
     origin: parseCorsOrigins(env.GATEWAY_CORS_ORIGINS),
     credentials: false,
   },
+  pingInterval: 25_000,
+  pingTimeout: 30_000,
 })
 export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
