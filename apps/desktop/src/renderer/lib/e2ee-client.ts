@@ -19,6 +19,10 @@ export type { DeviceIdentity } from '@discord2/e2ee';
 const identityPrefix = 'accord-e2ee-identity';
 const keyPrefix = 'accord-e2ee-conversation-key';
 const memoryKeys = new Map<string, ConversationKey>();
+const inflightKeyFetches = new Map<string, Promise<ConversationKey>>();
+const recentKeyFailures = new Map<string, number>();
+const decryptedTextMemo = new Map<string, string>();
+const KEY_FAILURE_TTL_MS = 5_000;
 
 export async function getOrCreateDeviceIdentity(input: {
   api: ApiClient;
@@ -59,6 +63,39 @@ export async function ensureConversationKey(input: {
   const cached = await readCachedConversationKey(cacheKey, requestedVersion);
   if (cached && requestedVersion) return cached;
 
+  const fetchKey = `${cacheKey}:${requestedVersion ?? 'latest'}`;
+
+  const failedAt = recentKeyFailures.get(fetchKey);
+  if (failedAt && failedAt > Date.now()) {
+    throw new Error('Clé locale absente pour ce salon.');
+  }
+  if (failedAt) recentKeyFailures.delete(fetchKey);
+
+  const inflight = inflightKeyFetches.get(fetchKey);
+  if (inflight) return inflight;
+
+  const promise = fetchOrCreateConversationKey(input, cacheKey, requestedVersion);
+  inflightKeyFetches.set(fetchKey, promise);
+  promise
+    .then(() => recentKeyFailures.delete(fetchKey))
+    .catch(() => recentKeyFailures.set(fetchKey, Date.now() + KEY_FAILURE_TTL_MS))
+    .finally(() => inflightKeyFetches.delete(fetchKey));
+  return promise;
+}
+
+async function fetchOrCreateConversationKey(
+  input: {
+    api: ApiClient;
+    instance: InstanceConfig;
+    userId: string;
+    serverId: string;
+    channelId: string;
+    identity: DeviceIdentity;
+    keyVersion?: number;
+  },
+  cacheKey: string,
+  requestedVersion: number | undefined,
+): Promise<ConversationKey> {
   try {
     const state = await input.api.crypto.getConversation(input.channelId);
     const targetVersion = requestedVersion ?? state.currentKeyVersion;
@@ -74,7 +111,6 @@ export async function ensureConversationKey(input: {
       );
       await persistConversationKey(cacheKey, key);
 
-      // Auto-distribute to devices that are missing from the current key version.
       if (!requestedVersion && key.version === state.currentKeyVersion) {
         void distributeKeyToNewDevices(input, state.conversationId, key, state.keys);
       }
@@ -90,7 +126,10 @@ export async function ensureConversationKey(input: {
     await persistConversationKey(cacheKey, key);
     return key;
   } catch (error) {
-    if (error instanceof Error && !/not available|introuvable|404/i.test(error.message)) {
+    if (
+      error instanceof Error &&
+      !/not available|introuvable|404|Clé locale absente/i.test(error.message)
+    ) {
       const fallback = await readCachedConversationKey(cacheKey, requestedVersion);
       if (fallback) return fallback;
       throw error;
@@ -126,35 +165,57 @@ export async function decryptMessages(input: {
     return input.messages;
   }
 
-  const serverId = input.serverId;
-  const channelId = input.channelId;
-  const identity = input.identity;
+  const { serverId, channelId, identity, userId, api, instance } = input;
+
+  const neededVersions = new Set<number>();
+  for (const message of e2eeMessages) {
+    if (!message.encrypted) continue;
+    const memoKey = `${userId}:${channelId}:${message.id}:${message.encrypted.keyVersion}`;
+    if (!decryptedTextMemo.has(memoKey)) {
+      neededVersions.add(message.encrypted.keyVersion);
+    }
+  }
+
+  const versionKeys = new Map<number, ConversationKey | null>();
+  await Promise.all(
+    Array.from(neededVersions).map(async (version) => {
+      try {
+        const key = await ensureConversationKey({
+          api,
+          instance,
+          userId,
+          serverId,
+          channelId,
+          identity,
+          keyVersion: version,
+        });
+        versionKeys.set(version, key);
+      } catch {
+        versionKeys.set(version, null);
+      }
+    }),
+  );
 
   return Promise.all(
     input.messages.map(async (message) => {
       if (message.privacy !== MessagePrivacy.EndToEndEncrypted || !message.encrypted) {
         return message;
       }
-
+      const memoKey = `${userId}:${channelId}:${message.id}:${message.encrypted.keyVersion}`;
+      const memoed = decryptedTextMemo.get(memoKey);
+      if (memoed !== undefined) {
+        return { ...message, content: memoed };
+      }
+      const key = versionKeys.get(message.encrypted.keyVersion);
+      if (!key) {
+        return { ...message, content: '[Message chiffré illisible sur cet appareil]' };
+      }
       try {
-        const key = await ensureConversationKey({
-          api: input.api,
-          instance: input.instance,
-          userId: input.userId,
-          serverId,
-          channelId,
-          identity,
-          keyVersion: message.encrypted.keyVersion,
-        });
-        return {
-          ...message,
-          content: await decryptMessage(message.encrypted, key),
-        };
+        const text = await decryptMessage(message.encrypted, key);
+        decryptedTextMemo.set(memoKey, text);
+        return { ...message, content: text };
       } catch {
-        return {
-          ...message,
-          content: '[Message chiffré illisible sur cet appareil]',
-        };
+        return { ...message, content: '[Message chiffré illisible sur cet appareil]' };
       }
     }),
   );
@@ -221,6 +282,9 @@ export async function rotateConversationKey(input: {
   const cacheKey = `${input.instance.instanceId}:${input.userId}:${input.channelId}`;
   memoryKeys.delete(cacheKey);
   localStorage.removeItem(`${keyPrefix}:${cacheKey}`);
+  for (const failureKey of recentKeyFailures.keys()) {
+    if (failureKey.startsWith(`${cacheKey}:`)) recentKeyFailures.delete(failureKey);
+  }
   await persistConversationKey(cacheKey, newKey);
 }
 
