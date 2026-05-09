@@ -296,6 +296,20 @@ export interface CreateMessageInput {
   attachments?: CreateAttachmentInput[];
 }
 
+export interface UpdateMessageInput {
+  encrypted: EncryptedPayload;
+}
+
+export interface ToggleMessageReactionInput {
+  emoji: string;
+}
+
+export interface MessageReaction {
+  emoji: string;
+  count: number;
+  reactedByCurrentUser: boolean;
+}
+
 export interface MessageRecord {
   id: MessageId;
   channelId: ChannelId;
@@ -304,6 +318,7 @@ export interface MessageRecord {
   mentions?: MessageMention[];
   attachments: MessageAttachment[];
   embeds: MessageEmbed[];
+  reactions: MessageReaction[];
   privacy: MessagePrivacy;
   content: string | null;
   encrypted: EncryptedPayload | null;
@@ -323,6 +338,9 @@ export type MessageMention =
       roleId: RoleId;
       name: string;
       color: string;
+    }
+  | {
+      type: 'everyone';
     };
 
 export interface ConversationKeyRecord {

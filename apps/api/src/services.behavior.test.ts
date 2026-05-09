@@ -17,12 +17,16 @@ const repositoryMocks = vi.hoisted(() => ({
     markUsed: vi.fn(),
   },
   messages: {
+    findById: vi.fn(),
     insert: vi.fn(),
     insertAttachments: vi.fn(),
     insertEmbeds: vi.fn(),
     listAttachmentsForMessages: vi.fn(),
     listByChannel: vi.fn(),
     listEmbedsForMessages: vi.fn(),
+    listReactionsForMessages: vi.fn(),
+    toggleReaction: vi.fn(),
+    updateEncrypted: vi.fn(),
   },
   profiles: {
     findByUserId: vi.fn(),
@@ -97,6 +101,10 @@ describe('api service behavior', () => {
     permissionsService.assertCanManageRole.mockResolvedValue(undefined);
     permissionsService.listVisibleChannels.mockReset();
     repositoryMocks.roles.listMembers.mockResolvedValue([]);
+    repositoryMocks.roles.listMentionsForMessages.mockResolvedValue(new Map());
+    repositoryMocks.messages.listAttachmentsForMessages.mockResolvedValue(new Map());
+    repositoryMocks.messages.listEmbedsForMessages.mockResolvedValue(new Map());
+    repositoryMocks.messages.listReactionsForMessages.mockResolvedValue(new Map());
     repositoryMocks.servers.findBan.mockResolvedValue(null);
     eventsPublisher.publishServerStateChanged.mockResolvedValue(undefined);
     process.env.SUPABASE_URL = 'https://supabase.test';
@@ -617,6 +625,143 @@ describe('api service behavior', () => {
     expect(repositoryMocks.messages.insertAttachments).toHaveBeenCalledWith('message-1', [
       attachment,
     ]);
+  });
+
+  it('allows only the author to edit an encrypted message', async () => {
+    const { MessagesService } = await import('./messages/messages.service');
+    const usersService = {
+      me: vi.fn().mockResolvedValue({
+        id: user.id,
+        displayName: 'User',
+        avatarUrl: null,
+      }),
+    };
+    const eventsPublisher = {
+      publishMessageCreated: vi.fn(),
+      publishMessageUpdated: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = new MessagesService(
+      supabase,
+      { requireMembership: vi.fn() } as never,
+      usersService as never,
+      {
+        insertMessageMentions: vi.fn(),
+        listMentionsForMessages: repositoryMocks.roles.listMentionsForMessages,
+        resolveMentions: vi.fn(),
+      } as never,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
+    const encrypted = {
+      algorithm: 'xchacha20poly1305-ietf' as const,
+      ciphertext: 'updated',
+      nonce: 'nonce',
+      keyVersion: 1,
+      senderDeviceId: 'device-1',
+    };
+    const original = {
+      id: 'message-1',
+      channelId: 'channel-1',
+      authorId: user.id,
+      privacy: MessagePrivacy.EndToEndEncrypted,
+      content: null,
+      encrypted,
+      attachments: [],
+      embeds: [],
+      reactions: [],
+      createdAt: '2026-05-06T00:00:00.000Z',
+      editedAt: null,
+    };
+    const updated = { ...original, editedAt: '2026-05-06T00:01:00.000Z' };
+    repositoryMocks.messages.findById.mockResolvedValue(original);
+    repositoryMocks.messages.updateEncrypted.mockResolvedValue(updated);
+    repositoryMocks.channels.findById.mockResolvedValue({
+      id: 'channel-1',
+      serverId: 'server-1',
+      type: ChannelType.Text,
+      name: 'general',
+      isPrivate: false,
+      createdAt: null,
+    });
+
+    await expect(service.updateMessage(user, 'message-1', { encrypted })).resolves.toMatchObject({
+      id: 'message-1',
+      editedAt: '2026-05-06T00:01:00.000Z',
+    });
+    expect(repositoryMocks.messages.updateEncrypted).toHaveBeenCalledWith('message-1', encrypted);
+    expect(eventsPublisher.publishMessageUpdated).toHaveBeenCalledWith({
+      channelId: 'channel-1',
+      message: expect.objectContaining({ id: 'message-1' }),
+    });
+
+    repositoryMocks.messages.findById.mockResolvedValue({ ...original, authorId: 'other-user' });
+    await expect(service.updateMessage(user, 'message-1', { encrypted })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('allows any channel reader to toggle a message reaction', async () => {
+    const { MessagesService } = await import('./messages/messages.service');
+    const eventsPublisher = {
+      publishMessageCreated: vi.fn(),
+      publishMessageReactionUpdated: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = new MessagesService(
+      supabase,
+      { requireMembership: vi.fn() } as never,
+      { me: vi.fn() } as never,
+      { insertMessageMentions: vi.fn(), resolveMentions: vi.fn() } as never,
+      permissionsService as never,
+      eventsPublisher as never,
+    );
+    const message = {
+      id: 'message-1',
+      channelId: 'channel-1',
+      authorId: 'other-user',
+      privacy: MessagePrivacy.EndToEndEncrypted,
+      content: null,
+      encrypted: {
+        algorithm: 'xchacha20poly1305-ietf' as const,
+        ciphertext: 'abc',
+        nonce: 'nonce',
+        keyVersion: 1,
+        senderDeviceId: 'device-1',
+      },
+      attachments: [],
+      embeds: [],
+      reactions: [],
+      createdAt: '2026-05-06T00:00:00.000Z',
+      editedAt: null,
+    };
+    const reactions = [{ emoji: '👍', count: 1, reactedByCurrentUser: true }];
+    repositoryMocks.messages.findById.mockResolvedValue(message);
+    repositoryMocks.messages.toggleReaction.mockResolvedValue(reactions);
+    repositoryMocks.channels.findById.mockResolvedValue({
+      id: 'channel-1',
+      serverId: 'server-1',
+      type: ChannelType.Text,
+      name: 'general',
+      isPrivate: false,
+      createdAt: null,
+    });
+
+    await expect(service.toggleReaction(user, 'message-1', { emoji: '👍' })).resolves.toEqual({
+      messageId: 'message-1',
+      channelId: 'channel-1',
+      userId: user.id,
+      reactions,
+    });
+    expect(permissionsService.assertChannelPermission).toHaveBeenCalledWith(
+      user,
+      'channel-1',
+      'VIEW_CHANNEL',
+    );
+    expect(eventsPublisher.publishMessageReactionUpdated).toHaveBeenCalledWith({
+      messageId: 'message-1',
+      channelId: 'channel-1',
+      userId: user.id,
+      reactions,
+    });
   });
 
   it('rejects attachments outside the expected message-media path', async () => {

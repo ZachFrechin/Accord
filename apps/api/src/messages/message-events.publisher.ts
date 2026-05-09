@@ -6,6 +6,8 @@ import {
   type MemberRemovedEvent,
   type MessageCreatedEvent,
   type MessageDeletedEvent,
+  type MessageReactionUpdatedEvent,
+  type MessageUpdatedEvent,
   type ServerStateChangedEvent,
 } from '@discord2/shared';
 
@@ -35,8 +37,16 @@ export class MessageEventsPublisher implements OnApplicationShutdown {
     await this.publish(InternalRealtimeEvent.MessageCreated, event);
   }
 
+  async publishMessageUpdated(event: MessageUpdatedEvent): Promise<void> {
+    await this.publish(InternalRealtimeEvent.MessageUpdated, event);
+  }
+
   async publishMessageDeleted(event: MessageDeletedEvent): Promise<void> {
     await this.publish(InternalRealtimeEvent.MessageDeleted, event);
+  }
+
+  async publishMessageReactionUpdated(event: MessageReactionUpdatedEvent): Promise<void> {
+    await this.publish(InternalRealtimeEvent.MessageReactionUpdated, event);
   }
 
   async publishServerStateChanged(event: ServerStateChangedEvent): Promise<void> {

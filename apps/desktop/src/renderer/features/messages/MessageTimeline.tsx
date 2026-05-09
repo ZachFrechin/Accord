@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { MoreHorizontal, Trash2 } from 'lucide-react';
+import { Check, Edit3, MoreHorizontal, SmilePlus, Trash2, X } from 'lucide-react';
 import { MessageEmbedType, MessagePrivacy } from '@discord2/shared';
 import type {
   MessageMention,
@@ -30,6 +30,8 @@ interface MessageTimelineProps {
   conversationKey: ConversationKey | null;
   canManageMessages: boolean;
   onDeleteMessage: (messageId: string) => Promise<unknown>;
+  onEditMessage: (messageId: string, content: string, channelId: string) => Promise<unknown>;
+  onToggleReaction: (messageId: string, emoji: string) => Promise<unknown>;
 }
 
 export function MessageTimeline({
@@ -42,10 +44,15 @@ export function MessageTimeline({
   conversationKey,
   canManageMessages,
   onDeleteMessage,
+  onEditMessage,
+  onToggleReaction,
 }: MessageTimelineProps): React.JSX.Element {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<MessageAttachment | null>(null);
   const [openActionsMessageId, setOpenActionsMessageId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(messages.length);
   const currentMember = members.find((member) => member.userId === session.user.id);
@@ -109,6 +116,11 @@ export function MessageTimeline({
             const canDeleteMessage =
               !message.id.startsWith('pending-') &&
               (message.authorId === session.user.id || canManageMessages);
+            const canEditMessage =
+              !message.id.startsWith('pending-') && message.authorId === session.user.id;
+            const canReactToMessage = !message.id.startsWith('pending-');
+            const isEditing = editingMessageId === message.id;
+            const reactions = message.reactions ?? [];
 
             return (
               <article
@@ -154,7 +166,8 @@ export function MessageTimeline({
                         {authorRole.name}
                       </span>
                     ) : null}
-                    {canDeleteMessage ? (
+                    {message.editedAt ? <span className="message-edited">modifié</span> : null}
+                    {canEditMessage || canDeleteMessage || canReactToMessage ? (
                       <div className="message-actions">
                         <button
                           type="button"
@@ -169,23 +182,137 @@ export function MessageTimeline({
                         </button>
                         {openActionsMessageId === message.id ? (
                           <div className="message-action-menu">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenActionsMessageId(null);
-                                void onDeleteMessage(message.id);
-                              }}
-                            >
-                              <Trash2 size={14} />
-                              Supprimer
-                            </button>
+                            {canReactToMessage ? (
+                              <div className="message-reaction-picker" aria-label="Réactions">
+                                {COMMON_REACTIONS.map((emoji) => (
+                                  <button
+                                    type="button"
+                                    key={emoji}
+                                    aria-label={`Réagir avec ${emoji}`}
+                                    onClick={() => {
+                                      setOpenActionsMessageId(null);
+                                      void onToggleReaction(message.id, emoji);
+                                    }}
+                                  >
+                                    {emoji}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                            {canEditMessage ? (
+                              <button
+                                type="button"
+                                className="message-action-item"
+                                onClick={() => {
+                                  setEditingMessageId(message.id);
+                                  setEditingContent(message.content ?? '');
+                                  setOpenActionsMessageId(null);
+                                }}
+                              >
+                                <Edit3 size={14} />
+                                Modifier
+                              </button>
+                            ) : null}
+                            {canDeleteMessage ? (
+                              <button
+                                type="button"
+                                className="message-action-item danger"
+                                onClick={() => {
+                                  setOpenActionsMessageId(null);
+                                  void onDeleteMessage(message.id);
+                                }}
+                              >
+                                <Trash2 size={14} />
+                                Supprimer
+                              </button>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>
                     ) : null}
                   </div>
-                  {message.content ? (
+                  {isEditing ? (
+                    <form
+                      className="message-edit-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const trimmed = editingContent.trim();
+                        if (!trimmed || isSavingEdit) return;
+                        setIsSavingEdit(true);
+                        void onEditMessage(message.id, trimmed, message.channelId)
+                          .then(() => {
+                            setEditingMessageId(null);
+                            setEditingContent('');
+                          })
+                          .finally(() => setIsSavingEdit(false));
+                      }}
+                    >
+                      <textarea
+                        value={editingContent}
+                        disabled={isSavingEdit}
+                        rows={2}
+                        onChange={(event) => setEditingContent(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape') {
+                            setEditingMessageId(null);
+                            setEditingContent('');
+                          }
+                          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                            event.currentTarget.form?.requestSubmit();
+                          }
+                        }}
+                      />
+                      <div className="message-edit-actions">
+                        <button
+                          type="button"
+                          className="ghost"
+                          disabled={isSavingEdit}
+                          onClick={() => {
+                            setEditingMessageId(null);
+                            setEditingContent('');
+                          }}
+                        >
+                          <X size={14} />
+                          Annuler
+                        </button>
+                        <button type="submit" disabled={isSavingEdit || !editingContent.trim()}>
+                          <Check size={14} />
+                          Enregistrer
+                        </button>
+                      </div>
+                    </form>
+                  ) : message.content ? (
                     <p>{renderMessageContent(message.content, displayMentions)}</p>
+                  ) : null}
+                  {reactions.length > 0 ? (
+                    <div className="message-reactions" aria-label="Réactions au message">
+                      {reactions.map((reaction) => (
+                        <button
+                          type="button"
+                          key={reaction.emoji}
+                          className="message-reaction"
+                          data-active={reaction.reactedByCurrentUser}
+                          onClick={() => void onToggleReaction(message.id, reaction.emoji)}
+                        >
+                          <span>{reaction.emoji}</span>
+                          <strong>{reaction.count}</strong>
+                        </button>
+                      ))}
+                      {canReactToMessage ? (
+                        <button
+                          type="button"
+                          className="message-reaction add"
+                          aria-label="Ajouter une réaction"
+                          onClick={() =>
+                            setOpenActionsMessageId(
+                              openActionsMessageId === message.id ? null : message.id,
+                            )
+                          }
+                        >
+                          <SmilePlus size={14} />
+                        </button>
+                      ) : null}
+                    </div>
                   ) : null}
                   <MessageAttachments
                     attachments={message.attachments}
@@ -234,6 +361,10 @@ function detectClientMentions(
 ): MessageMention[] {
   if (!content) return [];
   const mentions: MessageMention[] = [];
+  if (hasMention(content, 'everyone')) {
+    mentions.push({ type: 'everyone' });
+  }
+
   for (const member of members) {
     if (hasMention(content, member.profile.displayName)) {
       mentions.push({
@@ -347,7 +478,11 @@ function isMessageMentioningCurrentUser(
       return mention.userId === userId;
     }
 
-    return roleIds.has(mention.roleId);
+    if (mention.type === 'role') {
+      return roleIds.has(mention.roleId);
+    }
+
+    return mention.type === 'everyone';
   });
 }
 
@@ -362,7 +497,12 @@ function renderMessageContent(
   const mentionPatterns = mentions
     .map((mention) => ({
       mention,
-      label: mention.type === 'user' ? mention.displayName : mention.name,
+      label:
+        mention.type === 'user'
+          ? mention.displayName
+          : mention.type === 'role'
+            ? mention.name
+            : 'everyone',
     }))
     .sort((a, b) => b.label.length - a.label.length);
   const pattern = new RegExp(
@@ -387,8 +527,8 @@ function renderMessageContent(
 
     parts.push(
       <span
-        className={`message-mention ${mention.type === 'role' ? 'role' : 'user'}`}
-        key={`${mention.type}:${mention.type === 'user' ? mention.userId : mention.roleId}:${match.index}`}
+        className={`message-mention ${mention.type}`}
+        key={`${mention.type}:${getMentionKey(mention)}:${match.index}`}
         style={
           mention.type === 'role'
             ? ({ '--mention-color': mention.color } as React.CSSProperties)
@@ -408,9 +548,17 @@ function renderMessageContent(
   return parts.length > 0 ? parts : content;
 }
 
+function getMentionKey(mention: MessageMention): string {
+  if (mention.type === 'user') return mention.userId;
+  if (mention.type === 'role') return mention.roleId;
+  return 'everyone';
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+const COMMON_REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅'];
 
 function EncryptedAttachmentItem({
   attachment,

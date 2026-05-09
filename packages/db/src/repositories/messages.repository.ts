@@ -7,6 +7,7 @@ import type {
   MessageEmbed,
   MessageEmbedType,
   MessageRecord,
+  MessageReaction,
   UserId,
   UserProfile,
 } from '@discord2/shared';
@@ -59,6 +60,12 @@ interface EmbedRow {
   thumbnail_url: string | null;
   provider: string | null;
   embed_url: string | null;
+}
+
+interface ReactionRow {
+  message_id: string;
+  user_id: string;
+  emoji: string;
 }
 
 export interface InsertEmbedInput {
@@ -193,9 +200,69 @@ export class MessagesRepository {
     return data ? mapMessageRow(data) : null;
   }
 
+  async updateEncrypted(messageId: string, encrypted: EncryptedPayload): Promise<MessageRecord> {
+    const { data, error } = await this.supabase
+      .from('messages')
+      .update({
+        encrypted_payload: encrypted,
+        edited_at: new Date().toISOString(),
+      })
+      .eq('id', messageId)
+      .select(
+        'id, channel_id, author_id, privacy, content, encrypted_payload, created_at, edited_at',
+      )
+      .single<MessageRow>();
+
+    if (error) throw error;
+    return mapMessageRow(data);
+  }
+
   async delete(messageId: string): Promise<void> {
     const { error } = await this.supabase.from('messages').delete().eq('id', messageId);
     if (error) throw error;
+  }
+
+  async toggleReaction(
+    messageId: string,
+    userId: UserId,
+    emoji: string,
+  ): Promise<MessageReaction[]> {
+    const { data: existing, error: existingError } = await this.supabase
+      .from('message_reactions')
+      .select('message_id, user_id, emoji')
+      .eq('message_id', messageId)
+      .eq('user_id', userId)
+      .eq('emoji', emoji)
+      .maybeSingle<ReactionRow>();
+
+    if (existingError) throw existingError;
+
+    if (existing) {
+      const { error } = await this.supabase
+        .from('message_reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', userId)
+        .eq('emoji', emoji);
+      if (error) throw error;
+    } else {
+      const { error } = await this.supabase.from('message_reactions').insert({
+        message_id: messageId,
+        user_id: userId,
+        emoji,
+      });
+      if (error) throw error;
+    }
+
+    return this.listReactionsForMessage(messageId, userId);
+  }
+
+  async listReactionsForMessage(
+    messageId: string,
+    currentUserId: UserId,
+  ): Promise<MessageReaction[]> {
+    const reactionsByMessage = await this.listReactionsForMessages([messageId], currentUserId);
+    return reactionsByMessage.get(messageId) ?? [];
   }
 
   async listAttachmentsForMessages(
@@ -279,6 +346,53 @@ export class MessagesRepository {
 
     return byMessage;
   }
+
+  async listReactionsForMessages(
+    messageIds: string[],
+    currentUserId: UserId,
+  ): Promise<Map<string, MessageReaction[]>> {
+    if (messageIds.length === 0) {
+      return new Map();
+    }
+
+    const { data, error } = await this.supabase
+      .from('message_reactions')
+      .select('message_id, user_id, emoji')
+      .in('message_id', messageIds)
+      .returns<ReactionRow[]>();
+
+    if (error) {
+      throw error;
+    }
+
+    const aggregate = new Map<string, Map<string, { count: number; reacted: boolean }>>();
+    for (const row of data) {
+      const byEmoji =
+        aggregate.get(row.message_id) ?? new Map<string, { count: number; reacted: boolean }>();
+      const current = byEmoji.get(row.emoji) ?? { count: 0, reacted: false };
+      byEmoji.set(row.emoji, {
+        count: current.count + 1,
+        reacted: current.reacted || row.user_id === currentUserId,
+      });
+      aggregate.set(row.message_id, byEmoji);
+    }
+
+    const result = new Map<string, MessageReaction[]>();
+    for (const [messageId, byEmoji] of aggregate) {
+      result.set(
+        messageId,
+        Array.from(byEmoji.entries())
+          .map(([emoji, value]) => ({
+            emoji,
+            count: value.count,
+            reactedByCurrentUser: value.reacted,
+          }))
+          .sort((left, right) => left.emoji.localeCompare(right.emoji)),
+      );
+    }
+
+    return result;
+  }
 }
 
 function mapMessageRow(row: MessageRow): MessageRecord {
@@ -288,6 +402,7 @@ function mapMessageRow(row: MessageRow): MessageRecord {
     authorId: row.author_id,
     attachments: [],
     embeds: [],
+    reactions: [],
     privacy: row.privacy,
     content: row.content,
     encrypted: row.encrypted_payload,

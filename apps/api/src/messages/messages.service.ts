@@ -15,13 +15,14 @@ import {
   type ChannelId,
   type CreateAttachmentInput,
   type MessageRecord,
+  type MessageReaction,
   type SignedAttachmentUrl,
 } from '@discord2/shared';
 import { RolesService } from '../roles/roles.service';
 import { ServersService } from '../servers/servers.service';
 import { UsersService } from '../users/users.service';
 import { PermissionsService } from '../permissions/permissions.service';
-import type { CreateMessageDto } from './dto';
+import type { CreateMessageDto, ToggleMessageReactionDto, UpdateMessageDto } from './dto';
 import { MessageEventsPublisher } from './message-events.publisher';
 
 const MAX_ATTACHMENTS_PER_MESSAGE = 10;
@@ -86,6 +87,7 @@ export class MessagesService {
       mentions: [],
       attachments: storedAttachments,
       embeds: [],
+      reactions: [],
       author: {
         id: profile.id,
         displayName: profile.displayName,
@@ -135,17 +137,73 @@ export class MessagesService {
     await this.requireChannelPermission(user, channelId, Permission.ViewChannel);
     const messages = await this.repository.listByChannel(channelId);
     const messageIds = messages.map((message) => message.id);
-    const [mentionsByMessage, attachmentsByMessage, embedsByMessage] = await Promise.all([
-      this.rolesService.listMentionsForMessages(messageIds),
-      this.repository.listAttachmentsForMessages(messageIds),
-      this.repository.listEmbedsForMessages(messageIds),
-    ]);
+    const [mentionsByMessage, attachmentsByMessage, embedsByMessage, reactionsByMessage] =
+      await Promise.all([
+        this.rolesService.listMentionsForMessages(messageIds),
+        this.repository.listAttachmentsForMessages(messageIds),
+        this.repository.listEmbedsForMessages(messageIds),
+        this.repository.listReactionsForMessages(messageIds, user.id),
+      ]);
     return messages.map((message) => ({
       ...message,
       mentions: mentionsByMessage.get(message.id) ?? [],
       attachments: attachmentsByMessage.get(message.id) ?? [],
       embeds: embedsByMessage.get(message.id) ?? [],
+      reactions: reactionsByMessage.get(message.id) ?? [],
     }));
+  }
+
+  async updateMessage(
+    user: AuthUser,
+    messageId: string,
+    dto: UpdateMessageDto,
+  ): Promise<MessageRecord> {
+    const message = await this.repository.findById(messageId);
+    if (!message) {
+      throw new NotFoundException('Message not found.');
+    }
+
+    if (message.authorId !== user.id) {
+      throw new ForbiddenException('Only the message author can edit this message.');
+    }
+
+    await this.requireChannelPermission(user, message.channelId, Permission.ViewChannel);
+    const updated = await this.repository.updateEncrypted(messageId, dto.encrypted);
+    const enriched = await this.enrichMessageForUser(updated, user);
+
+    await this.eventsPublisher.publishMessageUpdated({
+      channelId: updated.channelId,
+      message: enriched,
+    });
+
+    return enriched;
+  }
+
+  async toggleReaction(
+    user: AuthUser,
+    messageId: string,
+    dto: ToggleMessageReactionDto,
+  ): Promise<{ messageId: string; channelId: string; reactions: MessageReaction[] }> {
+    const message = await this.repository.findById(messageId);
+    if (!message) {
+      throw new NotFoundException('Message not found.');
+    }
+
+    await this.requireChannelPermission(user, message.channelId, Permission.ViewChannel);
+    const reactions = await this.repository.toggleReaction(
+      messageId,
+      user.id,
+      normalizeEmoji(dto.emoji),
+    );
+    const event = {
+      messageId,
+      channelId: message.channelId,
+      userId: user.id,
+      reactions,
+    };
+
+    await this.eventsPublisher.publishMessageReactionUpdated(event);
+    return event;
   }
 
   async deleteMessage(
@@ -170,6 +228,33 @@ export class MessagesService {
     });
 
     return { messageId, channelId: message.channelId };
+  }
+
+  private async enrichMessageForUser(
+    message: MessageRecord,
+    user: AuthUser,
+  ): Promise<MessageRecord> {
+    const [profile, mentionsByMessage, attachmentsByMessage, embedsByMessage, reactionsByMessage] =
+      await Promise.all([
+        this.usersService.me(user),
+        this.rolesService.listMentionsForMessages([message.id]),
+        this.repository.listAttachmentsForMessages([message.id]),
+        this.repository.listEmbedsForMessages([message.id]),
+        this.repository.listReactionsForMessages([message.id], user.id),
+      ]);
+
+    return {
+      ...message,
+      mentions: mentionsByMessage.get(message.id) ?? [],
+      attachments: attachmentsByMessage.get(message.id) ?? [],
+      embeds: embedsByMessage.get(message.id) ?? [],
+      reactions: reactionsByMessage.get(message.id) ?? [],
+      author: {
+        id: profile.id,
+        displayName: profile.displayName,
+        avatarUrl: profile.avatarUrl,
+      },
+    };
   }
 
   private async requireChannelPermission(
@@ -199,6 +284,10 @@ export class MessagesService {
     await this.permissionsService.assertChannelPermission(user, channelId, Permission.SendMessages);
     return channel.serverId;
   }
+}
+
+function normalizeEmoji(emoji: string): string {
+  return emoji.trim().slice(0, 16);
 }
 
 function validateMessageAttachments(

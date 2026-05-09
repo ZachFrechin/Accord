@@ -10,6 +10,7 @@ import type {
   DeleteChannelResult,
   InviteRecord,
   MessageRecord,
+  MessageReaction,
   RedeemInviteResult,
   ServerSummary,
   ServerBanRecord,
@@ -18,6 +19,7 @@ import type {
   SignedAttachmentUrl,
   UpdateChannelInput,
   UpdateChannelPermissionsInput,
+  UpdateMessageInput,
   UpdateMemberRolesInput,
   UpdateProfileInput,
   UpdateServerRoleInput,
@@ -150,6 +152,11 @@ export class ApiClient {
         method: 'POST',
         body: JSON.stringify(input),
       }),
+    update: (messageId: string, input: UpdateMessageInput) =>
+      this.request<MessageRecord>(`/messages/${encodeURIComponent(messageId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
     getAttachmentUrl: (messageId: string, attachmentId: string) =>
       this.request<SignedAttachmentUrl>(
         `/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}/url`,
@@ -158,6 +165,14 @@ export class ApiClient {
       this.request<{ messageId: string; channelId: string }>(
         `/messages/${encodeURIComponent(messageId)}`,
         { method: 'DELETE' },
+      ),
+    toggleReaction: (messageId: string, emoji: string) =>
+      this.request<{ messageId: string; channelId: string; reactions: MessageReaction[] }>(
+        `/messages/${encodeURIComponent(messageId)}/reactions`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ emoji }),
+        },
       ),
   };
 

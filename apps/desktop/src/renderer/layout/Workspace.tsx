@@ -13,7 +13,9 @@ import {
   type MemberRemovedEvent,
   type MessageCreatedEvent,
   type MessageDeletedEvent,
+  type MessageReactionUpdatedEvent,
   type MessageRecord,
+  type MessageUpdatedEvent,
   type ServerMemberProfile,
   type ServerRole,
   type ServerStateChangedEvent,
@@ -323,6 +325,34 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
         current.filter((message) => message.id !== event.messageId),
       );
     });
+    socket.on(ServerToClientEvent.MessageUpdated, (event: MessageUpdatedEvent) => {
+      queryClient.setQueryData<MessageRecord[]>(['messages', event.channelId], (current = []) =>
+        current.map((message) => (message.id === event.message.id ? event.message : message)),
+      );
+    });
+    socket.on(ServerToClientEvent.MessageReactionUpdated, (event: MessageReactionUpdatedEvent) => {
+      queryClient.setQueryData<MessageRecord[]>(['messages', event.channelId], (current = []) =>
+        current.map((message) => {
+          if (message.id !== event.messageId) {
+            return message;
+          }
+
+          const previousByEmoji = new Map(
+            message.reactions.map((reaction) => [reaction.emoji, reaction.reactedByCurrentUser]),
+          );
+          return {
+            ...message,
+            reactions: event.reactions.map((reaction) => ({
+              ...reaction,
+              reactedByCurrentUser:
+                event.userId === session.user.id
+                  ? reaction.reactedByCurrentUser
+                  : (previousByEmoji.get(reaction.emoji) ?? false),
+            })),
+          };
+        }),
+      );
+    });
     socket.on(ServerToClientEvent.VoicePresenceUpdated, (event: VoicePresenceEvent) => {
       setVoiceParticipantIds(event.channelId, event.userIds);
     });
@@ -347,7 +377,9 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
 
     return () => {
       socket.off(ServerToClientEvent.MessageCreated);
+      socket.off(ServerToClientEvent.MessageUpdated);
       socket.off(ServerToClientEvent.MessageDeleted);
+      socket.off(ServerToClientEvent.MessageReactionUpdated);
       socket.off(ServerToClientEvent.VoicePresenceUpdated);
       socket.off(ServerToClientEvent.ServerStateChanged);
       socket.off(ServerToClientEvent.MemberRemoved);
@@ -631,6 +663,41 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     },
   });
 
+  const updateMessageMutation = useMutation({
+    mutationFn: async (input: { messageId: string; channelId: string; content: string }) => {
+      if (!activeServerId || !deviceIdentity) {
+        throw new Error('Clés E2EE pas encore prêtes.');
+      }
+
+      const encrypted = await encryptOutgoingMessage({
+        api,
+        instance,
+        userId: session.user.id,
+        serverId: activeServerId,
+        channelId: input.channelId,
+        identity: deviceIdentity,
+        content: input.content,
+      });
+
+      return api.messages.update(input.messageId, { encrypted });
+    },
+    onSuccess: (message) => {
+      queryClient.setQueryData<MessageRecord[]>(['messages', message.channelId], (current = []) =>
+        current.map((item) => (item.id === message.id ? message : item)),
+      );
+    },
+  });
+
+  const toggleMessageReactionMutation = useMutation({
+    mutationFn: (input: { messageId: string; emoji: string }) =>
+      api.messages.toggleReaction(input.messageId, input.emoji),
+    onSuccess: ({ messageId, channelId, reactions }) => {
+      queryClient.setQueryData<MessageRecord[]>(['messages', channelId], (current = []) =>
+        current.map((message) => (message.id === messageId ? { ...message, reactions } : message)),
+      );
+    },
+  });
+
   const sendMessageMutation = useMutation({
     mutationFn: async (input: {
       content: string;
@@ -638,6 +705,13 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
     }) => {
       if (!activeServerId || !activeChannelId || !deviceIdentity) {
         throw new Error('Clés E2EE pas encore prêtes.');
+      }
+
+      if (
+        mentionsEveryone(input.content) &&
+        !hasPermission(activeChannelPermissions, Permission.MentionEveryone)
+      ) {
+        throw new Error('Tu n’as pas la permission de mentionner @everyone.');
       }
 
       const encrypted = await encryptOutgoingMessage({
@@ -696,6 +770,7 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
           isE2ee: true,
         })),
         embeds: [],
+        reactions: [],
         encrypted: null,
         createdAt: new Date().toISOString(),
         editedAt: null,
@@ -858,10 +933,20 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
               conversationKey={conversationKey}
               canManageMessages={canManageMessages}
               onDeleteMessage={(messageId) => deleteMessageMutation.mutateAsync(messageId)}
+              onEditMessage={(messageId, content, channelId) =>
+                updateMessageMutation.mutateAsync({ messageId, content, channelId })
+              }
+              onToggleReaction={(messageId, emoji) =>
+                toggleMessageReactionMutation.mutateAsync({ messageId, emoji })
+              }
             />
             <MessageComposer
               disabled={!activeChannelId || !canSendMessages || sendMessageMutation.isPending}
               canAttachFiles={canAttachFiles}
+              canMentionEveryone={hasPermission(
+                activeChannelPermissions,
+                Permission.MentionEveryone,
+              )}
               error={composerError}
               members={members}
               roles={roles}
@@ -1033,4 +1118,8 @@ export function Workspace({ session, instance, supabase }: WorkspaceProps): Reac
 function base64ToBytes(value: string): Uint8Array {
   const binary = atob(value);
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+function mentionsEveryone(content: string): boolean {
+  return /(^|\s)@everyone(?=$|\s|[,.!?;:])/iu.test(content);
 }

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  Matches,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -80,4 +81,19 @@ export class CreateMessageDto {
   @Type(() => CreateAttachmentDto)
   @IsOptional()
   attachments?: CreateAttachmentDto[];
+}
+
+export class UpdateMessageDto {
+  @IsObject()
+  @IsNotEmpty()
+  @ValidateNested()
+  @Type(() => EncryptedPayloadDto)
+  encrypted!: EncryptedPayloadDto;
+}
+
+export class ToggleMessageReactionDto {
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[\p{Emoji_Presentation}\p{Emoji}\uFE0F]{1,8}$/u)
+  emoji!: string;
 }

@@ -8,6 +8,8 @@ import {
   type MemberRemovedEvent,
   type MessageCreatedEvent,
   type MessageDeletedEvent,
+  type MessageReactionUpdatedEvent,
+  type MessageUpdatedEvent,
   type ServerStateChangedEvent,
 } from '@discord2/shared';
 import { RoomService } from '../rooms/room.service';
@@ -38,8 +40,12 @@ export class MessageFanoutService implements OnApplicationShutdown {
     this.redis.on('message', (channel, payload) => {
       if (channel === InternalRealtimeEvent.MessageCreated) {
         this.forwardMessageCreated(server, payload);
+      } else if (channel === InternalRealtimeEvent.MessageUpdated) {
+        this.forwardMessageUpdated(server, payload);
       } else if (channel === InternalRealtimeEvent.MessageDeleted) {
         this.forwardMessageDeleted(server, payload);
+      } else if (channel === InternalRealtimeEvent.MessageReactionUpdated) {
+        this.forwardMessageReactionUpdated(server, payload);
       } else if (channel === InternalRealtimeEvent.ServerStateChanged) {
         this.forwardServerStateChanged(server, payload);
       } else if (channel === InternalRealtimeEvent.MemberRemoved) {
@@ -49,7 +55,9 @@ export class MessageFanoutService implements OnApplicationShutdown {
 
     void this.redis.subscribe(
       InternalRealtimeEvent.MessageCreated,
+      InternalRealtimeEvent.MessageUpdated,
       InternalRealtimeEvent.MessageDeleted,
+      InternalRealtimeEvent.MessageReactionUpdated,
       InternalRealtimeEvent.ServerStateChanged,
       InternalRealtimeEvent.MemberRemoved,
     );
@@ -87,6 +95,36 @@ export class MessageFanoutService implements OnApplicationShutdown {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown parse error';
       this.logger.warn(`Invalid message.created payload: ${message}`);
+    }
+  }
+
+  private forwardMessageUpdated(server: Server, payload: string): void {
+    try {
+      const event = JSON.parse(payload) as MessageUpdatedEvent;
+      this.roomService.emitToChannelFromServer(
+        server,
+        event.channelId,
+        ServerToClientEvent.MessageUpdated,
+        event,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown parse error';
+      this.logger.warn(`Invalid message.updated payload: ${message}`);
+    }
+  }
+
+  private forwardMessageReactionUpdated(server: Server, payload: string): void {
+    try {
+      const event = JSON.parse(payload) as MessageReactionUpdatedEvent;
+      this.roomService.emitToChannelFromServer(
+        server,
+        event.channelId,
+        ServerToClientEvent.MessageReactionUpdated,
+        event,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown parse error';
+      this.logger.warn(`Invalid message.reaction_updated payload: ${message}`);
     }
   }
 

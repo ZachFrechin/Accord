@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import type { AuthUser } from '@discord2/shared';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { CreateMessageDto } from './dto';
+import { CreateMessageDto, ToggleMessageReactionDto, UpdateMessageDto } from './dto';
 import { MessagesService } from './messages.service';
 
 @Controller()
@@ -34,5 +34,23 @@ export class MessagesController {
   @Delete('messages/:messageId')
   delete(@CurrentUser() user: AuthUser, @Param('messageId') messageId: string) {
     return this.messagesService.deleteMessage(user, messageId);
+  }
+
+  @Patch('messages/:messageId')
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('messageId') messageId: string,
+    @Body() body: UpdateMessageDto,
+  ) {
+    return this.messagesService.updateMessage(user, messageId, body);
+  }
+
+  @Post('messages/:messageId/reactions')
+  toggleReaction(
+    @CurrentUser() user: AuthUser,
+    @Param('messageId') messageId: string,
+    @Body() body: ToggleMessageReactionDto,
+  ) {
+    return this.messagesService.toggleReaction(user, messageId, body);
   }
 }

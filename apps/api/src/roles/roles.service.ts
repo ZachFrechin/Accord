@@ -270,7 +270,12 @@ function escapeRegExp(value: string): string {
 function dedupeMentions(mentions: MessageMention[]): MessageMention[] {
   const seen = new Set<string>();
   return mentions.filter((mention) => {
-    const key = mention.type === 'user' ? `user:${mention.userId}` : `role:${mention.roleId}`;
+    const key =
+      mention.type === 'user'
+        ? `user:${mention.userId}`
+        : mention.type === 'role'
+          ? `role:${mention.roleId}`
+          : 'everyone';
     if (seen.has(key)) {
       return false;
     }

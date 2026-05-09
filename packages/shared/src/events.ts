@@ -13,7 +13,9 @@ export const ClientToServerEvent = {
 
 export const ServerToClientEvent = {
   MessageCreated: 'message:created',
+  MessageUpdated: 'message:updated',
   MessageDeleted: 'message:deleted',
+  MessageReactionUpdated: 'message:reaction-updated',
   ServerStateChanged: 'server:state-changed',
   TypingStarted: 'typing:started',
   TypingStopped: 'typing:stopped',
@@ -25,7 +27,9 @@ export const ServerToClientEvent = {
 
 export const InternalRealtimeEvent = {
   MessageCreated: 'message.created',
+  MessageUpdated: 'message.updated',
   MessageDeleted: 'message.deleted',
+  MessageReactionUpdated: 'message.reaction_updated',
   ServerStateChanged: 'server.state_changed',
   MemberRemoved: 'member.removed',
 } as const;
@@ -54,6 +58,18 @@ export interface MessageCreatedEvent {
 export interface MessageDeletedEvent {
   channelId: ChannelId;
   messageId: MessageId;
+}
+
+export interface MessageUpdatedEvent {
+  channelId: ChannelId;
+  message: MessageRecord;
+}
+
+export interface MessageReactionUpdatedEvent {
+  channelId: ChannelId;
+  messageId: MessageId;
+  userId: UserId;
+  reactions: MessageRecord['reactions'];
 }
 
 export interface TypingEvent {

@@ -11,6 +11,7 @@ export interface ComposerMediaDraft {
 interface MessageComposerProps {
   disabled: boolean;
   canAttachFiles: boolean;
+  canMentionEveryone: boolean;
   error: string | null;
   members: ServerMemberProfile[];
   roles: ServerRole[];
@@ -20,6 +21,7 @@ interface MessageComposerProps {
 export function MessageComposer({
   disabled,
   canAttachFiles,
+  canMentionEveryone,
   error,
   members,
   roles,
@@ -31,6 +33,16 @@ export function MessageComposer({
   const mentionQuery = getMentionQuery(content);
   const mentionSuggestions = mentionQuery
     ? [
+        ...(canMentionEveryone && 'everyone'.includes(mentionQuery)
+          ? [
+              {
+                id: 'everyone',
+                label: 'everyone',
+                token: '@everyone',
+                kind: 'Annonce',
+              },
+            ]
+          : []),
         ...members
           .filter((member) => member.profile.displayName.toLocaleLowerCase().includes(mentionQuery))
           .slice(0, 5)
