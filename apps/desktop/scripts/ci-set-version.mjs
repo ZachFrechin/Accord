@@ -18,10 +18,10 @@ const desktopRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 // The in-app « Nouveautés » page is the user-facing contract for a release:
 // refuse to stamp a version that has no patch notes, so version numbers and
 // notes can never drift apart.
-const changelog = readFileSync(join(desktopRoot, "src", "lib", "changelog.ts"), "utf8");
+const changelog = readFileSync(join(desktopRoot, "..", "..", "packages", "core", "src", "lib", "changelog.ts"), "utf8");
 if (!changelog.includes(`version: "${version}"`)) {
   console.error(
-    `ci-set-version: src/lib/changelog.ts has no entry for ${version} — add the patch notes for v${version} (title + notes) before tagging.`,
+    `ci-set-version: packages/core/src/lib/changelog.ts has no entry for ${version} — add the patch notes for v${version} (title + notes) before tagging.`,
   );
   process.exit(1);
 }

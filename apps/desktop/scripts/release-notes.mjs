@@ -1,4 +1,4 @@
-// Print one version's patch notes from src/lib/changelog.ts as plain text —
+// Print one version's patch notes from packages/core/src/lib/changelog.ts as plain text —
 // the title line, then one "• " bullet per note. The CI release job feeds this
 // into latest.json's `notes` (shown by the in-app update banner) and into the
 // GitLab release description, so the notes users see always come from the same
@@ -16,13 +16,13 @@ if (!/^\d+\.\d+\.\d+$/.test(version ?? "")) {
 }
 
 const source = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "..", "src", "lib", "changelog.ts"),
+  join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "packages", "core", "src", "lib", "changelog.ts"),
   "utf8",
 );
 
 const start = source.indexOf(`version: "${version}"`);
 if (start === -1) {
-  console.error(`release-notes: no "${version}" entry in src/lib/changelog.ts`);
+  console.error(`release-notes: no "${version}" entry in packages/core/src/lib/changelog.ts`);
   process.exit(1);
 }
 const next = source.indexOf(`version: "`, start + 1);

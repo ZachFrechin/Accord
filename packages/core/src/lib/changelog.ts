@@ -17,6 +17,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.15.0",
+    date: "2026-08-02",
+    title: "Accord passe en open source",
+    notes: [
+      "Le code d'Accord est désormais public, sous licence AGPL-3.0 : n'importe qui peut l'auditer, l'héberger, ou vérifier que le serveur ne peut effectivement pas lire vos messages.",
+      "Les mises à jour automatiques changent d'adresse. Cette version est à installer à la main ; les suivantes reprendront leur cours normal.",
+      "Une application Android arrive : même cœur de chiffrement que le bureau, avec ses notifications et sa reprise après veille.",
+      "Deux failles de sécurité corrigées dans des bibliothèques tierces — un déni de service sur certificat malformé, et un contournement de protection dans le routeur.",
+    ],
+  },
+  {
     version: "0.14.1",
     date: "2026-07-31",
     title: "Finitions du profil",
