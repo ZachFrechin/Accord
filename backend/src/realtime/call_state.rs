@@ -48,10 +48,10 @@ fn distinct_users(members: Vec<String>) -> Vec<Uuid> {
     let mut out: Vec<Uuid> = Vec::new();
     for m in members {
         let uid = m.split(':').next().unwrap_or(&m);
-        if let Ok(id) = Uuid::parse_str(uid) {
-            if !out.contains(&id) {
-                out.push(id);
-            }
+        if let Ok(id) = Uuid::parse_str(uid)
+            && !out.contains(&id)
+        {
+            out.push(id);
         }
     }
     out
@@ -264,33 +264,6 @@ pub async fn state(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn member_encodes_device_when_present() {
-        let u = Uuid::nil();
-        assert_eq!(member(u, None), u.to_string());
-        assert_eq!(member(u, Some("")), u.to_string()); // empty device is treated as none
-        assert_eq!(member(u, Some("dev1")), format!("{u}:dev1"));
-    }
-
-    #[test]
-    fn distinct_users_dedups_across_devices_and_ignores_junk() {
-        let a = Uuid::new_v4();
-        let b = Uuid::new_v4();
-        // Two devices of `a` + one of `b` + a malformed entry → distinct {a, b}, in order.
-        let got = distinct_users(vec![
-            format!("{a}:d1"),
-            format!("{a}:d2"),
-            b.to_string(),
-            "not-a-uuid:d9".to_string(),
-        ]);
-        assert_eq!(got, vec![a, b]);
-    }
-}
-
 // ── Call-XP timers ───────────────────────────────────────────────────────────
 
 fn xp_start_key(conversation_id: Uuid, user_id: Uuid) -> String {
@@ -334,4 +307,31 @@ pub async fn take_xp_start(
         .await
         .map_err(map_err)?;
     Ok(v)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn member_encodes_device_when_present() {
+        let u = Uuid::nil();
+        assert_eq!(member(u, None), u.to_string());
+        assert_eq!(member(u, Some("")), u.to_string()); // empty device is treated as none
+        assert_eq!(member(u, Some("dev1")), format!("{u}:dev1"));
+    }
+
+    #[test]
+    fn distinct_users_dedups_across_devices_and_ignores_junk() {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        // Two devices of `a` + one of `b` + a malformed entry → distinct {a, b}, in order.
+        let got = distinct_users(vec![
+            format!("{a}:d1"),
+            format!("{a}:d2"),
+            b.to_string(),
+            "not-a-uuid:d9".to_string(),
+        ]);
+        assert_eq!(got, vec![a, b]);
+    }
 }

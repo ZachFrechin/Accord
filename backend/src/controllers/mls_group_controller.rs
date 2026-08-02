@@ -187,12 +187,11 @@ pub async fn frame(
     // Leveling: only ACCEPTED application frames count (a proposal/commit is
     // protocol machinery, not someone talking). The 60s cooldown inside also
     // keeps op frames (reactions, edits) from farming XP.
-    if body.content_type == "application" {
-        if let Err(e) =
+    if body.content_type == "application"
+        && let Err(e) =
             crate::repositories::xp_repo::award_message_xp(&state.db, caller.user_id).await
-        {
-            tracing::warn!(error = %e, "mls xp grant failed");
-        }
+    {
+        tracing::warn!(error = %e, "mls xp grant failed");
     }
 
     fanout(&state, group_id, -1, order_seq).await;

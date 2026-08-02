@@ -250,12 +250,11 @@ pub async fn join(
 
     // Leveling: once the room has company, everyone present starts (or keeps)
     // their "in a call" clock. Solo waiting earns nothing.
-    if outcome.participants.len() >= 2 {
-        if let Err(e) =
+    if outcome.participants.len() >= 2
+        && let Err(e) =
             call_state::stamp_xp_start(&state.redis, conversation_id, &outcome.participants).await
-        {
-            tracing::warn!(error = %e, "call xp stamp failed");
-        }
+    {
+        tracing::warn!(error = %e, "call xp stamp failed");
     }
 
     Ok(Json(json!({
@@ -321,13 +320,12 @@ pub async fn leave(
     match call_state::take_xp_start(&state.redis, conversation_id, caller.user_id).await {
         Ok(Some(started_ms)) => {
             let minutes = (Utc::now().timestamp_millis() - started_ms).max(0) / 60_000;
-            if minutes > 0 {
-                if let Err(e) =
+            if minutes > 0
+                && let Err(e) =
                     xp_repo::award_call_xp(&state.db, caller.user_id, minutes * xp::CALL_XP_PER_MIN)
                         .await
-                {
-                    tracing::warn!(error = %e, "call xp grant failed");
-                }
+            {
+                tracing::warn!(error = %e, "call xp grant failed");
             }
         }
         Ok(None) => {}

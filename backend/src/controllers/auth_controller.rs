@@ -314,27 +314,27 @@ pub async fn resend_verification(
     .await?;
 
     let email = req.email.trim().to_lowercase();
-    if let Some(user) = user_repo::find_by_email(&state.db, &email).await? {
-        if user.email_verified_at.is_none() {
-            let token = secrets::random_token();
-            let token_hash = secrets::sha256(token.as_bytes());
-            let expires = Utc::now() + Duration::hours(EMAIL_VERIFY_TTL_HOURS);
-            verification_repo::create_email_verification(&state.db, user.id, &token_hash, expires)
-                .await?;
-            let link = format!(
-                "{}/auth/verify-email?token={}",
-                state.config.server.public_url.trim_end_matches('/'),
-                token
-            );
-            verification_repo::enqueue_email(
-                &state.db,
-                &user.email,
-                "verify_email",
-                &json!({ "username": user.username, "verify_url": link }),
-            )
+    if let Some(user) = user_repo::find_by_email(&state.db, &email).await?
+        && user.email_verified_at.is_none()
+    {
+        let token = secrets::random_token();
+        let token_hash = secrets::sha256(token.as_bytes());
+        let expires = Utc::now() + Duration::hours(EMAIL_VERIFY_TTL_HOURS);
+        verification_repo::create_email_verification(&state.db, user.id, &token_hash, expires)
             .await?;
-            tracing::info!(user_id = %user.id, "verification email re-sent");
-        }
+        let link = format!(
+            "{}/auth/verify-email?token={}",
+            state.config.server.public_url.trim_end_matches('/'),
+            token
+        );
+        verification_repo::enqueue_email(
+            &state.db,
+            &user.email,
+            "verify_email",
+            &json!({ "username": user.username, "verify_url": link }),
+        )
+        .await?;
+        tracing::info!(user_id = %user.id, "verification email re-sent");
     }
     Ok((
         StatusCode::ACCEPTED,

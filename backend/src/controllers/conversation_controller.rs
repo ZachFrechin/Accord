@@ -392,8 +392,8 @@ pub async fn delete_message(
     }
     if meta.deleted_at.is_none() {
         message_repo::delete_message(&state.db, message_id).await?;
-        if is_moderator {
-            if let Err(e) = admin_repo::record_audit(
+        if is_moderator
+            && let Err(e) = admin_repo::record_audit(
                 &state.db,
                 caller.user_id,
                 "message.delete",
@@ -401,9 +401,8 @@ pub async fn delete_message(
                 json!({ "conversation_id": conversation_id, "message_id": message_id }),
             )
             .await
-            {
-                tracing::warn!(error = %e, "audit write failed");
-            }
+        {
+            tracing::warn!(error = %e, "audit write failed");
         }
         fanout(
             &state,

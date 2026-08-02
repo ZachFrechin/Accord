@@ -9,6 +9,7 @@
 //!   * **inclusion** — my counterpart's key really is the one in the log, and
 //!   * **consistency** — the log the server shows me now is an append-only
 //!     extension of the one it showed me before (no history was rewritten).
+//!
 //! Gossiping the log head out-of-band then makes any equivocation detectable.
 //!
 //! This module is the crypto core: an [RFC 6962] (Certificate Transparency) Merkle

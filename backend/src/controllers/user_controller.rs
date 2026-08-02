@@ -78,8 +78,8 @@ pub async fn update_my_profile(
     let display_name = req
         .display_name
         .as_deref()
-        .and_then(|s| validation::validate_display_name(s));
-    let bio = req.bio.as_deref().and_then(|s| validation::validate_bio(s));
+        .and_then(validation::validate_display_name);
+    let bio = req.bio.as_deref().and_then(validation::validate_bio);
     let accent_color = match req.accent_color.as_deref() {
         Some(c) => validation::validate_accent_color(c)?,
         None => None,

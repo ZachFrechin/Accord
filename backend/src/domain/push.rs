@@ -113,10 +113,10 @@ impl Fcm {
     /// Jeton d'accès Google, renouvelé seulement quand il approche de sa fin.
     async fn access_token(&self) -> Result<String, ApiError> {
         let mut slot = self.token.lock().await;
-        if let Some(cached) = slot.as_ref() {
-            if cached.fetched_at.elapsed() < TOKEN_TTL {
-                return Ok(cached.value.clone());
-            }
+        if let Some(cached) = slot.as_ref()
+            && cached.fetched_at.elapsed() < TOKEN_TTL
+        {
+            return Ok(cached.value.clone());
         }
 
         let now = chrono::Utc::now().timestamp();
