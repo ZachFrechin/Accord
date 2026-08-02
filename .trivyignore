@@ -1,0 +1,25 @@
+# Vulnérabilités écartées, avec la raison et la date de réexamen.
+#
+# Rien n'entre ici sans avoir été vérifié : une ligne de ce fichier est une
+# affirmation qu'un problème réel ne s'applique pas à nous, et elle doit pouvoir
+# être contestée par la personne suivante.
+
+# GHSA-hc3c-63hc-2r9f — libcrux-chacha20poly1305 0.0.7, panique possible sur un
+# chiffré trop long. Corrigé en amont dans la 0.0.8.
+#
+# Non atteignable ici : la crate figure dans Cargo.lock mais n'est compilée dans
+# aucun binaire. Elle n'arrive que comme dépendance optionnelle de
+# `hpke-rs-libcrux`, backend que nous n'utilisons pas — OpenMLS est bâti sur
+# `hpke-rs-rust-crypto`. Vérifié avec `cargo tree` : `libcrux-chacha20poly1305`
+# apparaît zéro fois dans l'arbre compilé, les seules crates libcrux réellement
+# bâties sont `libcrux-sha3` et ses dépendances.
+#
+# Non corrigeable pour l'instant : `hpke-rs-libcrux 0.6.1` exige
+# `libcrux-aead ^0.0.7`, qui épingle `libcrux-chacha20poly1305 =0.0.7`. La mise
+# à jour dépend d'une publication amont.
+#
+# À réexaminer : si `hpke-rs-libcrux` publie une version acceptant
+# `libcrux-aead 0.0.8+`, retirer cette ligne et laisser cargo faire le travail.
+# Et si le backend HPKE venait à changer pour libcrux, cette exception devient
+# fausse et doit sauter AVANT le changement.
+GHSA-hc3c-63hc-2r9f
