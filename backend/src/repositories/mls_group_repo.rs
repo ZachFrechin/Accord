@@ -112,11 +112,15 @@ pub const MAX_FRAME_EPOCH_LAG: i64 = 2;
 
 /// Outcome of appending a non-commit frame.
 pub enum SubmitFrameOutcome {
-    Accepted { order_seq: i64 },
+    Accepted {
+        order_seq: i64,
+    },
     /// The sender claimed an epoch too far behind the group — a split-brain or
     /// badly stale device. Nothing was appended; the caller gets a 409 and the
     /// authoritative epoch so it can repair instead of silently poisoning the log.
-    StaleEpoch { current_epoch: i64 },
+    StaleEpoch {
+        current_epoch: i64,
+    },
     /// The group has no ordering row yet.
     NoGroup,
 }
@@ -233,9 +237,12 @@ pub async fn pending_welcomes(
 
 /// Mark a Welcome delivered so it is not replayed (legacy fetch-marks path).
 pub async fn mark_welcome_delivered(pool: &sqlx::PgPool, id: Uuid) -> Result<(), ApiError> {
-    sqlx::query!("UPDATE mls_welcomes SET delivered_at = now() WHERE id = $1", id)
-        .execute(pool)
-        .await?;
+    sqlx::query!(
+        "UPDATE mls_welcomes SET delivered_at = now() WHERE id = $1",
+        id
+    )
+    .execute(pool)
+    .await?;
     Ok(())
 }
 

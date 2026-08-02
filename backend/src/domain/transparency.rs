@@ -176,7 +176,13 @@ fn subproof(m: usize, d: &[Hash], b: bool) -> Vec<Hash> {
 /// backend generates proofs rather than verifying them, so this is a tested
 /// reference the TypeScript client mirrors.
 #[allow(dead_code)]
-pub fn verify_inclusion(leaf: &Hash, index: usize, size: usize, root: &Hash, proof: &[Hash]) -> bool {
+pub fn verify_inclusion(
+    leaf: &Hash,
+    index: usize,
+    size: usize,
+    root: &Hash,
+    proof: &[Hash],
+) -> bool {
     if index >= size {
         return false;
     }
@@ -345,7 +351,13 @@ mod tests {
         // Wrong index, wrong leaf, flipped proof node, truncated proof, extra node.
         assert!(!verify_inclusion(&leaf, 4, 11, &root, &proof));
         assert!(!verify_inclusion(&hash_leaf(b"evil"), 3, 11, &root, &proof));
-        assert!(!verify_inclusion(&leaf, 3, 11, &root, &proof[..proof.len() - 1]));
+        assert!(!verify_inclusion(
+            &leaf,
+            3,
+            11,
+            &root,
+            &proof[..proof.len() - 1]
+        ));
         let mut longer = proof.clone();
         longer.push([0u8; 32]);
         assert!(!verify_inclusion(&leaf, 3, 11, &root, &longer));
@@ -389,7 +401,13 @@ mod tests {
         // A legitimate extension of the same prefix verifies.
         let honest = log_of(8);
         let honest_proof = honest.consistency_proof(5).unwrap();
-        assert!(verify_consistency(5, 8, &old_root, &honest.root(), &honest_proof));
+        assert!(verify_consistency(
+            5,
+            8,
+            &old_root,
+            &honest.root(),
+            &honest_proof
+        ));
     }
 
     #[test]

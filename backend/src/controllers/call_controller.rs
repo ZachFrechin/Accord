@@ -91,7 +91,9 @@ pub async fn mint_token(
     )
     .await;
 
-    Ok(Json(json!({ "url": state.config.livekit.url, "room": room, "token": token })))
+    Ok(Json(
+        json!({ "url": state.config.livekit.url, "room": room, "token": token }),
+    ))
 }
 
 /// Delivers a call signal to every OTHER member (best-effort fan-out).
@@ -127,7 +129,11 @@ pub async fn ring(
     if !conversation_repo::is_member(&state.db, conversation_id, caller.user_id).await? {
         return Err(ApiError::Forbidden("not a member".to_string()));
     }
-    let media = if body.media == "video" { "video" } else { "audio" };
+    let media = if body.media == "video" {
+        "video"
+    } else {
+        "audio"
+    };
     let call_id = Uuid::now_v7();
     fan_to_others(
         &state,
@@ -195,7 +201,11 @@ pub async fn join(
     if !conversation_repo::is_member(&state.db, conversation_id, caller.user_id).await? {
         return Err(ApiError::Forbidden("not a member".to_string()));
     }
-    let media = if body.media == "video" { "video" } else { "audio" };
+    let media = if body.media == "video" {
+        "video"
+    } else {
+        "audio"
+    };
     let device = query.device.as_deref();
 
     let outcome = call_state::join(
@@ -312,12 +322,9 @@ pub async fn leave(
         Ok(Some(started_ms)) => {
             let minutes = (Utc::now().timestamp_millis() - started_ms).max(0) / 60_000;
             if minutes > 0 {
-                if let Err(e) = xp_repo::award_call_xp(
-                    &state.db,
-                    caller.user_id,
-                    minutes * xp::CALL_XP_PER_MIN,
-                )
-                .await
+                if let Err(e) =
+                    xp_repo::award_call_xp(&state.db, caller.user_id, minutes * xp::CALL_XP_PER_MIN)
+                        .await
                 {
                     tracing::warn!(error = %e, "call xp grant failed");
                 }

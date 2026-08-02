@@ -5,10 +5,10 @@
 //! instantly instead of riding out a cached token claim.
 
 use axum::Json;
-use serde_json::{Value, json};
 use axum::extract::{Path, Query, State};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::domain::{permissions, validation};
@@ -158,11 +158,7 @@ pub async fn list_users(
     panel.require(permissions::ADMIN_PANEL, "voir le panel")?;
     let per_page = query.per_page.clamp(1, 100);
     let page = query.page.max(1);
-    let search = query
-        .q
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty());
+    let search = query.q.as_deref().map(str::trim).filter(|s| !s.is_empty());
     let (rows, total) =
         admin_repo::list_users(&state.db, search, per_page, (page - 1) * per_page).await?;
     let mut items: Vec<AdminUserDto> = rows.into_iter().map(Into::into).collect();
@@ -203,7 +199,9 @@ fn validate_role_body(body: &RoleBody) -> Result<(String, i64), ApiError> {
         && !c.is_empty()
         && !(c.starts_with('#') && (c.len() == 7 || c.len() == 4))
     {
-        return Err(ApiError::Validation("color must be #rgb or #rrggbb".to_string()));
+        return Err(ApiError::Validation(
+            "color must be #rgb or #rrggbb".to_string(),
+        ));
     }
     // Unknown bits are dropped rather than rejected: an older client editing a
     // role must not wipe permissions a newer server added — but it can't set
@@ -241,7 +239,14 @@ pub async fn create_role(
         perms,
     )
     .await?;
-    audit(&state, panel.user_id, "role.create", None, json!({ "name": name })).await;
+    audit(
+        &state,
+        panel.user_id,
+        "role.create",
+        None,
+        json!({ "name": name }),
+    )
+    .await;
     tracing::info!(admin = %panel.user_id, role = %row.id, %name, "role created");
     Ok(Json(row.into()))
 }
@@ -264,7 +269,14 @@ pub async fn update_role(
         perms,
     )
     .await?;
-    audit(&state, panel.user_id, "role.update", None, json!({ "name": name })).await;
+    audit(
+        &state,
+        panel.user_id,
+        "role.update",
+        None,
+        json!({ "name": name }),
+    )
+    .await;
     Ok(Json(json!({ "status": "updated" })))
 }
 
@@ -276,7 +288,14 @@ pub async fn delete_role(
 ) -> Result<Json<Value>, ApiError> {
     panel.require(permissions::MANAGE_ROLES, "gérer les rôles")?;
     admin_repo::delete_role(&state.db, role_id).await?;
-    audit(&state, panel.user_id, "role.delete", None, json!({ "role_id": role_id })).await;
+    audit(
+        &state,
+        panel.user_id,
+        "role.delete",
+        None,
+        json!({ "role_id": role_id }),
+    )
+    .await;
     tracing::info!(admin = %panel.user_id, role = %role_id, "role deleted");
     Ok(Json(json!({ "status": "deleted" })))
 }
@@ -368,7 +387,14 @@ pub async fn update_user(
             ));
         }
         user_repo::set_role(&state.db, user_id, role).await?;
-        audit(&state, admin.user_id, "user.role", Some(user_id), json!({ "role": role })).await;
+        audit(
+            &state,
+            admin.user_id,
+            "user.role",
+            Some(user_id),
+            json!({ "role": role }),
+        )
+        .await;
         tracing::info!(target_user = %user_id, admin = %admin.user_id, %role, "admin changed user role");
     }
     if req.disabled.is_some() {
@@ -387,7 +413,11 @@ pub async fn update_user(
         audit(
             &state,
             admin.user_id,
-            if disabled { "user.suspend" } else { "user.reinstate" },
+            if disabled {
+                "user.suspend"
+            } else {
+                "user.reinstate"
+            },
             Some(user_id),
             json!({}),
         )
@@ -452,8 +482,7 @@ pub async fn audit_log(
     panel.require(permissions::VIEW_AUDIT, "consulter le journal")?;
     let per_page = query.per_page.clamp(1, 100);
     let page = query.page.max(1);
-    let (rows, total) =
-        admin_repo::list_audit(&state.db, per_page, (page - 1) * per_page).await?;
+    let (rows, total) = admin_repo::list_audit(&state.db, per_page, (page - 1) * per_page).await?;
     let items: Vec<AuditDto> = rows
         .into_iter()
         .map(|r| AuditDto {
@@ -467,7 +496,9 @@ pub async fn audit_log(
             created_at: r.created_at,
         })
         .collect();
-    Ok(Json(json!({ "items": items, "total": total, "page": page, "per_page": per_page })))
+    Ok(Json(
+        json!({ "items": items, "total": total, "page": page, "per_page": per_page }),
+    ))
 }
 
 /// `GET /admin/me` — the caller's effective instance capabilities. Never 403s:

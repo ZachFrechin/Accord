@@ -25,10 +25,7 @@ fn level_payload(xp_total: i64) -> Value {
 }
 
 /// `GET /levels/me` — the caller's XP and level.
-pub async fn me(
-    State(state): State<AppState>,
-    caller: AuthUser,
-) -> Result<Json<Value>, ApiError> {
+pub async fn me(State(state): State<AppState>, caller: AuthUser) -> Result<Json<Value>, ApiError> {
     let total = xp_repo::xp_of(&state.db, caller.user_id).await?;
     Ok(Json(level_payload(total)))
 }
@@ -79,5 +76,7 @@ pub async fn leaderboard(
             })
         })
         .collect();
-    Ok(Json(json!({ "items": items, "period": if week { "week" } else { "all" } })))
+    Ok(Json(
+        json!({ "items": items, "period": if week { "week" } else { "all" } }),
+    ))
 }

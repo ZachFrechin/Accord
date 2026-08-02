@@ -53,7 +53,7 @@ pub fn validate_status_text(raw: &str) -> Result<Option<String>, ApiError> {
                     | '\u{2028}' | '\u{2029}' // line / paragraph separators
                     | '\u{202A}'..='\u{202E}' // bidi embedding / override
                     | '\u{2060}'..='\u{2064}' // word joiner + invisible math ops
-                    | '\u{FEFF}')             // BOM / zero-width no-break space
+                    | '\u{FEFF}') // BOM / zero-width no-break space
         })
         .take(100)
         .collect();

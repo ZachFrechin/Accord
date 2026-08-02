@@ -10,7 +10,7 @@ use data_encoding::BASE32_NOPAD;
 use hmac::{Hmac, Mac};
 use rand::RngCore;
 use rand::rngs::OsRng;
-use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, CHACHA20_POLY1305, NONCE_LEN};
+use ring::aead::{Aad, CHACHA20_POLY1305, LessSafeKey, NONCE_LEN, Nonce, UnboundKey};
 use ring::rand::{SecureRandom, SystemRandom};
 use sha1::Sha1;
 
@@ -59,6 +59,11 @@ fn hotp(secret: &[u8], counter: u64, digits: u32) -> u32 {
 }
 
 /// The 6-digit TOTP code for a unix timestamp (30-second step).
+///
+/// Test-only: the server never generates codes, it only verifies them — that is
+/// the authenticator app's job. Keeping this compiled into the binary would ship
+/// a code generator no caller wants, and the dead-code lint is right to say so.
+#[cfg(test)]
 pub fn code_at(secret: &[u8], unix_secs: u64) -> String {
     let counter = unix_secs / 30;
     format!("{:06}", hotp(secret, counter, 6))
@@ -129,7 +134,9 @@ pub fn seal(key: &[u8], aad: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, ApiErro
 /// user id) or authentication fails.
 pub fn open(key: &[u8], aad: &[u8], data: &[u8]) -> Result<Vec<u8>, ApiError> {
     if data.len() < NONCE_LEN {
-        return Err(ApiError::Internal(anyhow::anyhow!("totp: ciphertext too short")));
+        return Err(ApiError::Internal(anyhow::anyhow!(
+            "totp: ciphertext too short"
+        )));
     }
     let (nonce_bytes, ct) = data.split_at(NONCE_LEN);
     let nonce_arr: [u8; NONCE_LEN] = nonce_bytes.try_into().expect("checked length");

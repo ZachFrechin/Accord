@@ -78,9 +78,15 @@ mod tests {
 
     #[test]
     fn token_has_flat_claims_and_nested_camelcase_video_grant() {
-        let token =
-            mint_livekit_token("accord_key", "accord_dev_secret", "user-1:dev-a", "conv-42", 600, 1_000)
-                .expect("mint");
+        let token = mint_livekit_token(
+            "accord_key",
+            "accord_dev_secret",
+            "user-1:dev-a",
+            "conv-42",
+            600,
+            1_000,
+        )
+        .expect("mint");
 
         // Verify the signature with the same secret, then inspect the claims.
         let mut validation = Validation::new(Algorithm::HS256);

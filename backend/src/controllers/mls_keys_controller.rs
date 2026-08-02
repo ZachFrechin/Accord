@@ -42,7 +42,9 @@ fn decode_kp(dto: &KeyPackageDto) -> Result<(Vec<u8>, Vec<u8>), ApiError> {
         return Err(ApiError::Validation("invalid kp_ref length".to_string()));
     }
     if data.is_empty() || data.len() > MAX_KP_DATA {
-        return Err(ApiError::Validation("invalid key_package length".to_string()));
+        return Err(ApiError::Validation(
+            "invalid key_package length".to_string(),
+        ));
     }
     Ok((kp_ref, data))
 }
@@ -94,7 +96,8 @@ pub async fn publish(
         mls_key_package_repo::set_last_resort(&state.db, caller.user_id, device_id, &r, &d).await?;
     }
 
-    let remaining = mls_key_package_repo::count_available(&state.db, caller.user_id, device_id).await?;
+    let remaining =
+        mls_key_package_repo::count_available(&state.db, caller.user_id, device_id).await?;
     Ok(Json(json!({ "status": "ok", "available": remaining })))
 }
 
@@ -144,7 +147,9 @@ pub async fn claim(
             }));
         }
     }
-    Ok(Json(json!({ "user_id": body.user_id, "packages": packages })))
+    Ok(Json(
+        json!({ "user_id": body.user_id, "packages": packages }),
+    ))
 }
 
 /// `GET /mls/key-packages/count/{device_id}` — the caller's remaining available
@@ -155,6 +160,9 @@ pub async fn count(
     Path(device_id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     check_device_id(&device_id)?;
-    let available = mls_key_package_repo::count_available(&state.db, caller.user_id, &device_id).await?;
-    Ok(Json(json!({ "device_id": device_id, "available": available })))
+    let available =
+        mls_key_package_repo::count_available(&state.db, caller.user_id, &device_id).await?;
+    Ok(Json(
+        json!({ "device_id": device_id, "available": available }),
+    ))
 }

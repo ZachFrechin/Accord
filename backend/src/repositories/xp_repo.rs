@@ -68,13 +68,12 @@ pub async fn award_call_xp(pool: &PgPool, user_id: Uuid, amount: i64) -> Result<
 
 /// Total XP of one user (0 when they never earned any).
 pub async fn xp_of(pool: &PgPool, user_id: Uuid) -> Result<i64, ApiError> {
-    Ok(sqlx::query_scalar!(
-        r#"SELECT xp FROM user_xp WHERE user_id = $1"#,
-        user_id,
+    Ok(
+        sqlx::query_scalar!(r#"SELECT xp FROM user_xp WHERE user_id = $1"#, user_id,)
+            .fetch_optional(pool)
+            .await?
+            .unwrap_or(0),
     )
-    .fetch_optional(pool)
-    .await?
-    .unwrap_or(0))
 }
 
 /// One leaderboard row (profile name resolved; avatar version for the URL).

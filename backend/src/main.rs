@@ -94,7 +94,9 @@ async fn main() -> anyhow::Result<()> {
         match repositories::user_repo::promote_admin_by_email(&state.db, &normalized).await {
             Ok(Some(user_id)) => info!(%user_id, email = %normalized, "bootstrap: promoted admin"),
             Ok(None) => {}
-            Err(err) => tracing::warn!(email = %normalized, error = %err, "bootstrap admin promotion failed"),
+            Err(err) => {
+                tracing::warn!(email = %normalized, error = %err, "bootstrap admin promotion failed")
+            }
         }
     }
 

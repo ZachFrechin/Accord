@@ -98,7 +98,14 @@ pub async fn update_my_profile(
         .ok_or_else(|| ApiError::Unauthorized("unknown user".to_string()))?;
     let profile = profile_repo::get(&state.db, caller.user_id).await?;
     Ok(Json(
-        build_dto(&state, caller.user_id, user.username.clone(), &user.role, profile).await?,
+        build_dto(
+            &state,
+            caller.user_id,
+            user.username.clone(),
+            &user.role,
+            profile,
+        )
+        .await?,
     ))
 }
 

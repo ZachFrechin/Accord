@@ -209,7 +209,9 @@ pub async fn list_friends(
                 let eff = presence_map.get(&row.other_id);
                 // Keep `presence` a bare status STRING (unchanged client contract);
                 // carry the custom text as a sibling (null when unset).
-                obj["presence"] = eff.map(|e| json!(e.status)).unwrap_or_else(|| json!("OFFLINE"));
+                obj["presence"] = eff
+                    .map(|e| json!(e.status))
+                    .unwrap_or_else(|| json!("OFFLINE"));
                 obj["status_text"] = json!(eff.and_then(|e| e.status_text.clone()));
                 friends.push(obj);
             }

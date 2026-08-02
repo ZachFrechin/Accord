@@ -98,7 +98,8 @@ pub async fn fetch_lol_rank(key: &str, platform: &str, puuid: &str) -> Result<Va
         return Err(ApiError::Validation("région LoL inconnue".to_string()));
     }
     let client = http()?;
-    let url = format!("https://{platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/{puuid}");
+    let url =
+        format!("https://{platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/{puuid}");
     let (status, body) = get_json(&client, &url, &[("X-Riot-Token", key)]).await?;
     match status {
         200 => Ok(lol_rank_payload(&body)),
@@ -108,12 +109,18 @@ pub async fn fetch_lol_rank(key: &str, platform: &str, puuid: &str) -> Result<Va
         429 => Err(ApiError::TooManyRequests(
             "limite Riot atteinte, réessayez dans un instant".to_string(),
         )),
-        _ => Err(ApiError::ServiceUnavailable(format!("Riot a répondu {status}"))),
+        _ => Err(ApiError::ServiceUnavailable(format!(
+            "Riot a répondu {status}"
+        ))),
     }
 }
 
 /// Résout un Riot ID « Nom#TAG » sur une plateforme et lit son rang.
-pub async fn link_lol(key: &str, riot_id: &str, platform: &str) -> Result<ResolvedAccount, ApiError> {
+pub async fn link_lol(
+    key: &str,
+    riot_id: &str,
+    platform: &str,
+) -> Result<ResolvedAccount, ApiError> {
     require_key(key, "LoL")?;
     let routing = lol_routing_for(platform)
         .ok_or_else(|| ApiError::Validation("région LoL inconnue".to_string()))?;
@@ -147,10 +154,16 @@ pub async fn link_lol(key: &str, riot_id: &str, platform: &str) -> Result<Resolv
                 "limite Riot atteinte, réessayez dans un instant".to_string(),
             ));
         }
-        _ => return Err(ApiError::ServiceUnavailable(format!("Riot a répondu {status}"))),
+        _ => {
+            return Err(ApiError::ServiceUnavailable(format!(
+                "Riot a répondu {status}"
+            )));
+        }
     };
     if puuid.is_empty() {
-        return Err(ApiError::ServiceUnavailable("réponse Riot inattendue".to_string()));
+        return Err(ApiError::ServiceUnavailable(
+            "réponse Riot inattendue".to_string(),
+        ));
     }
 
     let display = format!(
@@ -197,7 +210,9 @@ pub async fn fetch_faceit_rank(key: &str, player_id: &str) -> Result<Value, ApiE
         429 => Err(ApiError::TooManyRequests(
             "limite FACEIT atteinte, réessayez dans un instant".to_string(),
         )),
-        _ => Err(ApiError::ServiceUnavailable(format!("FACEIT a répondu {status}"))),
+        _ => Err(ApiError::ServiceUnavailable(format!(
+            "FACEIT a répondu {status}"
+        ))),
     }
 }
 
@@ -219,7 +234,9 @@ pub async fn link_faceit(key: &str, nickname: &str) -> Result<ResolvedAccount, A
         200 => {
             let player_id = body["player_id"].as_str().unwrap_or_default().to_string();
             if player_id.is_empty() {
-                return Err(ApiError::ServiceUnavailable("réponse FACEIT inattendue".to_string()));
+                return Err(ApiError::ServiceUnavailable(
+                    "réponse FACEIT inattendue".to_string(),
+                ));
             }
             let rank = faceit_rank_payload(&body)?;
             Ok(ResolvedAccount {
@@ -238,7 +255,9 @@ pub async fn link_faceit(key: &str, nickname: &str) -> Result<ResolvedAccount, A
         429 => Err(ApiError::TooManyRequests(
             "limite FACEIT atteinte, réessayez dans un instant".to_string(),
         )),
-        _ => Err(ApiError::ServiceUnavailable(format!("FACEIT a répondu {status}"))),
+        _ => Err(ApiError::ServiceUnavailable(format!(
+            "FACEIT a répondu {status}"
+        ))),
     }
 }
 

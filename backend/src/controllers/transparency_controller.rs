@@ -27,11 +27,16 @@ fn hex_all(hashes: &[Hash]) -> Vec<String> {
 
 /// `GET /transparency/sth` — the current Signed Tree Head: the tree size, its root,
 /// and a JWT signature over both (verifiable against `/.well-known/jwks.json`).
-pub async fn sth(State(state): State<AppState>, _caller: AuthUser) -> Result<Json<Value>, ApiError> {
+pub async fn sth(
+    State(state): State<AppState>,
+    _caller: AuthUser,
+) -> Result<Json<Value>, ApiError> {
     let log = MerkleLog::from_leaf_hashes(transparency_repo::all_leaf_hashes(&state.db).await?);
     let size = log.size() as u64;
     let root = HEXLOWER.encode(&log.root());
-    let sth = state.keyring.mint_sth(size, &root, Utc::now().timestamp())?;
+    let sth = state
+        .keyring
+        .mint_sth(size, &root, Utc::now().timestamp())?;
     Ok(Json(json!({ "tree_size": size, "root": root, "sth": sth })))
 }
 
@@ -49,7 +54,11 @@ pub async fn inclusion(
         .find(|k| k.device_id == device_id)
         .ok_or_else(|| ApiError::NotFound("no active key for this device".to_string()))?;
 
-    let leaf = hash_leaf(&binding_leaf(user_id.as_bytes(), &device_id, &key.public_key));
+    let leaf = hash_leaf(&binding_leaf(
+        user_id.as_bytes(),
+        &device_id,
+        &key.public_key,
+    ));
     let log = MerkleLog::from_leaf_hashes(transparency_repo::all_leaf_hashes(&state.db).await?);
     let index = log
         .index_of(&leaf)
@@ -89,7 +98,9 @@ pub async fn consistency(
     let current = leaves.len();
     let second = q.second.unwrap_or(current);
     if q.first == 0 || q.first > second || second > current {
-        return Err(ApiError::Validation("invalid first/second sizes".to_string()));
+        return Err(ApiError::Validation(
+            "invalid first/second sizes".to_string(),
+        ));
     }
     let tree = MerkleLog::from_leaf_hashes(leaves[..second].to_vec());
     let proof = tree

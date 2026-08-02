@@ -52,7 +52,13 @@ pub async fn request_upload(
     .await?;
 
     let key = storage::attachment_key(&body.conversation_id, &blob_id);
-    let upload_url = storage::presign(&state.config.storage, &state.config.storage.bucket, "PUT", &key, URL_EXPIRY_SECS);
+    let upload_url = storage::presign(
+        &state.config.storage,
+        &state.config.storage.bucket,
+        "PUT",
+        &key,
+        URL_EXPIRY_SECS,
+    );
     Ok(Json(json!({
         "blob_id": blob_id,
         "upload_url": upload_url,
@@ -75,7 +81,13 @@ pub async fn download_url(
     }
 
     let key = storage::attachment_key(&conversation_id, &blob_id);
-    let download_url = storage::presign(&state.config.storage, &state.config.storage.bucket, "GET", &key, URL_EXPIRY_SECS);
+    let download_url = storage::presign(
+        &state.config.storage,
+        &state.config.storage.bucket,
+        "GET",
+        &key,
+        URL_EXPIRY_SECS,
+    );
     Ok(Json(json!({
         "download_url": download_url,
         "expires_in": URL_EXPIRY_SECS,

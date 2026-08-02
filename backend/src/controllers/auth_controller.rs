@@ -555,7 +555,11 @@ pub async fn login_totp(
     // force a fresh password login (the per-user rate limit below bounds guesses).
     let user_id = match peek_mfa_challenge(&state, &req.challenge).await? {
         Some(id) => id,
-        None => return Err(ApiError::Unauthorized("invalid or expired challenge".to_string())),
+        None => {
+            return Err(ApiError::Unauthorized(
+                "invalid or expired challenge".to_string(),
+            ));
+        }
     };
 
     let lockout_key = format!("mfa:{user_id}");
@@ -581,8 +585,13 @@ pub async fn login_totp(
 
     // Success: consume the challenge single-use (a concurrent request loses the
     // GETDEL race and is rejected).
-    if consume_mfa_challenge(&state, &req.challenge).await?.is_none() {
-        return Err(ApiError::Unauthorized("invalid or expired challenge".to_string()));
+    if consume_mfa_challenge(&state, &req.challenge)
+        .await?
+        .is_none()
+    {
+        return Err(ApiError::Unauthorized(
+            "invalid or expired challenge".to_string(),
+        ));
     }
     let _ = rate_limit::clear_login_failures(&state.redis, &lockout_key).await;
 
@@ -867,11 +876,7 @@ fn totp_enc_key(state: &AppState) -> Vec<u8> {
 
 /// Verify a second-factor code: a valid TOTP for the confirmed secret, OR a
 /// one-time recovery code (consumed on match). Returns whether it passed.
-async fn verify_second_factor(
-    state: &AppState,
-    user: &User,
-    code: &str,
-) -> Result<bool, ApiError> {
+async fn verify_second_factor(state: &AppState, user: &User, code: &str) -> Result<bool, ApiError> {
     // TOTP.
     if let Some(row) = totp_repo::get(&state.db, user.id).await?
         && row.confirmed_at.is_some()
@@ -889,8 +894,7 @@ async fn verify_second_factor(
     // mistyped TOTP never triggers the Argon2-heavy per-code verify loop (a CPU
     // amplification vector). Recovery codes are 16 base32 chars, never 6 digits.
     let normalized = code.trim().to_uppercase().replace([' ', '-'], "");
-    let looks_like_totp =
-        normalized.len() == 6 && normalized.bytes().all(|b| b.is_ascii_digit());
+    let looks_like_totp = normalized.len() == 6 && normalized.bytes().all(|b| b.is_ascii_digit());
     if normalized.is_empty() || looks_like_totp {
         return Ok(false);
     }
@@ -923,7 +927,10 @@ async fn totp_mark_used(state: &AppState, user_id: Uuid, step: u64) -> Result<bo
 /// Redis key for an MFA challenge (keyed by the challenge's digest, never the
 /// plaintext).
 fn mfa_key(challenge: &str) -> String {
-    format!("mfa:chal:{}", hex::encode(secrets::sha256(challenge.as_bytes())))
+    format!(
+        "mfa:chal:{}",
+        hex::encode(secrets::sha256(challenge.as_bytes()))
+    )
 }
 
 async fn mfa_conn(state: &AppState) -> Result<redis::aio::MultiplexedConnection, ApiError> {
@@ -962,7 +969,10 @@ async fn peek_mfa_challenge(state: &AppState, challenge: &str) -> Result<Option<
 }
 
 /// Atomically read-and-delete a challenge (single-use).
-async fn consume_mfa_challenge(state: &AppState, challenge: &str) -> Result<Option<Uuid>, ApiError> {
+async fn consume_mfa_challenge(
+    state: &AppState,
+    challenge: &str,
+) -> Result<Option<Uuid>, ApiError> {
     let mut conn = mfa_conn(state).await?;
     let val: Option<String> = redis::cmd("GETDEL")
         .arg(mfa_key(challenge))

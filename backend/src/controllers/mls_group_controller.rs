@@ -32,7 +32,11 @@ fn decode_frame(b64: &str, what: &str) -> Result<Vec<u8>, ApiError> {
     Ok(bytes)
 }
 
-async fn require_member(state: &AppState, conversation_id: Uuid, user_id: Uuid) -> Result<(), ApiError> {
+async fn require_member(
+    state: &AppState,
+    conversation_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), ApiError> {
     if !conversation_repo::is_member(&state.db, conversation_id, user_id).await? {
         return Err(ApiError::Forbidden("not a member".to_string()));
     }
@@ -104,14 +108,9 @@ pub async fn commit(
     }
     let frame = decode_frame(&body.frame, "frame")?;
 
-    let outcome = mls_group_repo::submit_commit(
-        &state.db,
-        group_id,
-        body.epoch,
-        caller.user_id,
-        &frame,
-    )
-    .await?;
+    let outcome =
+        mls_group_repo::submit_commit(&state.db, group_id, body.epoch, caller.user_id, &frame)
+            .await?;
     let Some(order_seq) = outcome else {
         // Carry the authoritative epoch so a stuck client can see it is not
         // merely racing but diverged (its epoch never catches up).
@@ -125,10 +124,13 @@ pub async fn commit(
 
     for w in &body.welcomes {
         if w.device_id.is_empty() || w.device_id.len() > MAX_DEVICE_ID {
-            return Err(ApiError::Validation("invalid welcome device_id".to_string()));
+            return Err(ApiError::Validation(
+                "invalid welcome device_id".to_string(),
+            ));
         }
         let welcome = decode_frame(&w.welcome, "welcome")?;
-        mls_group_repo::store_welcome(&state.db, group_id, w.user_id, &w.device_id, &welcome).await?;
+        mls_group_repo::store_welcome(&state.db, group_id, w.user_id, &w.device_id, &welcome)
+            .await?;
     }
 
     fanout(&state, group_id, body.epoch, order_seq).await;
@@ -186,7 +188,9 @@ pub async fn frame(
     // protocol machinery, not someone talking). The 60s cooldown inside also
     // keeps op frames (reactions, edits) from farming XP.
     if body.content_type == "application" {
-        if let Err(e) = crate::repositories::xp_repo::award_message_xp(&state.db, caller.user_id).await {
+        if let Err(e) =
+            crate::repositories::xp_repo::award_message_xp(&state.db, caller.user_id).await
+        {
             tracing::warn!(error = %e, "mls xp grant failed");
         }
     }
