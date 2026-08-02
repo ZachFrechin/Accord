@@ -11,12 +11,16 @@ on:
       - "config/**"
       - "migrations/**"
       - ".github/workflows/backend.yml"
+      - ".trivyignore"
+      - "infra/backend.Dockerfile"
   pull_request:
     paths:
       - "backend/**"
       - "config/**"
       - "migrations/**"
       - ".github/workflows/backend.yml"
+      - ".trivyignore"
+      - "infra/backend.Dockerfile"
 
 # Cancel superseded runs on the same ref to save CI minutes.
 concurrency:
