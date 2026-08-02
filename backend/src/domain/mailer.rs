@@ -73,47 +73,59 @@ pub fn render(template: &str, recipient: &str, payload: &Value) -> EmailMessage 
             .to_string()
     };
     match template {
+        // Un code à recopier, pas un lien. Accord est une application de bureau
+        // et de téléphone : un lien cliqué ouvre un navigateur, qui n'a aucun
+        // moyen de rendre la main à l'application. Le lien envoyé jusqu'ici ne
+        // menait d'ailleurs nulle part — la route est en POST, l'ouvrir
+        // renvoyait une erreur 405. Il ne transportait que ce code.
         "verify_email" => {
-            let url = field("verify_url");
+            let token = field("token");
             let username = payload
                 .get("username")
                 .and_then(Value::as_str)
                 .unwrap_or("there");
             EmailMessage {
                 to: recipient.to_string(),
-                subject: "Confirm your Accord email".to_string(),
+                subject: "Votre code de confirmation Accord".to_string(),
                 text: format!(
-                    "Hi {username},\n\nConfirm your email address to activate your account:\n{url}\n\nThis link expires in 24 hours. If you didn't sign up, ignore this email."
+                    "Bonjour {username},\n\nVoici votre code de confirmation. Copiez-le et collez-le dans Accord :\n\n{token}\n\nIl expire dans 24 heures. Si vous n'avez pas créé de compte, ignorez ce message."
                 ),
                 html: format!(
-                    "<p>Hi {username},</p><p><a href=\"{url}\">Confirm your email address</a> to activate your account.</p><p>This link expires in 24 hours. If you didn't sign up, ignore this email.</p>"
+                    "<p>Bonjour {username},</p>\
+                     <p>Voici votre code de confirmation. Copiez-le et collez-le dans Accord&nbsp;:</p>\
+                     {}\
+                     <p>Il expire dans 24&nbsp;heures. Si vous n'avez pas créé de compte, ignorez ce message.</p>",
+                    code_block(&token)
                 ),
             }
         }
         "password_reset" => {
-            let url = field("reset_url");
+            let token = field("token");
             EmailMessage {
                 to: recipient.to_string(),
-                subject: "Reset your Accord password".to_string(),
+                subject: "Votre code de réinitialisation Accord".to_string(),
                 text: format!(
-                    "Reset your password:\n{url}\n\nThis link expires in 1 hour. If you didn't request this, you can safely ignore this email."
+                    "Voici votre code de réinitialisation. Copiez-le et collez-le dans Accord :\n\n{token}\n\nIl expire dans 1 heure. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message."
                 ),
                 html: format!(
-                    "<p><a href=\"{url}\">Reset your password</a>.</p><p>This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>"
+                    "<p>Voici votre code de réinitialisation. Copiez-le et collez-le dans Accord&nbsp;:</p>\
+                     {}\
+                     <p>Il expire dans 1&nbsp;heure. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.</p>",
+                    code_block(&token)
                 ),
             }
         }
         "account_exists" => EmailMessage {
             to: recipient.to_string(),
-            subject: "You already have an Accord account".to_string(),
-            text: "Someone tried to register with this email address, but you already have an account. Try signing in, or reset your password if you've forgotten it.".to_string(),
-            html: "<p>Someone tried to register with this email address, but you already have an account. Try signing in, or reset your password if you've forgotten it.</p>".to_string(),
+            subject: "Vous avez déjà un compte Accord".to_string(),
+            text: "Quelqu'un a tenté de créer un compte avec cette adresse, mais vous en avez déjà un. Connectez-vous, ou réinitialisez votre mot de passe si vous l'avez oublié.".to_string(),
+            html: "<p>Quelqu'un a tenté de créer un compte avec cette adresse, mais vous en avez déjà un. Connectez-vous, ou réinitialisez votre mot de passe si vous l'avez oublié.</p>".to_string(),
         },
         "security_alert" => EmailMessage {
             to: recipient.to_string(),
-            subject: "Your Accord password was changed".to_string(),
-            text: "Your password was just changed and all active sessions were signed out. If this wasn't you, reset your password immediately.".to_string(),
-            html: "<p>Your password was just changed and all active sessions were signed out.</p><p><strong>If this wasn't you, reset your password immediately.</strong></p>".to_string(),
+            subject: "Votre mot de passe Accord a été modifié".to_string(),
+            text: "Votre mot de passe vient d'être modifié et toutes vos sessions ont été déconnectées. Si vous n'êtes pas à l'origine de ce changement, réinitialisez-le immédiatement.".to_string(),
+            html: "<p>Votre mot de passe vient d'être modifié et toutes vos sessions ont été déconnectées.</p><p><strong>Si vous n'êtes pas à l'origine de ce changement, réinitialisez-le immédiatement.</strong></p>".to_string(),
         },
         other => EmailMessage {
             to: recipient.to_string(),
@@ -122,4 +134,21 @@ pub fn render(template: &str, recipient: &str, payload: &Value) -> EmailMessage 
             html: format!("<p>(unrecognized email template: {other})</p>"),
         },
     }
+}
+
+/// Encadre le code de façon qu'il se sélectionne d'un seul geste.
+///
+/// Un jeton fait 43 caractères : le recopier à la main est hors de question, et
+/// une sélection à la souris qui rate un caractère produit une erreur que rien
+/// n'explique à l'utilisateur. Tout est en style en ligne — les clients mail
+/// suppriment presque toujours les feuilles de style.
+fn code_block(token: &str) -> String {
+    format!(
+        "<p style=\"margin:24px 0\">\
+           <code style=\"display:inline-block;padding:14px 18px;border:1px solid #d0d5dd;\
+                        border-radius:8px;background:#f7f8fa;font-family:ui-monospace,\
+                        SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;\
+                        letter-spacing:0.5px;word-break:break-all;user-select:all\">{token}</code>\
+         </p>"
+    )
 }

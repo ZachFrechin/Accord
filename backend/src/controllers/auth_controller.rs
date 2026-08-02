@@ -229,16 +229,11 @@ pub async fn register(
             let expires = Utc::now() + Duration::hours(EMAIL_VERIFY_TTL_HOURS);
             verification_repo::create_email_verification(&state.db, user.id, &token_hash, expires)
                 .await?;
-            let link = format!(
-                "{}/auth/verify-email?token={}",
-                state.config.server.public_url.trim_end_matches('/'),
-                token
-            );
             verification_repo::enqueue_email(
                 &state.db,
                 &user.email,
                 "verify_email",
-                &json!({ "username": user.username, "verify_url": link }),
+                &json!({ "username": user.username, "token": token }),
             )
             .await?;
             tracing::info!(user_id = %user.id, "registered; verification email enqueued");
@@ -322,16 +317,11 @@ pub async fn resend_verification(
         let expires = Utc::now() + Duration::hours(EMAIL_VERIFY_TTL_HOURS);
         verification_repo::create_email_verification(&state.db, user.id, &token_hash, expires)
             .await?;
-        let link = format!(
-            "{}/auth/verify-email?token={}",
-            state.config.server.public_url.trim_end_matches('/'),
-            token
-        );
         verification_repo::enqueue_email(
             &state.db,
             &user.email,
             "verify_email",
-            &json!({ "username": user.username, "verify_url": link }),
+            &json!({ "username": user.username, "token": token }),
         )
         .await?;
         tracing::info!(user_id = %user.id, "verification email re-sent");
@@ -380,16 +370,11 @@ pub async fn password_reset_request(
         let token_hash = secrets::sha256(token.as_bytes());
         let expires = Utc::now() + Duration::hours(PASSWORD_RESET_TTL_HOURS);
         verification_repo::create_password_reset(&state.db, user.id, &token_hash, expires).await?;
-        let link = format!(
-            "{}/auth/password-reset/confirm?token={}",
-            state.config.server.public_url.trim_end_matches('/'),
-            token
-        );
         verification_repo::enqueue_email(
             &state.db,
             &user.email,
             "password_reset",
-            &json!({ "reset_url": link }),
+            &json!({ "token": token }),
         )
         .await?;
         tracing::info!(user_id = %user.id, "password reset requested; email enqueued");

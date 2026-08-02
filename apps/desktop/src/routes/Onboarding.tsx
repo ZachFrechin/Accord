@@ -53,7 +53,7 @@ export default function Onboarding() {
   const [email, setEmail] = useState("");
   const [signUpPw, setSignUpPw] = useState("");
   // Verification.
-  const [pastedLink, setPastedLink] = useState("");
+  const [pastedCode, setPastedCode] = useState("");
   const [resendBusy, setResendBusy] = useState(false);
   const [resent, setResent] = useState(false);
   const [pending, setPending] = useState<{ identifier: string; password: string }>({
@@ -159,9 +159,9 @@ export default function Onboarding() {
   async function onVerify(e: FormEvent): Promise<void> {
     e.preventDefault();
     setError("");
-    const token = extractToken(pastedLink);
+    const token = extractToken(pastedCode);
     if (!token) {
-      setError("Collez le lien de vérification (ou le jeton) reçu par e-mail.");
+      setError("Collez le code de confirmation reçu par e-mail.");
       return;
     }
     setBusy(true);
@@ -360,19 +360,19 @@ export default function Onboarding() {
           <form className="onboarding__form" onSubmit={onVerify}>
             <h1 className="onboarding__title">Vérifiez votre e-mail</h1>
             <p className="onboarding__lede">
-              Nous avons envoyé un lien de vérification à <strong>{pending.identifier}</strong>.
-              Ouvrez-le, ou collez le lien ici pour continuer.
+              Nous avons envoyé un code de confirmation à <strong>{pending.identifier}</strong>.
+              Copiez-le depuis votre boîte mail et collez-le ici.
             </p>
             <Field
-              label="Lien de vérification"
-              value={pastedLink}
-              onChange={(e) => setPastedLink(e.target.value)}
-              placeholder="https://…/auth/verify-email?token=…"
+              label="Code de confirmation"
+              value={pastedCode}
+              onChange={(e) => setPastedCode(e.target.value)}
+              placeholder="Collez le code reçu par e-mail"
               autoFocus
               spellCheck={false}
             />
             {error && <p className="onboarding__error">{error}</p>}
-            <Button type="submit" disabled={busy || !pastedLink.trim()}>
+            <Button type="submit" disabled={busy || !pastedCode.trim()}>
               {busy ? "Vérification…" : "Vérifier"}
             </Button>
             {resent ? (
