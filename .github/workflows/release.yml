@@ -1,199 +1,177 @@
-# Desktop release pipeline.
+# Pipeline de release du client de bureau.
 #
-# Tag `vX.Y.Z` → build on the self-hosted macOS and Windows machines, then
-# publish one GitHub Release carrying every installer plus `latest.json`, the
-# manifest the in-app updater polls.
+# Tag `vX.Y.Z` → build macOS et Windows sur les runners hébergés par GitHub, puis
+# une release portant les installeurs et `latest.json`, le manifeste que
+# l'updater interroge.
 #
-# The updater endpoint baked into the app is
-#   https://github.com/ZachFrechin/Accord/releases/latest/download/latest.json
-# which GitHub redirects to the newest release's asset — so the URL never has to
-# change again.
+# Les runners sont ceux de GitHub, pas les nôtres : sur un dépôt public ils sont
+# gratuits et sans limite de minutes, et ils fournissent un Windows — ce que le
+# pipeline GitLab d'origine ne pouvait obtenir qu'avec une machine à demeure.
 #
-# Linux is not built here: it needs a Docker runner, and none is registered. The
-# GitLab pipeline had the same gap; adding a `ubuntu-latest` job later is
-# straightforward, the release job already tolerates missing platforms.
+# L'updater vise https://github.com/ZachFrechin/Accord/releases/latest/download/latest.json
+# que GitHub redirige vers la release la plus récente : l'URL ne changera plus.
+#
+# Linux n'est pas construit : le client n'y a jamais été testé. Le job de
+# publication tolère l'absence d'une plateforme, l'ajouter ne demandera qu'une
+# ligne de plus dans la matrice.
 
 name: Release
 
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  # Rejouer une release sans re-tagger, quand seul le pipeline a échoué.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag à publier (ex. v0.15.0)"
+        required: true
 
 permissions:
-  contents: write # required to create the release and upload assets
+  contents: write # créer la release et y attacher les fichiers
 
 env:
   DESKTOP_DIR: apps/desktop
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # macOS — universal .dmg + the signed updater tarball.
-  # ---------------------------------------------------------------------------
-  macos:
-    runs-on: [self-hosted, macos-local]
+  build:
+    strategy:
+      # Une plateforme en échec ne doit pas emporter l'autre : mieux vaut
+      # publier un installeur que zéro.
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target universal-apple-darwin --bundles app,dmg
+            name: macos
+          - platform: windows-latest
+            args: --bundles msi,nsis
+            name: windows
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
-      - name: Resolve the updater signing key
-        shell: bash
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          # A Tauri signing key is ONE base64 line that decodes to an
-          # rsign/minisign secret key. The runner's key FILE wins when present —
-          # it is always exact, where a hand-pasted secret can pick up stray
-          # whitespace. Never build unsigned artifacts silently: an unsigned
-          # build installs fine and then can never update itself, which is
-          # discovered weeks later by users who are already stuck.
-          set -eu
-          keyfile="$HOME/.tauri/accord2-updater.key"
-          squash() { printf '%s' "$1" | tr -d ' \t\r\n'; }
-          if [ -f "$keyfile" ]; then
-            echo "TAURI_SIGNING_PRIVATE_KEY=$keyfile" >> "$GITHUB_ENV"
-            echo "signing key: runner file"
-          elif [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
-            cleaned="$(squash "$TAURI_SIGNING_PRIVATE_KEY")"
-            if printf '%s' "$cleaned" | LC_ALL=C grep -q '[^A-Za-z0-9+/=]'; then
-              echo "TAURI_SIGNING_PRIVATE_KEY contains non-base64 characters — paste the ONE-LINE content of ~/.tauri/accord2-updater.key exactly" >&2
-              exit 1
-            fi
-            # NO trailing newline: Tauri base64-decodes the whole file and a
-            # final \n breaks it with "Invalid symbol 10".
-            tmp="$(mktemp)"
-            printf '%s' "$cleaned" > "$tmp"
-            echo "TAURI_SIGNING_PRIVATE_KEY=$tmp" >> "$GITHUB_ENV"
-            echo "signing key: repository secret ($(printf '%s' "$cleaned" | wc -c | tr -d ' ') base64 chars)"
-          else
-            echo "missing updater signing key: no $keyfile and no TAURI_SIGNING_PRIVATE_KEY secret" >&2
-            exit 1
-          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
 
-      - name: Build
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Le runner macOS est en arm64 : la cible Intel doit être ajoutée pour que
+      # le binaire universel puisse être assemblé.
+      - name: Cibles Rust (macOS universel)
+        if: matrix.platform == 'macos-latest'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      # Sans cache, chaque release recompile OpenMLS et Tauri depuis zéro.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+          key: ${{ matrix.name }}
+
+      - name: Version et notes de version
         shell: bash
-        env:
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -eu
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
           cd "$DESKTOP_DIR"
           npm ci
-          # Refuses to build when the changelog has no entry for this version —
-          # the release notes come from it, so a missing entry means a release
-          # with nothing to say.
-          node scripts/ci-set-version.mjs "${GITHUB_REF_NAME#v}"
-          npm run tauri build -- --target universal-apple-darwin --bundles app,dmg
+          # Refuse de construire si le changelog n'a pas d'entrée pour cette
+          # version : les notes en sont tirées, et une release muette n'a aucun
+          # intérêt pour qui la reçoit.
+          node scripts/ci-set-version.mjs "${TAG#v}"
 
-      - name: Collect the artifacts
+      - name: Build
+        shell: bash
+        env:
+          # La clé de signature de l'updater. Sans elle, Tauri produit un
+          # installeur qui s'installe très bien puis ne peut plus jamais se
+          # mettre à jour — panne découverte des semaines plus tard, par des
+          # utilisateurs déjà coincés. On échoue donc franchement ici.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          ARGS: ${{ matrix.args }}
+        run: |
+          set -eu
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "secret TAURI_SIGNING_PRIVATE_KEY absent — la build ne serait pas mettable à jour" >&2
+            exit 1
+          fi
+          cd "$DESKTOP_DIR"
+          npm run tauri build -- $ARGS
+
+      - name: Rassembler les artefacts
         shell: bash
         run: |
           set -eu
-          root="$DESKTOP_DIR/src-tauri/target/universal-apple-darwin/release/bundle"
           mkdir -p dist
-          dmg="$(find "$root/dmg" -name '*.dmg' | head -1)"
-          tarball="$(find "$root/macos" -name '*.app.tar.gz' | head -1)"
-          sig="$(find "$root/macos" -name '*.app.tar.gz.sig' | head -1)"
-          [ -n "$dmg" ] || { echo "missing the macOS .dmg" >&2; exit 1; }
-          [ -n "$tarball" ] && [ -n "$sig" ] || { echo "missing the signed updater artifact" >&2; exit 1; }
-          cp "$dmg" "$tarball" "$sig" dist/
+          # Les chemins diffèrent (cible universelle côté macOS, native côté
+          # Windows) : on ratisse l'arbre des bundles plutôt que de coder deux
+          # arborescences en dur.
+          find "$DESKTOP_DIR/src-tauri/target" -path '*/release/bundle/*' \
+               \( -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' \
+                  -o -name '*.msi' -o -name '*-setup.exe' -o -name '*-setup.exe.sig' \) \
+               -exec cp {} dist/ \;
+          ls -l dist
+          [ -n "$(ls -A dist)" ] || { echo "aucun artefact produit" >&2; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos
+          name: ${{ matrix.name }}
           path: dist/
           retention-days: 7
 
-  # ---------------------------------------------------------------------------
-  # Windows — .msi + .exe, the .exe doubling as the updater payload.
-  # ---------------------------------------------------------------------------
-  windows:
-    runs-on: [self-hosted, windows-local]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build
-        shell: pwsh
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          $ErrorActionPreference = "Stop"
-          # This machine has no key file, so the secret is the only source. It
-          # must be the one-line base64 private key, written WITHOUT a trailing
-          # newline — Tauri decodes the whole file and a stray \n breaks it.
-          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
-            Write-Error "missing TAURI_SIGNING_PRIVATE_KEY secret — Windows cannot produce an updatable build"
-          }
-          $cleaned = ($env:TAURI_SIGNING_PRIVATE_KEY -replace '\s', '')
-          $tmp = [System.IO.Path]::GetTempFileName()
-          [System.IO.File]::WriteAllText($tmp, $cleaned)
-          $env:TAURI_SIGNING_PRIVATE_KEY = $tmp
-
-          Set-Location $env:DESKTOP_DIR
-          npm ci
-          node scripts/ci-set-version.mjs $($env:GITHUB_REF_NAME -replace '^v', '')
-          npm run tauri build -- --bundles msi,nsis
-
-      - name: Collect the artifacts
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $root = "$env:DESKTOP_DIR\src-tauri\target\release\bundle"
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          $wanted = @(
-            (Get-ChildItem "$root\msi"  -Filter *.msi     -ErrorAction SilentlyContinue | Select-Object -First 1),
-            (Get-ChildItem "$root\nsis" -Filter *.exe     -ErrorAction SilentlyContinue | Select-Object -First 1),
-            (Get-ChildItem "$root\nsis" -Filter *.exe.sig -ErrorAction SilentlyContinue | Select-Object -First 1)
-          )
-          if ($wanted -contains $null) { Write-Error "missing a Windows artifact (.msi / .exe / .exe.sig)" }
-          $wanted | ForEach-Object { Copy-Item $_.FullName dist\ }
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows
-          path: dist/
-          retention-days: 7
-
-  # ---------------------------------------------------------------------------
-  # Publish — one release, every installer, plus the updater manifest.
-  # ---------------------------------------------------------------------------
-  release:
-    needs: [macos, windows]
-    # `always()` so a release still goes out when one platform fails: half an
-    # update beats none, and the manifest below simply omits that platform.
+  publish:
+    needs: build
+    # `always()` : une plateforme en échec ne doit pas empêcher de publier
+    # l'autre. Le manifeste omet simplement la plateforme absente.
     if: always()
-    runs-on: [self-hosted, macos-local]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
-      - name: Build latest.json and publish
+      - name: Manifeste de mise à jour et publication
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
           set -eu
-          VERSION="${GITHUB_REF_NAME#v}"
-          BASE="https://github.com/$REPO/releases/download/$GITHUB_REF_NAME"
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          BASE="https://github.com/$REPO/releases/download/$TAG"
 
-          # Patch notes come from the in-app changelog — one source of truth, so
-          # what the release page says and what the app shows cannot drift.
+          # Les notes viennent du changelog affiché dans l'application : une
+          # seule source, donc la page de release et l'app ne peuvent pas
+          # raconter deux histoires différentes.
           NOTES="$(node "$DESKTOP_DIR/scripts/release-notes.mjs" "$VERSION")" \
-            || NOTES="Accord desktop $GITHUB_REF_NAME"
+            || NOTES="Accord desktop $TAG"
 
           cd artifacts
+          ls -l
           platforms='{}'
-          mac_tar="$(ls *.app.tar.gz 2>/dev/null | head -1 || true)"
-          win_exe="$(ls *-setup.exe 2>/dev/null | head -1 || true)"
-          [ -n "$win_exe" ] || win_exe="$(ls *.exe 2>/dev/null | grep -v '\.sig$' | head -1 || true)"
+          mac_tar="$(find . -name '*.app.tar.gz' -print -quit | sed 's|^\./||')"
+          win_exe="$(find . -name '*-setup.exe' -print -quit | sed 's|^\./||')"
 
-          # A platform enters the manifest only WITH its signature: an entry
-          # without one makes the updater reject the download at install time,
-          # which looks like a broken app rather than a missing signature.
+          # Une plateforme n'entre au manifeste qu'AVEC sa signature : une entrée
+          # sans signature fait rejeter le téléchargement à l'installation, ce
+          # qui ressemble à une application cassée plutôt qu'à une signature
+          # manquante.
           if [ -n "$mac_tar" ] && [ -f "$mac_tar.sig" ]; then
             platforms="$(jq -c --arg url "$BASE/$mac_tar" --arg sig "$(cat "$mac_tar.sig")" \
               '. + {"darwin-universal": {url: $url, signature: $sig}}' <<<"$platforms")"
@@ -209,18 +187,18 @@ jobs:
               --argjson platforms "$platforms" \
               '{version: $version, notes: $notes, pub_date: $pub_date, platforms: $platforms}' \
               > latest.json
-            echo "manifest covers: $(jq -r '.platforms | keys | join(", ")' latest.json)"
+            echo "manifeste : $(jq -r '.platforms | keys | join(", ")' latest.json)"
           else
-            echo "WARNING: no signed updater artifact — publishing installers only."
-            echo "Installed clients will NOT see this version."
+            echo "ATTENTION : aucun artefact signé — publication des installeurs seuls."
+            echo "Les clients déjà installés ne verront PAS cette version."
           fi
 
-          # The .sig files are build inputs, not downloads: their content is
-          # already inside latest.json.
+          # Les .sig sont des entrées de build, pas des téléchargements : leur
+          # contenu est déjà dans latest.json.
           rm -f ./*.sig
 
-          gh release create "$GITHUB_REF_NAME" \
+          gh release create "$TAG" \
             --repo "$REPO" \
-            --title "Accord $GITHUB_REF_NAME" \
-            --notes "$(printf '%s\n\n%s\n\nDownload an installer below. On first launch you will be asked for your Accord server address.' "Accord desktop $GITHUB_REF_NAME." "$NOTES")" \
+            --title "Accord $TAG" \
+            --notes "$(printf 'Accord desktop %s.\n\n%s\n\nTéléchargez un installeur ci-dessous. Au premier lancement, Accord vous demandera l'"'"'adresse de votre serveur.' "$TAG" "$NOTES")" \
             ./*
