@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE email_outbox SET status = 'sending'\n           WHERE id IN (\n               SELECT id FROM email_outbox\n               WHERE status = 'pending' AND next_attempt_at <= now()\n               ORDER BY next_attempt_at LIMIT $1 FOR UPDATE SKIP LOCKED\n           )\n           RETURNING id, recipient, template, payload::text AS \"payload!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "recipient",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "template",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "payload!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "7f285efacc298f87edd46062d39b87ea43049ca7e4e319cb62b0b9d299f49613"
+}

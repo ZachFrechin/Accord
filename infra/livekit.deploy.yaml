@@ -1,0 +1,15 @@
+# LiveKit config for the test-server deploy. The api key:secret is injected via the
+# LIVEKIT_KEYS env var in docker-compose.deploy.yml (kept in .env, never here).
+port: 7880
+
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  # Local test server (same host as the clients): false. For a REMOTE host that
+  # peers connect to over the internet, set this true so the SFU advertises its
+  # public IP for media (and open UDP 7882 / TCP 7881 on the firewall).
+  use_external_ip: false
+
+logging:
+  level: info
+  json: false

@@ -1,0 +1,87 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.id, m.sender_id, m.sender_device, m.ciphertext, m.body_nonce, m.created_at,\n                  m.edited_at, m.deleted_at, m.reply_to,\n                  mk.wrapped_key AS \"wrapped_key?\", mk.wrap_nonce AS \"wrap_nonce?\"\n           FROM messages m\n           LEFT JOIN message_keys mk\n             ON mk.message_id = m.id AND mk.recipient_user_id = $2 AND mk.recipient_device = $3\n           WHERE m.conversation_id = $1\n             AND ($4::timestamptz IS NULL OR (m.created_at, m.id) < ($4::timestamptz, $5::uuid))\n           ORDER BY m.created_at DESC, m.id DESC\n           LIMIT $6",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "sender_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "sender_device",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "ciphertext",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "body_nonce",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "edited_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "deleted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "reply_to",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "wrapped_key?",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 10,
+        "name": "wrap_nonce?",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Timestamptz",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "96b1bf42289ee94119a39266cdfe30edf6c4e94b6c586a2e16aeadd6ce2ff3da"
+}

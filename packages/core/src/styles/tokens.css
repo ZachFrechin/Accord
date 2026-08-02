@@ -1,0 +1,333 @@
+/* =============================================================================
+   Accord2 — Design tokens (3 levels)
+   -----------------------------------------------------------------------------
+   Level 1  PRIMITIVES  raw, theme-agnostic values (never referenced by markup)
+   Level 2  SEMANTIC    intent-named tokens (bg, text, accent, elevation, space)
+   Level 3  COMPONENT   component-scoped tokens derived from semantic tokens
+   -----------------------------------------------------------------------------
+   Theming: the semantic layer has a LIGHT default on :root. The DARK mapping is
+   applied both via :root[data-theme="dark"] (explicit toggle) and via
+   @media (prefers-color-scheme: dark) for :root:not([data-theme="light"])
+   (system preference). The explicit toggle always wins.
+   ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+   LEVEL 1 — PRIMITIVES
+   ------------------------------------------------------------------------- */
+:root {
+  /* Brand — "Clay" mint is the product identity; "Atelier" indigo + the other
+     bases remain selectable in the theme gallery. */
+  --clay-mint: #3ddc97; /* Clay accent (dark-first) */
+  --clay-mint-deep: #12a67c; /* Clay accent on light surfaces */
+  --atelier-indigo: #5b6cff; /* accent, light contexts */
+  --atelier-indigo-bright: #7c8cff; /* accent, dark contexts */
+  --phosphor: #5cb574; /* secure / online / good */
+  --ember: #d9a949; /* mentions / warn */
+  --crimson: #e05260; /* danger / destructive */
+  --ringing: #d99e5c; /* call ringing */
+
+  /* Clay claymorphic neutral ramp — warm green-black, dark-first. */
+  --clay-bg: #0b0f0e; /* app backdrop */
+  --clay-surface: #121917; /* panels */
+  --clay-surface-2: #1a2421; /* elevated / inset panels */
+  --clay-hover: #202d29; /* hover / active row */
+  --clay-line: rgba(255, 255, 255, 0.08); /* hairline borders */
+  --clay-text: #e8f0ec; /* primary text */
+  --clay-text-2: #b4c4bc; /* secondary text */
+  --clay-dim: #8a9a93; /* muted / meta text */
+
+  /* Zinc, cool-biased neutral ramp */
+  --zinc-50: #f7f8fa;
+  --zinc-100: #eceef2;
+  --zinc-150: #e2e5ec;
+  --zinc-200: #d3d7e0;
+  --zinc-300: #b6bcca;
+  --zinc-400: #8b93a7;
+  --zinc-500: #646c81;
+  --zinc-600: #4a5162;
+  --zinc-700: #363c4a;
+  --zinc-750: #2c313d;
+  --zinc-800: #23272f;
+  --zinc-850: #1b1e26;
+  --zinc-900: #14161c;
+  --zinc-950: #0d0f14;
+
+  --white: #ffffff;
+  --black: #000000;
+
+  /* Raw fallbacks for shadows (composed into semantic shadows below). */
+  --raw-shadow-color: 220 30% 8%;
+}
+
+/* ----------------------------------------------------------------------------
+   LEVEL 2 — SEMANTIC (light default)
+   ------------------------------------------------------------------------- */
+:root {
+  /* Accent (base "clay"). --accent may be overridden per theme-base. Mint is
+     light, so accent-contrast is the dark backdrop (dark text on mint). */
+  --accent: var(--clay-mint-deep);
+  --accent-hover: color-mix(in srgb, var(--accent) 88%, var(--black));
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-contrast: var(--clay-bg);
+  /* Accent used as SMALL TEXT must clear AA on light surfaces; mint-deep alone
+     (~3:1 on white) does not, so darken it. In dark it equals --accent. */
+  --accent-text: #067552;
+
+  /* Surfaces — warm, layered off-white (keeps the Clay identity in light, and
+     separates panels/bubbles from the app backdrop instead of near-matching it). */
+  --bg-app: #e7ece4;
+  --bg-surface: #f5f8f2;
+  --bg-elevated: var(--white);
+  --bg-inset: color-mix(in srgb, #d5ddcd 55%, transparent);
+
+  /* Text — warm near-neutral, not cool zinc. */
+  --text-1: #171d19;
+  --text-2: #4a544c;
+  --text-3: #5b655d;
+  --text-on-accent: var(--accent-contrast);
+  --author-name-l: 32%; /* per-user author-name lightness — dark enough for AA on light (incl. yellow-green hues) */
+
+  /* Lines & focus */
+  --border: color-mix(in srgb, #c2ccbb 72%, transparent);
+  --border-strong: #a7b1a2;
+  /* Scrollbars — themed + translucent (references --text-3, so it adapts). */
+  --scrollbar-thumb: color-mix(in srgb, var(--text-3) 42%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--text-3) 64%, transparent);
+  --focus-ring: var(--accent);
+  --overlay-scrim: color-mix(in srgb, var(--zinc-950) 42%, transparent);
+
+  /* Status */
+  --status-good: var(--phosphor);
+  --status-warn: var(--ember);
+  --status-danger: var(--crimson);
+  --call-speaking: var(--phosphor);
+  --call-danger: var(--crimson);
+  --call-ringing: var(--ringing);
+
+  /* Elevation — layered shadows */
+  --shadow-ambient: 0 1px 2px hsl(var(--raw-shadow-color) / 0.08);
+  --shadow-key: 0 6px 16px -4px hsl(var(--raw-shadow-color) / 0.14);
+  --shadow-modal: 0 24px 64px -12px hsl(var(--raw-shadow-color) / 0.28);
+  --elevation-1: var(--shadow-ambient);
+  --elevation-2: var(--shadow-ambient), var(--shadow-key);
+  --elevation-3: var(--shadow-modal);
+
+  /* Reading measure */
+  --measure: 68ch;
+
+  /* Typography — family stacks (see fonts.css for @font-face). Clay uses
+     Manrope for UI and Space Grotesk for display. */
+  --font-display: "Space Grotesk", "Manrope", system-ui, -apple-system, sans-serif;
+  --font-body: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+
+  /* Type scale (1.2 minor third, rem-based) */
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.7;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Radii — Clay claymorphic scale, each multiplied by the live --ui-radius-scale
+     so the customization panel can go from crisp to pillowy in one knob. */
+  --radius-xs: calc(4px * var(--ui-radius-scale, 1));
+  --radius-sm: calc(8px * var(--ui-radius-scale, 1));
+  --radius-md: calc(11px * var(--ui-radius-scale, 1));
+  --radius-lg: calc(14px * var(--ui-radius-scale, 1));
+  --radius-xl: calc(20px * var(--ui-radius-scale, 1));
+  --radius-pill: 999px;
+
+  /* Motion */
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Density — driven at runtime by applyLayout(); 1 = "cozy". */
+  --density-scale: 1;
+  --space-base: 4px;
+  --space-05: calc(var(--space-base) * 0.5 * var(--density-scale)); /* 2px @ cozy — hairline gaps */
+  --space-1: calc(var(--space-base) * 1 * var(--density-scale));
+  --space-2: calc(var(--space-base) * 2 * var(--density-scale));
+  --space-3: calc(var(--space-base) * 3 * var(--density-scale));
+  --space-4: calc(var(--space-base) * 4 * var(--density-scale));
+  --space-5: calc(var(--space-base) * 6 * var(--density-scale));
+  --space-6: calc(var(--space-base) * 8 * var(--density-scale));
+  --space-7: calc(var(--space-base) * 12 * var(--density-scale));
+  --space-8: calc(var(--space-base) * 16 * var(--density-scale));
+
+  /* Shell layout tracks — mirrored into JS by useLayoutStore/applyLayout. */
+  --rail-w: 64px;
+  --list-w: 288px;
+  --aside-w: 300px;
+  --titlebar-h: 40px;
+  --panel-gap: 10px;
+
+  /* --------------------------------------------------------------------------
+     CUSTOMIZATION — live-tunable knobs (Clay editor panel, F2). Components read
+     these so the FAB panel can retune the whole app by setting one var on :root.
+     ------------------------------------------------------------------------- */
+  /* Corner rounding multiplier (0.5 = tighter, 1.6 = pillowy claymorphic). */
+  --ui-radius-scale: 1;
+  /* Surface opacity 0–1: <1 lets the app background show through panels. */
+  --ui-surface-alpha: 1;
+  /* Backdrop blur applied to translucent surfaces (frosted glass). */
+  --ui-blur: 0px;
+  /* Accent glow strength on interactive/brand elements. */
+  --ui-glow: 0;
+  /* Message row vertical rhythm + bubble gap. */
+  --ui-msg-gap: 12px;
+  /* Rail/list ordering: 0 = rail-first (default), 1 = list-first. */
+  --nav-order: 0;
+
+  /* App background layer (F2 personalization: image / video / gradient). The
+     shell paints ::before with these; default is the flat Clay backdrop. */
+  --app-bg-image: none; /* url(...) or gradient for the image mode */
+  --app-bg-size: cover;
+  --app-bg-position: center;
+  --app-bg-overlay: transparent; /* scrim over media for legibility */
+
+  /* Region-glass surfaces: opaque by default (--region-alpha = 1), turning
+     translucent as the containing region's transparency is lowered. Because
+     var() resolves lazily, an element using these picks up the --region-alpha
+     inherited from its shell column. Inner surfaces (bubbles, cards, search,
+     rows…) use these so glass applies all the way down, not just the backdrop. */
+  --surface-glass: color-mix(in srgb, var(--bg-surface) calc(var(--region-alpha, 1) * 100%), transparent);
+  /* Conteneurs internes (héro du chat, cartes Réglages/Amis/Admin, lignes du
+     classement…) : leur PROPRE canal de transparence (--alpha-card, curseur
+     « Conteneurs »), indépendant des régions. */
+  --surface-card: color-mix(in srgb, var(--bg-surface) calc(var(--alpha-card, 1) * 100%), transparent);
+  --elevated-glass: color-mix(in srgb, var(--bg-elevated) calc(var(--region-alpha, 1) * 100%), transparent);
+  --inset-glass: color-mix(in srgb, var(--bg-inset) calc(var(--region-alpha, 1) * 100%), transparent);
+}
+
+/* Dark mapping — shared between explicit toggle and system preference.
+   NOTE: the block is duplicated (CSS cannot share a rule body across a
+   selector and a media query); keep the two copies in sync. */
+:root[data-theme="dark"] {
+  --accent: var(--clay-mint);
+  --accent-hover: color-mix(in srgb, var(--accent) 86%, var(--white));
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-contrast: var(--clay-bg);
+  --accent-text: var(--accent);
+
+  --bg-app: var(--clay-bg);
+  --bg-surface: var(--clay-surface);
+  --bg-elevated: var(--clay-surface-2);
+  --bg-inset: var(--clay-hover);
+
+  --text-1: var(--clay-text);
+  --text-2: var(--clay-text-2);
+  --text-3: var(--clay-dim);
+  --author-name-l: 66%;
+
+  --border: var(--clay-line);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --overlay-scrim: color-mix(in srgb, var(--black) 62%, transparent);
+
+  /* Soft claymorphic elevation — low-contrast ambient + a lifted key shadow. */
+  --raw-shadow-color: 160 30% 2%;
+  --shadow-ambient: 0 1px 2px hsl(var(--raw-shadow-color) / 0.45);
+  --shadow-key: 0 10px 30px -8px hsl(var(--raw-shadow-color) / 0.6);
+  --shadow-modal: 0 32px 80px -16px hsl(var(--raw-shadow-color) / 0.72);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --accent: var(--clay-mint);
+    --accent-hover: color-mix(in srgb, var(--accent) 86%, var(--white));
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+    --accent-contrast: var(--clay-bg);
+    --accent-text: var(--accent);
+
+    --bg-app: var(--clay-bg);
+    --bg-surface: color-mix(in srgb, var(--clay-surface) calc(var(--ui-surface-alpha) * 100%), transparent);
+    --bg-elevated: color-mix(in srgb, var(--clay-surface-2) calc(var(--ui-surface-alpha) * 100%), transparent);
+    --bg-inset: var(--clay-hover);
+
+    --text-1: var(--clay-text);
+    --text-2: var(--clay-text-2);
+    --text-3: var(--clay-dim);
+    --author-name-l: 66%;
+
+    --border: var(--clay-line);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --overlay-scrim: color-mix(in srgb, var(--black) 62%, transparent);
+
+    --raw-shadow-color: 160 30% 2%;
+    --shadow-ambient: 0 1px 2px hsl(var(--raw-shadow-color) / 0.45);
+    --shadow-key: 0 10px 30px -8px hsl(var(--raw-shadow-color) / 0.6);
+    --shadow-modal: 0 32px 80px -16px hsl(var(--raw-shadow-color) / 0.72);
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   LEVEL 3 — COMPONENT
+   Derived exclusively from semantic tokens so a theme change cascades for free.
+   ------------------------------------------------------------------------- */
+:root {
+  /* Button */
+  --btn-height: clamp(32px, calc(var(--space-base) * 9 * var(--density-scale)), 44px); /* ~36px @ cozy, floored so compact stays comfortable */
+  --btn-padding-x: var(--space-4);
+  --btn-radius: var(--radius-lg);
+  --btn-font-size: var(--text-md);
+  --btn-font-weight: var(--weight-semibold);
+  --btn-gap: var(--space-2);
+  --btn-primary-bg: var(--accent);
+  --btn-primary-bg-hover: var(--accent-hover);
+  --btn-primary-fg: var(--text-on-accent);
+  --btn-ghost-fg: var(--text-1);
+  --btn-ghost-bg-hover: var(--bg-inset);
+  --btn-danger-bg: var(--status-danger);
+  --btn-danger-fg: var(--white);
+
+  /* Input / field */
+  --input-height: clamp(32px, calc(var(--space-base) * 9 * var(--density-scale)), 44px); /* ~36px @ cozy, floored */
+  --input-padding-x: var(--space-4);
+  --input-radius: var(--radius-md);
+  --input-bg: var(--bg-surface);
+  --input-fg: var(--text-1);
+  --input-placeholder: var(--text-3);
+  --input-border: var(--border);
+  --input-border-hover: var(--border-strong);
+  --input-border-focus: var(--accent);
+  --input-invalid: var(--status-danger);
+  --input-font-size: var(--text-md);
+
+  /* Icon buttons + icon glyph sizes. Density-aware but CLAMPED — the glyph inside
+     is ~18px, so the button must never shrink below ~30px or the icon looks cramped
+     (compact density alone would drop it to ~24px). */
+  --icon-btn-sm: clamp(30px, calc(var(--space-base) * 8.5 * var(--density-scale)), 36px); /* ~34px @ cozy */
+  --icon-sm: 16px;
+  --icon-md: 18px;
+  --icon-lg: 22px;
+
+  /* Switch — geometry derived so it tracks density; thumb offset stays exact. */
+  --switch-h: calc(var(--space-base) * 6 * var(--density-scale)); /* ~24px @ cozy */
+  --switch-w: calc(var(--switch-h) * 1.75);
+  --switch-pad: 3px;
+  --switch-thumb: calc(var(--switch-h) - var(--switch-pad) * 2);
+  --switch-thumb-color: var(--white);
+
+  /* Slider */
+  --slider-row: calc(var(--space-base) * 5 * var(--density-scale)); /* ~20px @ cozy */
+  --slider-track: 4px;
+  --slider-thumb: calc(var(--space-base) * 5 * var(--density-scale)); /* ~20px drag target */
+
+  /* Messaging — the avatar/timestamp gutter column (matches the 40px message avatar). */
+  --msg-gutter-w: 40px;
+}

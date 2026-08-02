@@ -1,0 +1,14 @@
+{
+  "name": "@accord/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Logique partagée d'Accord — client API, temps réel, protocole MLS, stores. Consommée en TypeScript source par les applications desktop et mobile.",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "zod": "^4.4.0",
+    "zustand": "^5.0.0"
+  }
+}

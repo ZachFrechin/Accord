@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT kp_data FROM mls_key_packages WHERE user_id = $1 AND device_id = $2 AND last_resort LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "kp_data",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "105db399643bcadeffc1fb69e504f18ccca3e78902880470856133144ef8a011"
+}

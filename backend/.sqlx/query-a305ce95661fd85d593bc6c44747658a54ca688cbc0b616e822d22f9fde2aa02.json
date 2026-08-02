@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE user_totp SET confirmed_at = now()\n           WHERE user_id = $1 AND confirmed_at IS NULL\n           RETURNING user_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a305ce95661fd85d593bc6c44747658a54ca688cbc0b616e822d22f9fde2aa02"
+}

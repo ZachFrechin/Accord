@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE game_accounts SET rank_payload = $3, rank_updated_at = now()\n           WHERE user_id = $1 AND game = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "208da26122ef629c968ea7c39677869f6e1e297b6f34370c66e89c58f3b732b0"
+}

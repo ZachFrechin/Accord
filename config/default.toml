@@ -1,0 +1,57 @@
+# ============================================================================
+# Accord2 backend — configuration par defaut.
+#
+# Ces valeurs sont les defauts committes (safe pour du DEV local). Toute cle
+# est surchargeable par variable d'environnement avec le separateur '__' :
+#   SERVER__PORT=9000, DATABASE__URL=..., TELEMETRY__LOG_FORMAT=pretty, etc.
+# .env est charge par dotenvy au demarrage.
+#
+# REGLE: aucun secret reel n'est committe ici. Les identifiants Postgres
+# accord/accord sont ceux de la stack docker-compose.dev.yml (DEV uniquement) ;
+# en prod, DATABASE__URL est injecte via un secret.
+# ============================================================================
+
+[server]
+# Interface d'ecoute. 0.0.0.0 pour etre joignable en conteneur.
+host = "0.0.0.0"
+# Port HTTP de l'API.
+port = 8080
+# Origines autorisees par CORS (allowlist stricte — jamais permissive).
+# Origine du frontend Tauri en DEV (Vite).
+cors_allowed_origins = ["http://localhost:1420", "http://localhost:5173"]
+
+[database]
+# URL de connexion Postgres. DEV: pointe la stack docker-compose.dev.yml.
+# Surcharger via DATABASE__URL en prod (secret).
+url = "postgres://accord:accord@localhost:5432/accord"
+# Taille max du pool de connexions par replica.
+max_connections = 10
+
+[telemetry]
+# Endpoint OTLP gRPC du collector (traces/metrics/logs).
+otlp_endpoint = "http://localhost:4317"
+# Nom de service rapporte dans la telemetrie (resource.service.name).
+service_name = "accord-backend"
+# Format des logs stdout: "json" en prod, "pretty" en dev local.
+log_format = "json"
+
+[livekit]
+# SFU LiveKit (appels voix/video, Phase 4). Cle/secret partages avec
+# infra/livekit.yaml. DEV uniquement — surcharger via LIVEKIT__API_SECRET en prod.
+api_key = "accord_key"
+api_secret = "accord_dev_secret"
+# URL de signaling handee aux clients.
+url = "ws://localhost:7880"
+
+[push]
+# Notifications push mobiles. Compte de service Firebase PROPRE a chaque
+# instance — a fournir via PUSH__FCM_CREDENTIALS (le JSON lui-meme ou un
+# chemin vers le fichier), jamais commite. Vide = pas de push, rien ne casse.
+fcm_credentials = ""
+
+[games]
+# Integration jeux (rangs de profil). Cles PROPRES a chaque instance —
+# a fournir via GAMES__RIOT_API_KEY / GAMES__FACEIT_API_KEY (env), jamais
+# commitees. Vide = jeu « non configure » cote client, rien ne casse.
+riot_api_key = ""
+faceit_api_key = ""

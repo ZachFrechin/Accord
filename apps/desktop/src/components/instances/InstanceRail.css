@@ -1,0 +1,229 @@
+.instance-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  height: 100%;
+  padding: var(--space-1) 0;
+}
+
+/* Morphing brand blob (Clay signature). The base border-radius is an organic
+   blob shape so the logo is NEVER a bare square — even when the morph animation
+   is paused (reduced-motion / Windows "show animations" off). */
+.instance-rail__brand {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-radius: 42% 58% 55% 45% / 48% 42% 58% 52%;
+  animation: blob 8s ease-in-out infinite;
+  transition: filter var(--dur-fast) var(--ease-standard);
+}
+.instance-rail__brand:hover { filter: brightness(1.08); }
+
+.instance-rail__divider {
+  width: 24px;
+  height: 1px;
+  background: var(--border);
+  flex: none;
+}
+
+.instance-rail__item,
+.instance-rail__add,
+.instance-rail__nav {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: var(--radius-lg);
+  border: none;
+  background: var(--surface-glass);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    border-radius var(--dur-base) var(--ease-emphasized);
+}
+.instance-rail__item:hover,
+.instance-rail__add:hover,
+.instance-rail__nav:hover {
+  color: var(--text-1);
+  background: var(--bg-inset);
+  border-radius: var(--radius-md);
+}
+.instance-rail__item[data-active="true"] {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.instance-rail__add,
+.instance-rail__nav {
+  background: transparent;
+  color: var(--text-3);
+}
+
+/* Global-nav button pointing at the current route. */
+.instance-rail__nav {
+  position: relative;
+}
+.instance-rail__nav[data-active="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-radius: var(--radius-md);
+}
+/* Unread / pending badge (e.g. incoming friend requests). */
+.instance-rail__badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--status-danger, #e5484d);
+  color: #fff;
+  font-size: 10px;
+  font-weight: var(--weight-bold);
+  line-height: 1;
+}
+
+/* Unseen-changelog hint — a quiet accent dot (no count, unlike __badge). */
+.instance-rail__dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+.instance-rail__spacer { flex: 1; }
+
+.instance-rail__avatar {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  transition: box-shadow var(--dur-fast) var(--ease-standard);
+}
+.instance-rail__avatar:hover { box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* Presence / account popover (Discord-style user panel). */
+.presence-menu { display: flex; flex-direction: column; gap: var(--space-2); min-width: 224px; }
+.presence-menu__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.presence-menu__id { display: flex; flex-direction: column; min-width: 0; }
+.presence-menu__name {
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.presence-menu__sub {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.presence-menu__label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.presence-menu__status-input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  transition: border-color var(--dur-fast) var(--ease-standard);
+}
+.presence-menu__status-input:focus-visible { outline: none; border-color: var(--accent); }
+.presence-menu__status-input::placeholder { color: var(--text-3); }
+/* Auto-clear delay for the custom status — same field language, quieter text. */
+.presence-menu__duration {
+  width: 100%;
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+.presence-menu__duration:focus-visible { outline: none; border-color: var(--accent); }
+.presence-menu__options { display: flex; flex-direction: column; gap: var(--space-05); }
+.presence-menu__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.presence-menu__option:hover { background: var(--bg-inset); }
+.presence-menu__option[data-active="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: var(--weight-semibold);
+}
+.presence-menu__dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--text-3); }
+.presence-menu__dot[data-status="ONLINE"] { background: var(--status-good); }
+.presence-menu__dot[data-status="AWAY"] { background: var(--status-warn); }
+.presence-menu__dot[data-status="DND"] { background: var(--status-danger); }
+.presence-menu__sep { height: 1px; background: var(--border); margin: var(--space-1) 0; }
+.presence-menu__action {
+  width: 100%;
+  padding: var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+.presence-menu__action:hover { background: var(--bg-inset); color: var(--text-1); }

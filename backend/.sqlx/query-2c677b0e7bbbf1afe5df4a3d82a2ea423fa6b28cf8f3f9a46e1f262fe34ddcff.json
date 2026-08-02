@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE refresh_tokens SET used_at = now(), replaced_by = $2 WHERE id = $1 AND used_at IS NULL RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2c677b0e7bbbf1afe5df4a3d82a2ea423fa6b28cf8f3f9a46e1f262fe34ddcff"
+}

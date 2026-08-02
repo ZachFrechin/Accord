@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n             (CASE WHEN f.user_lo = $1 THEN f.user_hi ELSE f.user_lo END) AS \"other_id!\",\n             u.username AS \"username!\",\n             p.display_name AS \"display_name?\",\n             p.avatar_version AS \"avatar_version?\",\n             f.state AS \"state!\",\n             f.requested_by AS \"requested_by!\"\n           FROM friendships f\n           JOIN users u\n             ON u.id = (CASE WHEN f.user_lo = $1 THEN f.user_hi ELSE f.user_lo END)\n           LEFT JOIN user_profiles p ON p.user_id = u.id\n           WHERE f.user_lo = $1 OR f.user_hi = $1\n           ORDER BY u.username",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "other_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "username!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "display_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "avatar_version?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "state!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "requested_by!",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "088fcba228d17caa60737e4b1472f977d185def9e739c97f42d7729e8b07ddce"
+}

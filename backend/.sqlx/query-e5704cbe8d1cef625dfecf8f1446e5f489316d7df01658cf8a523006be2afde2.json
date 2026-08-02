@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id, c.kind, c.name, c.protocol, c.created_at,\n                  c.description, c.avatar_version,\n                  m.last_read_at,\n                  (SELECT count(*) FROM messages msg\n                     WHERE msg.conversation_id = c.id\n                       AND msg.deleted_at IS NULL\n                       AND msg.sender_id IS DISTINCT FROM $1\n                       AND (m.last_read_at IS NULL OR msg.created_at > m.last_read_at)\n                  ) AS \"unread!\"\n           FROM conversations c\n           JOIN conversation_members m ON m.conversation_id = c.id AND m.user_id = $1\n           ORDER BY c.created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "protocol",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "avatar_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "last_read_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "unread!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      null
+    ]
+  },
+  "hash": "e5704cbe8d1cef625dfecf8f1446e5f489316d7df01658cf8a523006be2afde2"
+}

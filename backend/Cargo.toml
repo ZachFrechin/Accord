@@ -1,0 +1,82 @@
+[package]
+name = "accord-backend"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+description = "Accord2 stateless encrypted-messenger backend — Phase 0 foundations (bootstrap, config, telemetry, health, graceful shutdown)."
+publish = false
+
+[[bin]]
+name = "accord-backend"
+path = "src/main.rs"
+
+[dependencies]
+# HTTP framework. `macros` for handler ergonomics; `ws`/`multipart` are pulled
+# in now so later phases (chat gateway, uploads) do not need a Cargo churn.
+axum = { version = "0.8", features = ["macros", "ws", "multipart"] }
+# Async runtime. `signal` powers graceful shutdown; `net` the TCP listener.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net"] }
+tower = "0.5"
+# Reusable middleware: tracing, request-id, CORS, timeout, panic-catcher.
+tower-http = { version = "0.6", features = ["trace", "request-id", "cors", "timeout", "catch-panic"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Layered configuration (file + env with `__` nesting separator).
+config = "0.15"
+dotenvy = "0.15"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+# OpenTelemetry bridge for `tracing` spans -> OTLP.
+tracing-opentelemetry = "0.28"
+opentelemetry = "0.27"
+opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic"] }
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+# Postgres access. The pool is created lazily so the API stays stateless and
+# boots even when the database is briefly unavailable.
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "migrate"] }
+# Redis — presence, distributed rate-limit and cache. A lazy client; connections
+# are opened on demand so a briefly-unavailable Redis never blocks boot.
+redis = { version = "0.27", features = ["tokio-comp"] }
+# NATS — cross-node realtime fan-out (one subscriber per node + local fan-out).
+# Connected with retry so a briefly-down broker does not prevent startup.
+async-nats = "0.38"
+# Realtime gateway plumbing: per-node subscription registry, stream combinators,
+# and a cancellation token for graceful WebSocket drain on shutdown.
+dashmap = "6"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+tokio-util = "0.7"
+# ── Auth core (Phase 1 · Lots 2+3) ───────────────────────────────────────────
+# Password hashing (Argon2id) — run on a blocking thread, never the async runtime.
+argon2 = "0.5"
+# JWT access tokens (EdDSA/Ed25519) + JWKS.
+jsonwebtoken = "9"
+# Ed25519 keypair generation (PKCS#8) for the dev-ephemeral signing key.
+ring = "0.17"
+# CSPRNG for opaque refresh tokens & recovery codes.
+rand = "0.8"
+# Hashing: SHA-256 (refresh/verification token digests) + SHA-1 (HIBP k-anonymity).
+sha2 = "0.10"
+sha1 = "0.10"
+# HMAC-SHA256 for S3 SigV4 presigned URLs (attachments, Lot 6).
+hmac = "0.12"
+# base32/base64url encoding (recovery codes, JWK public key).
+data-encoding = "2"
+hex = "0.4"
+# HIBP Pwned Passwords range API (k-anonymity) over HTTPS.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+urlencoding = "2"
+# Timestamps in DTOs and token claims.
+chrono = { version = "0.4", features = ["serde"] }
+# Unicode NFKC normalization of passwords (stable across platforms; the password
+# also seeds E2EE key derivation in a later phase).
+unicode-normalization = "0.1"
+# Transactional email over SMTP (config-driven relay: Mailpit in dev, any
+# provider's SMTP endpoint in prod). Async, rustls.
+lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
+
+[dev-dependencies]
+# Mock the HIBP range API in tests.
+wiremock = "0.6"

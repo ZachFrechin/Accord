@@ -1,0 +1,21 @@
+# ============================================================================
+# LiveKit — config self-host de DEV pour l'audio/video des appels.
+# Cle/secret de DEV uniquement (accord_key / accord_dev_secret) — a remplacer
+# par un secret injecte en prod. Le backend signe les tokens JWT avec ce couple.
+# ============================================================================
+
+port: 7880
+
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: false   # DEV local: pas de decouverte d'IP publique
+
+# Couple cle:secret partage avec le backend (LIVEKIT__API_KEY / _API_SECRET).
+# DEV UNIQUEMENT — surcharger via un secret en prod.
+keys:
+  accord_key: accord_dev_secret
+
+logging:
+  level: info
+  json: false

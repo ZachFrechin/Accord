@@ -1,0 +1,56 @@
+# ============================================================================
+# Grafana — provisioning des datasources d'observabilite Accord2 (DEV).
+# Cable les trois piliers avec correlation trace<->log<->metric:
+#   - Prometheus (metrics), datasource par defaut
+#   - Tempo (traces), avec traceToLogs vers Loki et metriques de service-graph
+#   - Loki (logs), avec derivedFields extrayant le trace_id -> Tempo
+# ============================================================================
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      httpMethod: POST
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      # Saut trace -> logs correles dans Loki.
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: -1h
+        spanEndTimeShift: 1h
+        filterByTraceID: true
+      # Saut trace -> metriques RED generees par le metrics_generator de Tempo.
+      tracesToMetrics:
+        datasourceUid: prometheus
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      # Extrait le trace_id des logs structures pour rebondir vers Tempo.
+      derivedFields:
+        - name: trace_id
+          matcherType: label
+          matcherRegex: trace_id
+          url: "$${__value.raw}"
+          datasourceUid: tempo

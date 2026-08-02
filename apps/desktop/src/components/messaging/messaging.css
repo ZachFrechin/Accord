@@ -1,0 +1,1599 @@
+/* Messaging UI — Clay look (matches the "Clay Chat App" mockup): Discord-style
+   grouped messages (colored author + dark surface bubbles), rich conversation
+   list, member presence panel, pill composer. Consumes semantic tokens so it
+   themes + personalizes with the design system. */
+
+/* ── Avatar ─────────────────────────────────────────────────────────────── */
+.avatar { position: relative; display: inline-flex; flex: none; }
+.avatar__disc {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--avatar-radius, 50%);
+  display: grid;
+  place-items: center;
+  color: var(--accent-contrast);
+  font-weight: var(--weight-bold);
+  font-family: var(--font-body);
+  user-select: none;
+}
+.msg__author-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+}
+.msg__author-btn:hover .msg__author {
+  text-decoration: underline;
+}
+.avatar__img {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--avatar-radius, 50%);
+  object-fit: cover;
+  background: var(--bg-inset);
+}
+.avatar__dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 32%;
+  height: 32%;
+  min-width: 9px;
+  min-height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-app);
+  background: var(--text-3);
+}
+.avatar__dot[data-status="ONLINE"] { background: var(--status-good); }
+.avatar__dot[data-status="AWAY"] { background: var(--status-warn); }
+.avatar__dot[data-status="DND"] { background: var(--status-danger); }
+
+/* ── Conversation list ──────────────────────────────────────────────────── */
+.conv-list { display: flex; flex-direction: column; gap: var(--space-3); height: 100%; }
+.conv-list__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) 0;
+}
+.conv-list__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.02em;
+  color: var(--text-1);
+}
+.conv-list__actions { display: flex; gap: var(--space-1); }
+
+/* Mint square "add" action button. */
+.conv-add {
+  width: var(--icon-btn-sm);
+  height: var(--icon-btn-sm);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: filter var(--dur-fast) var(--ease-standard), border-radius var(--dur-base) var(--ease-emphasized);
+}
+.conv-add:hover { filter: brightness(1.08); border-radius: var(--radius-lg); }
+
+/* Search field. */
+.conv-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--surface-glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  height: var(--input-height);
+  color: var(--text-3);
+}
+.conv-search:focus-within { border-color: var(--accent); }
+.conv-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-1);
+  font-size: var(--text-md);
+}
+.conv-search input::placeholder { color: var(--text-3); }
+
+/* Segmented filter (All / Groups / DMs). */
+.conv-filter {
+  display: flex;
+  gap: var(--space-1);
+  background: var(--surface-glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+}
+.conv-filter button {
+  flex: 1;
+  padding: var(--space-2) 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.conv-filter button:hover { color: var(--text-1); }
+.conv-filter button[data-active="true"] { background: var(--accent); color: var(--accent-contrast); }
+
+.conv-section {
+  margin-top: var(--space-2);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.conv-list__rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.conv-list__scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+
+/* Flat rows separated by a thin inset line; the "box" (rounded surface) only
+   materializes on hover and on the selected row. */
+.conv-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-1);
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+/* A real GAP between rows, with the separator centered inside it and inset
+   from the edges — the line never touches the hover/selection block anymore. */
+.conv-row-wrap + .conv-row-wrap { margin-top: 9px; }
+.conv-row-wrap + .conv-row-wrap::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: var(--space-3);
+  right: var(--space-3);
+  height: 1px;
+  /* Derived from text color, not --border: custom themes rendered the border
+     token nearly invisible and the whole flat-list change read as a no-op. */
+  background: color-mix(in srgb, var(--text-3) 24%, transparent);
+  pointer-events: none;
+}
+.conv-row:hover { background: var(--surface-glass); }
+/* Selection = a slim accent bar + faint tint, not a floating card (the flat
+   list keeps its rhythm; the row also stops reading as "boxed" from /friends). */
+.conv-row[data-active="true"] {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.conv-row[data-active="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+.conv-row { position: relative; }
+.conv-row--skeleton { pointer-events: none; }
+.conv-row__body { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+.conv-row__name { font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conv-row__meta { font-size: var(--text-xs); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.conv-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+
+/* Per-row "…" actions: hidden until the row is hovered/focused or its menu is
+   open, then it sits over the right edge (covering the unread badge). */
+.conv-row-wrap { position: relative; }
+.conv-row__menu {
+  position: absolute;
+  top: 50%;
+  right: var(--space-2);
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  color: var(--text-2);
+  background: var(--elevated-glass);
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+.conv-row-wrap:hover .conv-row__menu,
+.conv-row-wrap:focus-within .conv-row__menu,
+.conv-row__menu[data-state="open"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Chat pane ──────────────────────────────────────────────────────────── */
+.chat { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.chat__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--shell-border-w, 1px) solid var(--border);
+}
+.chat__head-main { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1; }
+.chat__head-text { display: flex; flex-direction: column; min-width: 0; }
+.chat__title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chat__subtitle { font-size: var(--text-xs); color: var(--text-3); }
+.chat__actions { display: flex; align-items: center; gap: var(--space-1); }
+.chat__action {
+  width: var(--icon-btn-sm); height: var(--icon-btn-sm);
+  display: grid; place-items: center;
+  border: none; background: transparent; color: var(--text-3);
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.chat__action:hover { background: var(--bg-surface); color: var(--text-1); }
+.chat__action[data-active="true"] { background: var(--accent-soft); color: var(--accent); }
+
+/* "Join the call in progress" pill — an accent affordance that stands in for the
+   audio/video buttons when the server reports a live call in this conversation. */
+.chat__join-call {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--icon-btn-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: var(--radius-pill, 999px);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard);
+}
+.chat__join-call:hover {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.chat__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-msg-gap);
+  padding: var(--space-4) var(--space-5);
+}
+.chat__older { align-self: center; margin-bottom: var(--space-2); }
+/* Unread divider — an accent hairline with a centered label, at the first message
+   that arrived after the read marker captured on open. */
+.chat__unread {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-2) 0;
+  color: var(--accent-text);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.chat__unread::before,
+.chat__unread::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.chat__unread span { flex: none; }
+.chat__typing { display: flex; align-items: center; gap: 5px; color: var(--text-3); font-size: var(--text-sm); padding: var(--space-1) var(--space-2); }
+.chat__typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); display: inline-block; animation: tdot 1.2s infinite; }
+.chat__typing i:nth-child(2) { animation-delay: .15s; }
+.chat__typing i:nth-child(3) { animation-delay: .3s; }
+.chat__loading { display: flex; flex-direction: column; gap: var(--space-4); }
+
+/* Conversation-start hero. */
+.chat__load-error {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+.chat__load-error p { margin: 0; }
+.chat__hero {
+  align-self: center;
+  max-width: 460px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  margin: var(--space-3) 0 var(--space-4);
+  background: var(--surface-card);
+  backdrop-filter: blur(var(--ui-blur));
+  -webkit-backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.chat__hero-title { font-family: var(--font-display); font-size: var(--text-xl); font-weight: var(--weight-bold); color: var(--text-1); }
+.chat__hero-sub { color: var(--text-3); font-size: var(--text-sm); }
+
+/* ── Messages (Discord-style grouped) ───────────────────────────────────── */
+.msg { display: flex; gap: var(--space-3); padding: 1px var(--space-1); }
+/* align-items MUST stay flex-start: the row stretches with tall content (images)
+   and a stretched <button> centers the avatar mid-message. */
+.msg__gutter { width: var(--msg-gutter-w); flex: none; display: flex; justify-content: center; align-items: flex-start; }
+.msg__time-gutter {
+  width: var(--msg-gutter-w); flex: none; font-size: var(--text-2xs); color: transparent;
+  text-align: center; padding-top: 4px;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+.msg[data-grouped="true"]:hover .msg__time-gutter { color: var(--text-3); }
+.msg__body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.msg__head { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+/* Per-user hue (set inline as --author-h), but lightness is theme-aware so the name
+   stays legible on light bubbles as well as dark. */
+.msg__author { font-weight: var(--weight-bold); font-size: var(--text-sm); color: hsl(var(--author-h, 0) 55% var(--author-name-l, 66%)); min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg__time { font-size: var(--text-xs); color: var(--text-3); }
+
+/* The bubble — dark surface, soft radius, NOT asymmetric. */
+.msg__bubble {
+  width: fit-content;
+  max-width: min(680px, 100%);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--msg-bubble-bg, var(--surface-glass));
+  backdrop-filter: blur(var(--ui-blur)) saturate(var(--glass-sat, 100%));
+  -webkit-backdrop-filter: blur(var(--ui-blur)) saturate(var(--glass-sat, 100%));
+  color: var(--text-1);
+  border: 1px solid var(--msg-bubble-border, var(--border));
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / var(--glass-edge-hi, 0));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: var(--leading-normal);
+}
+/* Flat style: NO container at all — no fill, border, frost, edge highlight, or side
+   padding. Just text on the wallpaper. (Bubble style keeps the surface above.) */
+:root[data-msg="flat"] .msg__bubble {
+  background: transparent;
+  border-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+/* Flat mode has no bubble, so the inter-bubble gap reads as a big empty space.
+   Tighten continuation lines; keep a new author block visually separated. */
+:root[data-msg="flat"] .chat__scroll { gap: 2px; }
+:root[data-msg="flat"] .msg[data-grouped="false"] { margin-top: var(--space-2); }
+.msg__edited { font-size: var(--text-xs); color: var(--text-3); margin-left: 6px; }
+.msg--system { padding-left: calc(var(--msg-gutter-w) + var(--space-3)); }
+.msg__deleted, .msg__locked { display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); font-style: italic; font-size: var(--text-sm); }
+/* Reveal driven by ONE piece of state (data-show), never by CSS :hover. In the
+   macOS WebView both React onMouseLeave AND CSS :hover fail to clear when the
+   layout shifts under a still pointer (adding a reaction grows the row) — WebKit
+   keeps the stale :hover, so two rows show their bar at once. A single activeMsgId
+   in ChatView (set by onMouseOver — movement-based, reliable) makes showing two
+   bars physically impossible; data-show is (row === activeMsgId) OR its picker
+   open. pointer-events gates clicks on a hidden bar. */
+/* display:none, NOT an opacity fade: macOS WKWebView leaves stale composited
+   layers behind opacity transitions in scrolled content, painting ghost copies
+   of the bar on rows the pointer left. A hidden bar must contribute ZERO paint
+   for the ghosts to be impossible. (Trade-off: no fade, instant show/hide.) */
+/* visibility, NOT display: the bar's space is ALWAYS reserved. A bar that
+   enters the flow on reveal steals row width (image attachments resize under
+   the pointer), and a display:none anchor has no rect, so the "more actions"
+   popover jumps to the window's top-left corner. Hidden-by-visibility still
+   paints NOTHING, so the macOS WKWebView ghost-layer bug (stale composited
+   copies left by opacity fades) stays impossible. */
+.msg__actions {
+  visibility: hidden;
+  display: inline-flex;
+  gap: 2px;
+  align-self: flex-start;
+}
+.msg__actions[data-show="true"] { visibility: visible; }
+/* Optimistic send states: a pending row is dimmed (in flight); a failed row shows
+   an inline error + retry. */
+.msg[data-status="pending"] .msg__bubble { opacity: 0.55; }
+.msg[data-status="failed"] .msg__bubble { opacity: 0.7; }
+.msg__failed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  color: var(--status-danger);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.msg__retry {
+  border: none;
+  background: transparent;
+  color: var(--status-danger);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+.msg__retry:hover { filter: brightness(1.15); }
+/* Tighter hit target for the per-message ⋯ menu (default IconButton is too big). */
+.icon-btn.msg__menu-btn { width: var(--icon-btn-sm); height: var(--icon-btn-sm); border-radius: var(--radius-sm); }
+.msg__menu { display: flex; flex-direction: column; }
+.msg__menu button { text-align: left; padding: var(--space-2); background: none; border: none; color: var(--text-1); cursor: pointer; border-radius: var(--radius-sm); }
+.msg__menu button:hover { background: var(--bg-inset); }
+.msg__menu-danger { color: var(--status-danger); }
+.msg__edit { display: flex; flex-direction: column; gap: var(--space-2); max-width: 680px; }
+.msg__edit-actions { display: flex; gap: var(--space-2); }
+
+/* Reaction chips — always visible under the bubble; the one you reacted with is
+   accented. Emoji here is message content (opted into); chrome stays SVG. */
+.msg__reactions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-1); }
+.msg__reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px var(--space-2) 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-glass);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+.msg__reaction:hover:not(:disabled) { border-color: var(--border-strong); }
+.msg__reaction:active:not(:disabled) { transform: scale(0.94); }
+.msg__reaction:disabled { cursor: default; }
+.msg__reaction[data-me="true"] {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent-text);
+}
+.msg__reaction-emoji { font-size: 0.95em; line-height: 1; }
+.msg__reaction-count { font-weight: var(--weight-medium); }
+
+/* Quick-reaction emoji picker (portalled popover). */
+.emoji-picker { padding: var(--space-2); }
+.emoji-picker__grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+.emoji-picker__btn {
+  /* Fill the grid cell exactly: a fixed-width button inside a 1fr cell sat
+     left-of-center, so the hover box looked shifted off the glyph. */
+  width: 100%;
+  aspect-ratio: 1;
+  height: auto;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-lg);
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+/* No hover transform: scaling under the cursor read as a misaligned box. */
+.emoji-picker__btn:hover { background: var(--bg-inset); }
+.emoji-picker__btn:active { transform: scale(0.94); }
+
+/* Reply quote — the small "replying to" header above a reply's bubble. Clickable
+   to jump to the parent. Works on both paths (legacy + MLS-in-envelope). */
+.msg__reply-quote {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: min(680px, 100%);
+  margin-bottom: 3px;
+  padding: 1px 8px 1px 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+.msg__reply-quote:hover { color: var(--text-2); }
+.msg__reply-icon { flex: none; opacity: 0.7; }
+.msg__reply-author { font-weight: var(--weight-bold); color: hsl(var(--author-h, 0) 55% var(--author-name-l, 66%)); flex: none; }
+.msg__reply-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* Brief highlight when jumped-to via a reply quote. */
+.msg[data-flash="true"] {
+  animation: msg-flash 1.2s var(--ease-standard);
+  border-radius: var(--radius-md);
+}
+@keyframes msg-flash {
+  0%, 60% { background: var(--accent-soft); }
+  100% { background: transparent; }
+}
+
+/* Composer reply bar — the armed "replying to" strip above the input. */
+.composer__reply {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-glass);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+.composer__reply-icon { flex: none; color: var(--text-3); }
+.composer__reply-label { flex: none; color: var(--text-3); }
+.composer__reply-author { font-weight: var(--weight-bold); color: hsl(var(--author-h, 0) 55% var(--author-name-l, 66%)); }
+.composer__reply-preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+.composer__reply-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.composer__reply-close:hover { background: var(--bg-inset); color: var(--text-1); }
+
+/* @mention highlight in rendered messages (the @token is text in the encrypted
+   body; this is client-side styling only). The mention addressing you is stronger. */
+.mention {
+  padding: 0 3px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: var(--weight-medium);
+}
+.mention[data-me="true"] {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* Composer @-autocomplete — floats above the input, members filtered by the token. */
+.mention-menu {
+  position: absolute;
+  bottom: 100%;
+  left: var(--space-5);
+  margin-bottom: var(--space-1);
+  min-width: 220px;
+  max-width: 320px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  backdrop-filter: blur(var(--ui-blur)) saturate(var(--glass-sat, 100%));
+  -webkit-backdrop-filter: blur(var(--ui-blur)) saturate(var(--glass-sat, 100%));
+  border: 1px solid var(--border);
+  box-shadow: var(--elevation-3);
+  z-index: 20;
+}
+.mention-menu__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  background: transparent;
+  color: var(--text-1);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--text-sm);
+}
+.mention-menu__row[data-selected="true"] { background: var(--accent-soft); }
+
+/* Clickable author avatar → profile popover. */
+.msg__avatar-btn {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  line-height: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+}
+.msg__avatar-btn:hover { transform: translateY(-1px); }
+.msg__avatar-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent); }
+
+/* Full profile view — the modal opened by clicking a person anywhere (avatar or
+   name, in chat or the members panel). A banner-topped card with the complete
+   profile: large avatar, name, presence, custom status, bio, primary action. */
+.profile-view {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, calc(100vw - 2 * var(--space-5)));
+  max-height: min(640px, calc(100vh - 2 * var(--space-6)));
+  overflow: hidden auto;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-xl);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--elevation-3), inset 0 1px 0 rgb(255 255 255 / var(--glass-edge-hi, 0));
+  animation: dialog-in var(--dur-base) var(--ease-emphasized);
+}
+.profile-view__close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-btn-sm);
+  height: var(--icon-btn-sm);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-app) 55%, transparent);
+  color: #fff;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.profile-view__close:hover { background: color-mix(in srgb, var(--bg-app) 80%, transparent); }
+.profile-view__banner {
+  height: 140px;
+  flex: none;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 55%, var(--bg-inset)),
+    color-mix(in srgb, var(--accent) 18%, var(--bg-inset))
+  );
+}
+.profile-view__banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.profile-view__body {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--space-5) var(--space-5);
+}
+.profile-view__avatar {
+  width: fit-content;
+  margin-top: -44px;
+  border-radius: var(--avatar-radius, 50%);
+  box-shadow: 0 0 0 5px var(--bg-elevated);
+}
+.profile-view__name {
+  margin: var(--space-3) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: 1.15;
+  color: hsl(var(--author-h, 0) 55% var(--author-name-l, 66%));
+  overflow-wrap: anywhere;
+}
+.profile-view__handle {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+.profile-view__presence {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  margin-top: var(--space-3);
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-pill, 999px);
+  background: var(--surface-glass);
+  border: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+.profile-view__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.profile-view__presence[data-status="ONLINE"] .profile-view__dot { background: var(--status-good); }
+.profile-view__presence[data-status="AWAY"] .profile-view__dot { background: var(--status-warn); }
+.profile-view__presence[data-status="DND"] .profile-view__dot { background: var(--status-danger); }
+.profile-view__custom {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+/* Key-transparency attestation badge (Phase 3 · Lot 6). */
+.profile-view__transparency {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  margin-top: var(--space-3);
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-pill, 999px);
+  border: 1px solid var(--border);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.profile-view__transparency[data-status="verified"] {
+  color: var(--status-good);
+  border-color: color-mix(in srgb, var(--status-good) 45%, transparent);
+  background: color-mix(in srgb, var(--status-good) 12%, transparent);
+}
+.profile-view__transparency[data-status="unverified"] {
+  color: var(--status-warn);
+  border-color: color-mix(in srgb, var(--status-warn) 45%, transparent);
+  background: color-mix(in srgb, var(--status-warn) 12%, transparent);
+}
+.profile-view__section {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.profile-view__section-label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.profile-view__bio {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.profile-view__bio--empty { color: var(--text-3); font-style: italic; }
+.profile-view__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard);
+}
+.profile-view__action:hover {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--elevated-glass);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.attachment:hover { border-color: var(--border-strong); }
+.attachment__size { color: var(--text-3); font-size: var(--text-xs); }
+
+/* ── Composer → Clay pill bar ───────────────────────────────────────────── */
+.composer { position: relative; padding: var(--space-3) var(--space-5) var(--space-4); }
+.composer__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: color-mix(in srgb, color-mix(in srgb, var(--accent) calc(var(--glass-tint, 0) * 22%), var(--bg-surface)) calc(var(--alpha-composer, 1) * 100%), transparent);
+  backdrop-filter: blur(var(--ui-blur)) saturate(var(--glass-sat, 100%));
+  -webkit-backdrop-filter: blur(var(--ui-blur)) saturate(var(--glass-sat, 100%));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / var(--glass-edge-hi, 0));
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-base) var(--ease-standard);
+}
+/* Focus draws a soft accent halo — the pill catches light as you write. */
+.composer__row:focus-within {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / var(--glass-edge-hi, 0)),
+    0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 6px 26px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.composer__btn {
+  width: var(--icon-btn-sm); height: var(--icon-btn-sm); flex: none;
+  display: grid; place-items: center;
+  padding: 0; line-height: 0; /* kill inline-svg baseline drift: hover box stays centered on the glyph */
+  border: none; background: transparent; color: var(--text-3);
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard);
+}
+.composer__btn:hover { color: var(--text-1); background: var(--bg-inset); }
+.composer__send {
+  width: var(--btn-height); height: var(--btn-height); flex: none;
+  display: grid; place-items: center;
+  border: none; background: var(--accent); color: var(--accent-contrast);
+  border-radius: var(--radius-md); cursor: pointer;
+  transition: filter var(--dur-fast) var(--ease-standard), border-radius var(--dur-base) var(--ease-emphasized);
+}
+.composer__send:hover:not(:disabled) { filter: brightness(1.08); border-radius: var(--radius-lg); }
+.composer__send:disabled { opacity: 0.45; cursor: default; }
+.composer .composer__input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  min-height: 22px;
+  max-height: 40vh;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--space-2) 0;
+  color: var(--text-1);
+}
+.composer .composer__input:hover,
+.composer .composer__input:focus,
+.composer .composer__input:focus-visible { border: none; outline: none; box-shadow: none; }
+.composer__files { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
+.composer__file { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 220px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 3px var(--space-2); font-size: var(--text-sm); }
+.composer__file button { background: none; border: none; cursor: pointer; color: var(--text-3); display: inline-flex; }
+
+/* ── Customize FAB ──────────────────────────────────────────────────────── */
+/* ── Friends dialog ─────────────────────────────────────────────────────── */
+.friends { display: flex; flex-direction: column; gap: var(--space-4); max-height: 60vh; overflow-y: auto; }
+.friends__add { display: flex; align-items: flex-end; gap: var(--space-2); }
+.friends__add .field { flex: 1; }
+.friends__section { display: flex; flex-direction: column; gap: var(--space-1); }
+.friends__section h4 { margin: 0 0 var(--space-1); color: var(--text-2); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.friends__section-head { display: flex; align-items: center; justify-content: space-between; }
+.friends__row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0; }
+.friends__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.friends__meta { color: var(--text-3); font-size: var(--text-xs); }
+.friends__empty {
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.friends__empty p { margin: 0; }
+.details__members-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+.details__members-error p { margin: 0; }
+.friends__check { width: 18px; height: 18px; flex: none; accent-color: var(--accent); cursor: pointer; }
+
+/* ── Members (aside) ────────────────────────────────────────────────────── */
+.details { display: flex; flex-direction: column; gap: var(--space-3); height: 100%; }
+.details--empty { color: var(--text-3); font-size: var(--text-sm); }
+.details__title { margin: 0; font-family: var(--font-display); font-size: var(--text-lg); font-weight: var(--weight-bold); color: var(--text-1); }
+.details__section-label {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+.details__member { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0; }
+.details__member-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+.details__member-trigger:hover .details__member-name { text-decoration: underline; }
+.details__member[data-offline="true"] { opacity: 0.5; }
+.details__member-body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.details__member-name { font-weight: var(--weight-semibold); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.details__member-status { font-size: var(--text-xs); color: var(--text-3); }
+.details__role { color: var(--accent-text); display: inline-flex; }
+.details__rename { display: flex; align-items: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+.details__mls { display: flex; flex-direction: column; gap: var(--space-2); }
+.details__mls-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--accent-text);
+}
+.details__mls-status--legacy { color: var(--text-3); font-weight: var(--weight-regular, 400); }
+
+/* Per-conversation notification mute. */
+.details__notif { display: flex; flex-direction: column; gap: var(--space-2); }
+.details__mute {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-glass);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.details__mute:hover { border-color: var(--border-strong); }
+.details__mute[data-muted="true"] { color: var(--text-3); }
+.details__mute[data-muted="true"] svg { opacity: 0.45; }
+
+/* Key verification (safety numbers). */
+.keyverif { display: flex; flex-direction: column; gap: var(--space-2); }
+.keyverif__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-glass);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.keyverif__badge:hover { border-color: var(--border-strong); }
+.keyverif__badge[data-status="verified"] {
+  color: var(--accent-text);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+}
+.keyverif__badge[data-status="changed"] {
+  color: var(--status-danger);
+  border-color: color-mix(in srgb, var(--status-danger) 45%, transparent);
+}
+.keyverif__panel { display: flex; flex-direction: column; gap: var(--space-4); }
+.keyverif__hint { margin: 0; font-size: var(--text-sm); color: var(--text-2); line-height: var(--leading-normal); }
+.keyverif__number {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  letter-spacing: 0.04em;
+  line-height: 1.9;
+  color: var(--text-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  text-align: center;
+  word-spacing: 0.35em;
+}
+.keyverif__warn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-danger);
+  line-height: var(--leading-normal);
+}
+.keyverif__warn svg { flex: none; margin-top: 2px; }
+.keyverif__actions { display: flex; justify-content: flex-end; }
+
+/* ── Pinned messages ───────────────────────────────────────────────────────── */
+/* Inline pin mark on a pinned bubble (sits after the text like (modifié)). */
+.msg__pin-mark {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 6px;
+  color: var(--accent-text);
+  opacity: 0.85;
+}
+
+/* Details panel: the pinned list — one jump-to row per pinned message. */
+.details__pins {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.details__pin {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard);
+}
+.details__pin:hover {
+  border-color: var(--border);
+  background: var(--surface-glass);
+}
+.details__pin svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent-text);
+}
+.details__pin-text {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ── Voice messages ────────────────────────────────────────────────────────── */
+.composer__recording {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+.composer__rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--status-danger, #e5484d);
+  animation: rec-pulse 1.2s ease-in-out infinite;
+}
+@keyframes rec-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.composer__rec-time { font-variant-numeric: tabular-nums; }
+.composer__rec-cancel {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.composer__rec-cancel:hover { color: var(--text-1); }
+.composer__btn[data-recording="true"] {
+  color: var(--status-danger, #e5484d);
+}
+.attachment__player {
+  max-width: 320px;
+  width: 100%;
+  height: 40px;
+  margin-top: var(--space-1);
+}
+
+/* ── Composer emoji picker (full, categorized) ─────────────────────────────── */
+.emoji-picker--full { padding: 0; }
+.emoji-picker__scroll {
+  width: 292px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.emoji-picker__title {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  padding: var(--space-1) var(--space-1) 2px;
+}
+.emoji-picker__btn { font-size: 17px; }
+
+/* ── Inline image attachments + lightbox ───────────────────────────────────── */
+/* The only visible box IS the image: chrome lives on the <img>, the button is
+   an invisible fit-content shell (no half-empty container around small or
+   narrow pictures). */
+.attachment__image-btn {
+  display: inline-block;
+  width: fit-content;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+  margin-top: var(--space-1);
+}
+.attachment__image {
+  display: block;
+  max-width: min(380px, 100%);
+  max-height: 300px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.attachment__image-loading { margin-top: var(--space-1); }
+.lightbox__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: 80;
+}
+.lightbox__content {
+  position: fixed;
+  inset: 0;
+  z-index: 81;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  outline: none;
+}
+.lightbox__title {
+  margin: 0;
+  color: #fff;
+  font-size: var(--text-sm);
+  opacity: 0.85;
+}
+.lightbox__img {
+  max-width: min(92vw, 1200px);
+  max-height: 78vh;
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+.lightbox__actions { display: flex; gap: var(--space-2); }
+
+/* ── Details media gallery ─────────────────────────────────────────────────── */
+.details__media { display: flex; flex-direction: column; gap: var(--space-2); }
+.details__media-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-3);
+}
+.details__media-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-1);
+}
+.details__thumb {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-inset);
+  cursor: pointer;
+}
+.details__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.details__thumb-ph {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-inset);
+}
+
+/* ── Forward dialog ────────────────────────────────────────────────────────── */
+.forward-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 81;
+  width: min(360px, 92vw);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface-raised, var(--bg-inset));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  outline: none;
+}
+.forward-dialog__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--text-1);
+}
+.forward-dialog__list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.forward-dialog__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  text-align: left;
+}
+.forward-dialog__row:hover:not(:disabled) { background: var(--bg-inset); }
+.forward-dialog__row:disabled { opacity: 0.5; cursor: default; }
+.forward-dialog__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.forward-dialog__hint { color: var(--text-3); font-size: var(--text-xs); }
+
+/* ── Link preview card (sender-generated, inside the encrypted envelope) ───── */
+.msg__link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  max-width: 420px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: var(--bg-inset);
+  cursor: pointer;
+}
+.msg__link-card:hover { border-color: var(--border-strong); }
+.msg__link-host {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  text-transform: lowercase;
+}
+.msg__link-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+}
+.msg__link-desc {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ── Group profile head (avatar + description) in the details panel ────────── */
+.details__group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.details__description {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* ── Pop-out window shell: just the conversation, native chrome above. */
+.popout {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── Threads (side panel + parent chip) ────────────────────────────────────── */
+.msg__thread-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-glass);
+  color: var(--accent-text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+.msg__thread-chip:hover { border-color: var(--border-strong); }
+.thread {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(340px, 86vw);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--bg-app);
+  box-shadow: -18px 0 40px rgba(0, 0, 0, 0.18);
+}
+.thread__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+.thread__title { font-weight: var(--weight-bold); font-size: var(--text-sm); color: var(--text-1); }
+.thread__parent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg-inset);
+}
+.thread__parent-author { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--accent-text); }
+.thread__parent-text { font-size: var(--text-sm); color: var(--text-2); overflow-wrap: anywhere; }
+.thread__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+.thread__empty { color: var(--text-3); font-size: var(--text-sm); margin: var(--space-2) 0; }
+.thread__msg { display: flex; flex-direction: column; gap: 1px; }
+.thread__msg-author { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--text-3); }
+.thread__msg-text { font-size: var(--text-sm); color: var(--text-1); overflow-wrap: anywhere; }
+.thread__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.thread__composer textarea { flex: 1; }
+
+/* Web dev shell: MLS needs the native engine — the composer says so. */
+.composer--web-blocked {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-content: center;
+  padding: var(--space-3);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+/* Per-contact ringtone picker (profile dialog). */
+.profile-view__ringtone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-3);
+}
+.profile-view__ringtone select {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+}
+
+/* Key-verification popover (chat header shield) + clickable friend rows. */
+.chat__keys-pop { width: 340px; max-width: 88vw; padding: var(--space-2); }
+.details__member--btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border-radius: var(--radius-md);
+}
+.details__member--btn:hover { background: var(--surface-glass); }
+.details__member-sub {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Twitter-style verified mark: keys attested by the transparency log. */
+.profile-view__verified {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 7px;
+  color: var(--accent);
+}
+
+/* Live activity: currently in a call. */
+.profile-view__activity {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.profile-view__activity-pulse {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--status-good);
+  animation: profile-pulse 1.6s ease-in-out infinite;
+}
+@keyframes profile-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
+}
+
+/* Niveau & rang in-app. */
+.profile-view__level { display: flex; align-items: center; gap: var(--space-3); }
+.profile-view__rank-img { height: 52px; width: auto; flex: none; object-fit: contain; }
+.profile-view__level-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.profile-view__level-line { font-size: var(--text-sm); color: var(--text-2); }
+.profile-view__level-line strong { color: var(--text-1); font-weight: var(--weight-bold); }
+.profile-view__level-bar {
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.profile-view__level-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width var(--dur-fast) var(--ease-standard);
+}
+.profile-view__level-sub { font-size: var(--text-2xs); color: var(--text-3); }
+
+/* Rangs de jeu liés. */
+.profile-view__games { display: flex; flex-direction: column; gap: var(--space-2); }
+.profile-view__game { display: flex; align-items: center; gap: var(--space-3); }
+.profile-view__game-emblem { height: 44px; width: 44px; object-fit: contain; flex: none; }
+.profile-view__game-emblem--empty { display: inline-block; background: var(--bg-inset); border-radius: 50%; }
+.profile-view__faceit,
+.games__faceit-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--faceit-c, var(--text-3));
+  color: var(--faceit-c, var(--text-3));
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-md);
+  background: var(--bg-inset);
+}
+.profile-view__game-body { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.profile-view__game-rank { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-1); }
+.profile-view__game-sub {
+  font-size: var(--text-2xs);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Instance role badges. */
+.profile-view__roles { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.profile-view__role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--role-c, var(--text-3)) 45%, transparent);
+  background: color-mix(in srgb, var(--role-c, var(--text-3)) 14%, transparent);
+  color: var(--text-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.profile-view__role-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--role-c, var(--text-3));
+}
+.profile-view__role--admin {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent-text);
+}

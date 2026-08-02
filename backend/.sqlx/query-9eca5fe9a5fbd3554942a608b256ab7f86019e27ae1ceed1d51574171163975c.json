@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO key_transparency_log (leaf_hash, user_id, device_id, public_key) VALUES ($1, $2, $3, $4) ON CONFLICT (leaf_hash) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Uuid",
+        "Text",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9eca5fe9a5fbd3554942a608b256ab7f86019e27ae1ceed1d51574171163975c"
+}

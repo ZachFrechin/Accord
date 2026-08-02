@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover : l'app dessine sous la barre d'état et la barre de
+         navigation gestuelle ; les encoches sont gérées par les safe-area. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
+    <title>Accord</title>
+    <script>document.documentElement.setAttribute("data-theme", "dark");</script>
+    <!-- Filet de diagnostic : sur un téléphone on n'a pas de console. Toute
+         erreur qui empêcherait le rendu s'affiche donc à l'écran. -->
+    <script>
+      (function () {
+        function show(what) {
+          var root = document.getElementById("root");
+          if (!root) return;
+          root.textContent = "";
+          var box = document.createElement("pre");
+          box.style.cssText =
+            "margin:0;padding:16px;font:12px/1.4 ui-monospace,monospace;" +
+            "white-space:pre-wrap;word-break:break-word;color:#f0616d;background:#160f10";
+          box.textContent = what;
+          root.appendChild(box);
+        }
+        window.addEventListener("error", function (e) {
+          show("ERREUR : " + (e.message || e.error) + "\n" + (e.filename || "") + ":" + (e.lineno || ""));
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          show("PROMESSE REJETÉE : " + (e.reason && e.reason.message ? e.reason.message : e.reason));
+        });
+        // Si React n'a rien monté au bout de 4 s, on le dit plutôt que d'afficher du blanc.
+        setTimeout(function () {
+          var root = document.getElementById("root");
+          if (root && root.childNodes.length === 0) show("Aucun rendu : le module principal ne s'est pas exécuté.");
+        }, 4000);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

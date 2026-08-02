@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO user_profiles (user_id, banner_version, updated_at)\n           VALUES ($1, $2, now())\n           ON CONFLICT (user_id) DO UPDATE\n           SET banner_version = EXCLUDED.banner_version, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e41e071f1b26af7d97a8635d6d6ac379d1736bcfd75e643001406377ea42d57d"
+}

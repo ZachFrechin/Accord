@@ -1,0 +1,37 @@
+[package]
+name = "accord-mobile"
+version = "0.1.0"
+description = "Client Accord pour Android"
+authors = ["Accord2"]
+edition = "2021"
+
+[lib]
+# `cdylib` est requis par Android : l'application Kotlin générée charge cette
+# bibliothèque native. `staticlib`/`rlib` gardent la parité avec le desktop.
+name = "accord_mobile_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Le moteur MLS partagé avec le desktop : aucune dépendance de plateforme, il
+# compile tel quel pour aarch64-linux-android.
+accord-mls = { path = "../../../crates/accord-mls" }
+
+# Ouvrir les liens des messages dans le navigateur du système (support Android).
+tauri-plugin-opener = "2"
+
+# Notifications système. Le desktop passe par des API natives par plateforme
+# (objc2 / winrt) ; sur Android le plugin officiel fait ce travail.
+tauri-plugin-notification = "2"
+
+# Volontairement ABSENTS ici, contrairement au desktop :
+#   - single-instance : la crate est vide sur Android (cfg(not(android))), son
+#     appel ne compilerait même pas ;
+#   - updater : non supporté sur Android (mise à jour par APK ou magasin) ;
+#   - process (redémarrage), keyring (aucun backend Android).

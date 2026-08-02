@@ -1,0 +1,51 @@
+# Frontend CI — Tauri 2 / React 19 / Vite 7 app in `apps/desktop`.
+# Runs on every push and pull request. Gates: install, TypeScript type-check,
+# Vitest unit tests, and a production web build.
+name: frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/frontend.yml"
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/frontend.yml"
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Type-check, test, and build the web frontend (Tauri Rust build is out of scope for P0 CI).
+  build:
+    name: tsc · vitest · build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Install dependencies (clean, lockfile-pinned)
+        run: npm ci
+
+      - name: Type-check (no emit)
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npx vitest run
+
+      - name: Production build
+        run: npm run build

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mls_groups SET order_seq = order_seq + 1 WHERE group_id = $1 RETURNING order_seq, current_epoch",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "order_seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "current_epoch",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ca1f75d21d2ae147da901abfbe8e9691ecfd8e588470bbded645236d17f1f036"
+}

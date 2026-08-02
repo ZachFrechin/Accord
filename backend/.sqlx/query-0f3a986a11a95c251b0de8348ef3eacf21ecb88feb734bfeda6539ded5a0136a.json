@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.user_id, u.username,\n                  p.display_name AS \"display_name?\", p.avatar_version AS \"avatar_version?\",\n                  m.role\n           FROM conversation_members m\n           JOIN users u ON u.id = m.user_id\n           LEFT JOIN user_profiles p ON p.user_id = m.user_id\n           WHERE m.conversation_id = $1 ORDER BY u.username",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "display_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "avatar_version?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "role",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "0f3a986a11a95c251b0de8348ef3eacf21ecb88feb734bfeda6539ded5a0136a"
+}

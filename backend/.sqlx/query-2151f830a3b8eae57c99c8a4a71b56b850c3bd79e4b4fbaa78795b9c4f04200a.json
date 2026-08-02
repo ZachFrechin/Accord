@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"count!\"\n           FROM users u\n           LEFT JOIN user_profiles p ON p.user_id = u.id\n           WHERE $1::text IS NULL\n              OR u.username ILIKE $1\n              OR u.email ILIKE $1\n              OR p.display_name ILIKE $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "2151f830a3b8eae57c99c8a4a71b56b850c3bd79e4b4fbaa78795b9c4f04200a"
+}

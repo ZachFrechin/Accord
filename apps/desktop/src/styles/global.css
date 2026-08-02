@@ -1,0 +1,164 @@
+/* =============================================================================
+   Accord2 — Global base styles
+   Imports the token layers, applies a light reset, and defines the ONE shared
+   focus treatment (outline, never box-shadow) used across every primitive.
+   ========================================================================== */
+
+@import "@accord/core/styles/fonts.css";
+@import "@accord/core/styles/tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* Root font size is customizable (base-size slider) — the rem type scale rides it. */
+html {
+  font-size: var(--root-fs, 16px);
+}
+
+body {
+  margin: 0;
+  background: var(--bg-app);
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-weight: var(--weight-user-base, 400);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  margin: 0;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--font-mono);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* ----------------------------------------------------------------------------
+   Focus — the single source of truth.
+   Every focusable element gets a 2px outline offset by 2px. We deliberately
+   never use box-shadow for focus so the ring survives Windows High Contrast /
+   forced-colors mode. :focus-visible keeps it to keyboard interaction.
+   ------------------------------------------------------------------------- */
+:where(a, button, select, [tabindex], [role="button"]):focus-visible,
+.focus-ring:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Text fields are deliberately EXCLUDED above: a 2px offset box floating around
+   a text input reads as a loud, ugly rectangle (and worse inside a wrapped
+   field). They show focus by their own hugging accent ring (.input/.textarea in
+   ui.css) or, when wrapped, by their container's :focus-within border. */
+
+/* Remove the default focus ring only when we are providing :focus-visible. */
+:where(a, button, input, textarea, select, [tabindex]):focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (forced-colors: active) {
+  :where(a, button, input, textarea, select, [tabindex]):focus-visible,
+  .focus-ring:focus-visible {
+    /* Honor the OS-chosen high-contrast focus color. */
+    outline-color: Highlight;
+  }
+}
+
+/* Respect reduced-motion for every transition/animation on the page. Note:
+   Windows' "show animations" being off makes WebView2 report `reduce`, so this
+   also fires there — hence the two exemptions below. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Keep the two SMALL, essential, non-vestibular loops running: the brand
+     identity blob and the "typing…" dots (which must read as live activity).
+     Class specificity beats the universal reset above. */
+  .instance-rail__brand {
+    animation-duration: 8s !important;
+    animation-iteration-count: infinite !important;
+  }
+  .chat__typing i {
+    animation-duration: 1.2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
+/* Scrollbars — themed, thin, translucent (the OS default renders white otherwise).
+   Firefox uses scrollbar-width/color; WebKit (Tauri) uses the ::-webkit rules. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Utility: visually-hidden but available to assistive tech. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+
+/* Contour du texte (réglage libre) : text-stroke hérite depuis body ; le
+   paint-order garde le remplissage AU-DESSUS du trait pour des glyphes nets. */
+:root[data-text-stroke="on"] body {
+  -webkit-text-stroke: var(--text-stroke-w, 0) var(--text-stroke-c, #000);
+}
+:root[data-text-stroke="on"] body,
+:root[data-text-stroke="on"] body * {
+  paint-order: stroke fill;
+}

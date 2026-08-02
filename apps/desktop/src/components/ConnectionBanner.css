@@ -1,0 +1,97 @@
+/* Slim fixed connection-status strip, just under the titlebar. */
+.conn-banner {
+  position: fixed;
+  top: var(--titlebar-h, 44px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: calc(100vw - var(--space-6));
+  padding: 6px var(--space-4);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: color-mix(in srgb, var(--status-warn, #d99a2b) 22%, var(--bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--status-warn, #d99a2b) 45%, var(--border));
+  border-top: none;
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  box-shadow: var(--elevation-2);
+  animation: conn-in var(--dur-base) var(--ease-emphasized);
+}
+.conn-banner__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-warn, #d99a2b);
+  flex: none;
+  animation: conn-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes conn-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+@keyframes conn-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Key-transparency alert — a full-width, sticky DANGER strip (a security warning,
+   not a transient status). Sits just under the titlebar, above everything. */
+.kt-banner {
+  position: fixed;
+  top: var(--titlebar-h, 44px);
+  left: 0;
+  right: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: color-mix(in srgb, var(--status-danger, #e5484d) 26%, var(--bg-elevated));
+  border-bottom: 1px solid color-mix(in srgb, var(--status-danger, #e5484d) 55%, var(--border));
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  box-shadow: var(--elevation-2);
+  animation: kt-in var(--dur-base) var(--ease-emphasized);
+}
+@keyframes kt-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.kt-banner__icon {
+  flex: none;
+  color: var(--status-danger, #e5484d);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conn-banner {
+    animation: none;
+  }
+  .conn-banner__dot {
+    animation: none;
+  }
+  .kt-banner {
+    animation: none;
+  }
+}

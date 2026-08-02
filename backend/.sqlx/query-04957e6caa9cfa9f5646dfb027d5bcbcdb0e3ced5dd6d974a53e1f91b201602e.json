@@ -1,0 +1,68 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            (SELECT count(*) FROM users)                               AS \"users_total!\",\n            (SELECT count(*) FROM users WHERE is_active)               AS \"users_active!\",\n            (SELECT count(*) FROM users WHERE disabled_at IS NOT NULL) AS \"users_disabled!\",\n            (SELECT count(*) FROM users WHERE role = 'admin')          AS \"admins!\",\n            (SELECT count(*) FROM conversations)                       AS \"conversations!\",\n            (SELECT count(*) FROM messages)                            AS \"messages!\",\n            (SELECT count(*) FROM attachments)                         AS \"attachments!\",\n            (SELECT coalesce(sum(size_bytes), 0) FROM attachments)::bigint AS \"attachment_bytes!\",\n            pg_database_size(current_database())                       AS \"db_bytes!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "users_total!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "users_active!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "users_disabled!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "admins!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "conversations!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "messages!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "attachments!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "attachment_bytes!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "db_bytes!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "04957e6caa9cfa9f5646dfb027d5bcbcdb0e3ced5dd6d974a53e1f91b201602e"
+}

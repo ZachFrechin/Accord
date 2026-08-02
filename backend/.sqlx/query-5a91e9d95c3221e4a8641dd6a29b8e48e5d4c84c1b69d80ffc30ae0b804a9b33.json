@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE refresh_tokens rt SET used_at = now() FROM sessions s WHERE rt.session_id = s.id AND s.user_id = $1 AND rt.used_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5a91e9d95c3221e4a8641dd6a29b8e48e5d4c84c1b69d80ffc30ae0b804a9b33"
+}

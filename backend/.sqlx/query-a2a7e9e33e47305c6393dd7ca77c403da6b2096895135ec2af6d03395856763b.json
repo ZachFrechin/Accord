@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id, a.actor_id, ua.username AS \"actor_username?\",\n                  a.action, a.target_id, ut.username AS \"target_username?\",\n                  a.detail, a.created_at\n           FROM audit_log a\n           LEFT JOIN users ua ON ua.id = a.actor_id\n           LEFT JOIN users ut ON ut.id = a.target_id\n           ORDER BY a.created_at DESC\n           LIMIT $1 OFFSET $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "actor_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "actor_username?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "action",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "target_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "target_username?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "detail",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a2a7e9e33e47305c6393dd7ca77c403da6b2096895135ec2af6d03395856763b"
+}

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO conversations (id, kind, dm_key, created_by, protocol) VALUES ($1, 'dm', $2, $3, 'mls') ON CONFLICT (dm_key) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5cfd6c1fe145a8c3806827f23dc3e13f212ed717c022961b05fe0d70278d0297"
+}

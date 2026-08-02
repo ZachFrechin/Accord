@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT game, external_id, external_name, region, rank_payload, rank_updated_at\n           FROM game_accounts WHERE user_id = $1 AND game = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "game",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "external_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "external_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "region",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "rank_payload",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
+        "name": "rank_updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "786dfbb3ce47baebc1e24666942a0ab4c3a7b6323d7d6643625ce19bf855c0cd"
+}

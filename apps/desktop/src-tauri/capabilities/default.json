@@ -1,0 +1,19 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main-window baseline: core APIs, including the titlebar drag region (start-dragging + double-click maximize).",
+  "windows": ["main", "popout-*"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-set-badge-count",
+    "core:window:allow-set-overlay-icon",
+    "core:window:allow-set-focus",
+    "core:webview:allow-create-webview-window",
+    "updater:default",
+    "process:allow-restart",
+    "deep-link:default",
+    "opener:default"
+  ]
+}

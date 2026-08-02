@@ -1,0 +1,41 @@
+/* =============================================================================
+   Accord2 — Web fonts
+   -----------------------------------------------------------------------------
+   Clay type system: Manrope (UI/body), Space Grotesk (display/brand), with
+   Inter + JetBrains Mono kept for the theme gallery's alternate typography.
+   Each family is a single latin variable .woff2 in src/assets/fonts/, so the
+   app renders identically in the browser and offline in Tauri (no CDN, no CSP
+   exception). Sourced from @fontsource-variable/*.
+   ========================================================================== */
+
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("../assets/fonts/manrope-variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("../assets/fonts/space-grotesk-variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../assets/fonts/inter-variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("../assets/fonts/jetbrains-mono-variable.woff2") format("woff2");
+}

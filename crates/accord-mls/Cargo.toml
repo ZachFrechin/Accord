@@ -1,0 +1,32 @@
+[package]
+name = "accord-mls"
+version = "0.1.0"
+description = "Moteur MLS (RFC 9420) d'Accord — partagé par les applications desktop et mobile"
+authors = ["Accord2"]
+edition = "2021"
+
+# Aucune dépendance de plateforme ici : le magasin de secrets est injecté par
+# l'application hôte (voir `secrets::init_secret_store`), ce qui permet à cette
+# crate de compiler telle quelle pour macOS, Windows, Linux et Android.
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+openmls = "0.8.1"
+openmls_rust_crypto = "0.5.1"
+openmls_basic_credential = "0.5.0"
+openmls_traits = "0.5.0"
+openmls_memory_storage = "0.5.0"
+tls_codec = "0.4.2"
+base64 = "0.22.1"
+
+# L'état MLS est persisté dans un fichier chiffré (le snapshot complet dépasse la
+# limite de taille du Credential Manager Windows). Seule la clé de 32 octets qui
+# l'enveloppe va au magasin de secrets. XChaCha20-Poly1305 accepte un nonce
+# aléatoire de 24 octets à chaque écriture.
+chacha20poly1305 = "0.10"
+getrandom = "0.2"
+
+# Test-only : le test MLS de bout en bout (`e2e`) pilote deux vrais appareils
+# contre le backend en HTTP. Sous `#[ignore]` + ACCORD_E2E=1.
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }

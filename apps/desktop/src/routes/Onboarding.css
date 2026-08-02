@@ -1,0 +1,75 @@
+.onboarding {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: var(--bg-app);
+  overflow: auto;
+}
+
+.onboarding__card {
+  width: 100%;
+  max-width: 30rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-3);
+  padding: var(--space-7);
+}
+
+.onboarding__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+.onboarding__mark {
+  color: var(--accent);
+  font-size: var(--text-xl);
+}
+.onboarding__wordmark {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.onboarding__form,
+.onboarding__subform {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.onboarding__subform {
+  margin-top: var(--space-4);
+}
+
+.onboarding__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  margin: 0;
+}
+.onboarding__lede {
+  color: var(--text-2);
+  font-size: var(--text-md);
+  margin: 0;
+}
+.onboarding__error {
+  color: var(--status-danger);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+.onboarding__codes {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-4);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  background: var(--bg-inset);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+}

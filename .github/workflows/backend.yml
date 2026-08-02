@@ -1,0 +1,151 @@
+# Backend CI — Rust/Axum crate `accord-backend`.
+# Runs on every push and pull request. Gates: format, lint (deny warnings),
+# tests, Docker image build, and a Trivy filesystem vulnerability scan.
+name: backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "config/**"
+      - "migrations/**"
+      - ".github/workflows/backend.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "config/**"
+      - "migrations/**"
+      - ".github/workflows/backend.yml"
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Fail the build on any warning surfaced by the compiler.
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # Lint + test gate: fmt check, clippy with warnings-as-errors, and unit tests.
+  check:
+    name: fmt · clippy · test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    # Compile the sqlx query macros against the committed `.sqlx/` metadata
+    # instead of a live database — the `sqlx` job below guards it against drift.
+    env:
+      SQLX_OFFLINE: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable + rustfmt + clippy)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Test
+        run: cargo test --all-features --locked
+
+  # Guards the committed `.sqlx/` offline metadata against schema drift: spins up
+  # Postgres, applies the migrations, and fails if `cargo sqlx prepare` would
+  # produce different query data than what's checked in.
+  sqlx:
+    name: sqlx offline data check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: accord
+          POSTGRES_PASSWORD: accord
+          POSTGRES_DB: accord
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U accord"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://accord:accord@localhost:5432/accord
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --version ^0.8 --no-default-features --features postgres,rustls --locked
+
+      - name: Apply migrations
+        run: sqlx migrate run --source ../migrations
+
+      - name: Verify .sqlx is up to date
+        run: cargo sqlx prepare --check -- --all-targets
+
+  # Build the production container image to ensure the Dockerfile stays green.
+  docker:
+    name: docker build
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          load: true
+          tags: accord-backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Supply-chain / dependency vulnerability scan of the repository sources.
+  trivy:
+    name: trivy fs scan
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          ignore-unfixed: true
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"

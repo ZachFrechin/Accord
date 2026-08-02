@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT secret_enc, confirmed_at FROM user_totp WHERE user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "secret_enc",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "confirmed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "b293e7272a090b930fbb522920da9a3031ff10835352f543d3b04867e3ce5d09"
+}

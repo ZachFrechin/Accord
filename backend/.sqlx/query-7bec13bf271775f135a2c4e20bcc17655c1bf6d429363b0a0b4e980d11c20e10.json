@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO push_devices (user_id, token, platform)\n        VALUES ($1, $2, $3)\n        ON CONFLICT (token) DO UPDATE\n          SET user_id = EXCLUDED.user_id,\n              platform = EXCLUDED.platform,\n              last_seen_at = now()\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7bec13bf271775f135a2c4e20bcc17655c1bf6d429363b0a0b4e980d11c20e10"
+}

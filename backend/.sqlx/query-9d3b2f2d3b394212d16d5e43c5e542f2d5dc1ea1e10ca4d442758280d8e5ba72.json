@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM mls_key_packages WHERE user_id = $1 AND device_id = $2 AND last_resort",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9d3b2f2d3b394212d16d5e43c5e542f2d5dc1ea1e10ca4d442758280d8e5ba72"
+}

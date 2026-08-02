@@ -1,0 +1,24 @@
+
+/* Onglets nombreux : la barre défile plutôt que d'écraser les libellés. */
+.seg--scroll { overflow-x: auto; scrollbar-width: none; }
+.seg--scroll::-webkit-scrollbar { display: none; }
+.seg--scroll button { flex: none; padding: 0 var(--space-3); white-space: nowrap; }
+
+/* ── Palette d'accents ─────────────────────────────────────────────────────── */
+.swatches { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.swatch {
+  width: 40px;
+  height: 40px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  padding: 0;
+}
+.swatch[data-active="true"] { border-color: var(--text-1); box-shadow: 0 0 0 2px var(--bg-app); }
+.swatch--reset { background: var(--bg-inset); color: var(--text-2); font-weight: var(--weight-bold); }
+
+.card input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+/* ── Notes de version ──────────────────────────────────────────────────────── */
+.note__title { font-family: var(--font-display); font-size: var(--text-lg); font-weight: var(--weight-bold); }
+.note__list { margin: 0; padding-left: var(--space-4); display: flex; flex-direction: column; gap: 6px; }
+.note__list li { font-size: var(--text-sm); color: var(--text-2); }

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO email_outbox (recipient, template, payload) VALUES ($1, $2, $3::text::jsonb)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e87ca04575e8f4642c3df75d2f7814fffd95c12e2ed2d6058638240dc4fd099b"
+}

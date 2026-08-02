@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- macOS permission usage strings, auto-merged into the bundle Info.plist by
+	     Tauri. Without these, WKWebView getUserMedia for the mic/camera is denied
+	     (and a release build is rejected). Voice/video calls are end-to-end
+	     encrypted — the server never sees the media. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Accord utilise le microphone pour les appels vocaux et vidéo, chiffrés de bout en bout.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Accord utilise la caméra pour les appels vidéo, chiffrés de bout en bout.</string>
+</dict>
+</plist>

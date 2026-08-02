@@ -1,0 +1,113 @@
+/* =============================================================================
+   Nouveautés — release timeline. Version pill + date in a left column, notes on
+   the right; technical (infra-only) releases render compact and muted.
+   ========================================================================== */
+
+.changelog {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.changelog__entry {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.changelog__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  position: sticky;
+  top: 0;
+}
+
+.changelog__version {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-radius: var(--radius-pill);
+  padding: 3px 12px;
+}
+
+.changelog__date {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+
+.changelog__chip,
+.changelog__installed {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  padding: 3px 10px;
+}
+
+.changelog__title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--text-1);
+  line-height: 1.2;
+}
+
+.changelog__notes {
+  margin: 0;
+  padding-left: 1.1em;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.changelog__notes li::marker {
+  color: var(--accent-text);
+}
+
+/* Infra-only releases: one quiet line, no display title treatment. */
+.changelog__entry[data-technical] {
+  gap: var(--space-5);
+}
+.changelog__entry[data-technical] .changelog__version {
+  color: var(--text-3);
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 2px 11px;
+}
+.changelog__entry[data-technical] .changelog__title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-3);
+  margin-bottom: var(--space-1);
+}
+.changelog__entry[data-technical] .changelog__notes {
+  color: var(--text-3);
+}
+.changelog__entry[data-technical] .changelog__notes li::marker {
+  color: var(--text-3);
+}
+
+@media (max-width: 640px) {
+  .changelog__entry {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+  .changelog__meta {
+    flex-direction: row;
+    align-items: center;
+    position: static;
+  }
+}

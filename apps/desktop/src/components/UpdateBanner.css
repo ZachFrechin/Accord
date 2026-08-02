@@ -1,0 +1,76 @@
+/* Update banner — accent-tinted strip under the titlebar (between the
+   connection banner z=80 and the transparency banner z=90). */
+.update-banner {
+  position: fixed;
+  top: var(--titlebar-h, 44px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 85;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: calc(100vw - var(--space-6));
+  padding: 6px var(--space-3) 6px var(--space-4);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-top: none;
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  box-shadow: var(--elevation-2);
+  animation: update-in var(--dur-base) var(--ease-emphasized);
+}
+.update-banner[data-phase="error"] {
+  background: color-mix(in srgb, var(--status-danger, #e5484d) 14%, var(--bg-elevated));
+  border-color: color-mix(in srgb, var(--status-danger, #e5484d) 45%, var(--border));
+}
+.update-banner__icon {
+  display: inline-flex;
+  color: var(--accent-text);
+}
+.update-banner__text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.update-banner__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.update-banner__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+.update-banner__close:hover {
+  background: var(--bg-inset);
+  color: var(--text-1);
+}
+
+@keyframes update-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-banner {
+    animation: none;
+  }
+}

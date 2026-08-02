@@ -1,0 +1,63 @@
+# ── Rust ──────────────────────────────────────────────────────────────
+/target
+/backend/target
+# .sqlx is intentionally tracked — required for sqlx offline mode in Docker/CI.
+# (do NOT add /.sqlx or backend/.sqlx here)
+
+# ── Node / frontend ───────────────────────────────────────────────────
+node_modules/
+apps/desktop/node_modules/
+dist/
+apps/desktop/dist/
+# Vite / test caches
+.vite/
+coverage/
+
+# ── Tauri ─────────────────────────────────────────────────────────────
+apps/desktop/src-tauri/target/
+# Artefacts de build des crates partagées (crates/*/target).
+crates/*/target/
+apps/desktop/src-tauri/gen/
+
+# ── Secrets & local env ───────────────────────────────────────────────
+# Never commit real secrets. .env.example is the tracked template.
+.env
+.env.*.local
+config/livekit.yaml
+infra/livekit.local.yaml
+
+# ── Fonts ─────────────────────────────────────────────────────────────
+# woff2 assets are part of the design system — KEEP them tracked.
+# (intentionally NOT ignoring *.woff2)
+
+# ── OS / editor cruft ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ── Local tooling sandboxes (not part of the project) ─────────────────
+.harness/
+.mavis/
+.opencode/
+.worktrees/
+.remember/
+# Projet Android généré par `tauri android init` (regénérable, contient des
+# artefacts Gradle) — seules les sources et la config de l'app sont suivies.
+apps/mobile/src-tauri/gen/android/
+apps/mobile/src-tauri/target/
+apps/mobile/dist/
+apps/mobile/node_modules/
+
+# Secrets d'intégration — jamais commités. Le compte de service Firebase permet
+# d'envoyer des push à TOUS les appareils de l'instance ; le fichier client
+# google-services.json est propre à chaque déploiement.
+google-service*.json
+*service-account*.json
+**/fcm-*.json
+
+# Répertoire de travail du runner GitLab local : il clone le dépôt DANS le
+# dépôt. Rien de tout cela n'a sa place dans l'historique.
+builds/

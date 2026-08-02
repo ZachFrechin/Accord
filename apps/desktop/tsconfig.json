@@ -1,0 +1,50 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    /* Le paquet partagé est consommé en source : ses imports tiers doivent
+       résoudre dans le node_modules de CETTE application, pas depuis son propre
+       dossier (TypeScript résout à partir de l'emplacement réel du fichier). */
+    "paths": {
+      "@accord/core/*": ["../../packages/core/src/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/*": ["./node_modules/@types/react-dom/*"],
+      "zod": ["./node_modules/zod"],
+      "zustand": ["./node_modules/zustand"],
+      "zustand/*": ["./node_modules/zustand/*"],
+      "@tauri-apps/api/*": ["./node_modules/@tauri-apps/api/*"],
+      "tweetnacl": ["./node_modules/tweetnacl"],
+      "livekit-client": ["./node_modules/livekit-client"],
+      "livekit-client/*": ["./node_modules/livekit-client/*"],
+      "vitest": ["./node_modules/vitest"]
+    },
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Strictness */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "verbatimModuleSyntax": true,
+
+    /* Types */
+    "types": ["vite/client", "vitest/globals"]
+  },
+  "include": ["src", "../../packages/core/src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

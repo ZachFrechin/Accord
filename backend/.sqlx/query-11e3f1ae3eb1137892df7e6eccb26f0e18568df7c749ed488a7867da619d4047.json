@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO conversations (id, kind, name, created_by, protocol) VALUES ($1, 'group', $2, $3, 'mls')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "11e3f1ae3eb1137892df7e6eccb26f0e18568df7c749ed488a7867da619d4047"
+}

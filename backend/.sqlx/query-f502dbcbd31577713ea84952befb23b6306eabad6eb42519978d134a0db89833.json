@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mls_groups (group_id) VALUES ($1) ON CONFLICT (group_id) DO UPDATE SET group_id = EXCLUDED.group_id RETURNING (xmax = 0) AS \"created!\", current_epoch, order_seq",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "created!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 1,
+        "name": "current_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "order_seq",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "f502dbcbd31577713ea84952befb23b6306eabad6eb42519978d134a0db89833"
+}

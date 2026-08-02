@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mls_key_packages (user_id, device_id, kp_ref, kp_data, last_resort) VALUES ($1, $2, $3, $4, true) ON CONFLICT (user_id, kp_ref) DO UPDATE SET kp_data = $4, last_resort = true, consumed_at = NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "49f3c3efe035063e9709552bd10c6658e05fa586f5e8f9036c751ecc4abdbaf5"
+}

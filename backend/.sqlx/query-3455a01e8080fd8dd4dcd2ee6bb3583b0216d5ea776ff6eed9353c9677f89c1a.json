@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT ux.user_id, u.username, p.display_name,\n                  coalesce(p.avatar_version, 0) AS \"avatar_version!\",\n                  ux.xp AS \"xp!\"\n           FROM user_xp ux\n           JOIN users u ON u.id = ux.user_id\n           LEFT JOIN user_profiles p ON p.user_id = ux.user_id\n           WHERE u.disabled_at IS NULL AND ux.xp > 0\n           ORDER BY ux.xp DESC, u.username\n           LIMIT $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "avatar_version!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "xp!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      null,
+      false
+    ]
+  },
+  "hash": "3455a01e8080fd8dd4dcd2ee6bb3583b0216d5ea776ff6eed9353c9677f89c1a"
+}

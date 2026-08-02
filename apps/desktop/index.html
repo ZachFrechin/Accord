@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Prevent a flash of the wrong theme: pick the persisted/system theme
+         before the app mounts. Kept tiny and dependency-free on purpose. -->
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem("accord.theme.v1");
+          var theme = "dark";
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            var name = parsed && parsed.state && parsed.state.document
+              ? parsed.state.document.name
+              : null;
+            if (name === "light" || name === "dark") theme = name;
+          } else if (window.matchMedia("(prefers-color-scheme: light)").matches) {
+            theme = "light";
+          }
+          document.documentElement.setAttribute("data-theme", theme);
+        } catch (_) {
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      })();
+    </script>
+    <title>Accord</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

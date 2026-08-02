@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT 1 FROM conversation_members m1 JOIN conversation_members m2 ON m1.conversation_id = m2.conversation_id WHERE m1.user_id = $1 AND m2.user_id = $2 LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "2c05bded0216f5931223d00b9a9afbf870b45f8694cc07a6fe3cc8cc5cf096b7"
+}

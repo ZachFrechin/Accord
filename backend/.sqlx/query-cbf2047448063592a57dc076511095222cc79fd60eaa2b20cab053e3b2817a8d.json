@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE conversation_members SET last_read_at = GREATEST(last_read_at, $3) WHERE conversation_id = $1 AND user_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cbf2047448063592a57dc076511095222cc79fd60eaa2b20cab053e3b2817a8d"
+}

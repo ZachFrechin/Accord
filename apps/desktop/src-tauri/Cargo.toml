@@ -1,0 +1,67 @@
+[package]
+name = "accord-desktop"
+version = "0.1.0"
+description = "Accord2 desktop client shell"
+authors = ["Accord2"]
+edition = "2021"
+
+[lib]
+# The `_lib` suffix keeps the lib name distinct from the bin name on Windows.
+name = "accord_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+# Test-only: the headless MLS end-to-end test (`mls::e2e`) drives two real devices
+# through the live backend over HTTP. Gated behind `#[ignore]` + ACCORD_E2E=1.
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+
+[dependencies]
+# image-png: decode the PNG bytes the frontend draws for the Windows taskbar
+# unread-overlay (Window::set_overlay_icon).
+tauri = { version = "2", features = ["image-png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22.1"
+
+# Le moteur MLS (RFC 9420) vit dans une crate partagée avec l'app mobile ; le
+# desktop n'apporte que le magasin de secrets de la plateforme (voir src/mls.rs).
+accord-mls = { path = "../../../crates/accord-mls" }
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+# accord:// invitation links. single-instance (with the deep-link feature)
+# forwards a second process's argv to the running app — without it, Windows
+# would open a duplicate Accord for every link click.
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+# Open message links in the system browser.
+tauri-plugin-opener = "2"
+# Sender-side link previews (src/link_preview.rs): the native side fetches the
+# page (the webview would be CORS-blocked) and extracts OG metadata.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+url = "2"
+
+# Refresh tokens live in the OS keychain, not the webview. `keyring` picks the
+# native secret store per platform; features are gated by target so each build
+# only pulls its own backend (no dbus/secret-service on macOS or Windows).
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+# Native notifications (src/notifications.rs): the UserNotifications framework
+# registers the app in System Settings, shows the real permission prompt, and
+# hands us notification clicks. notify-rust is the unbundled-dev fallback.
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-user-notifications = "0.3"
+block2 = "0.6"
+notify-rust = "4"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+# WinRT toasts with an activation (click) callback.
+tauri-winrt-notification = "0.7"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["sync-secret-service"] }
+notify-rust = "4"

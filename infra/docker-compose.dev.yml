@@ -1,0 +1,194 @@
+# ============================================================================
+# Accord2 — pile d'infra de DEV (databases + messaging + observabilite).
+#
+# Usage:
+#   docker compose -f infra/docker-compose.dev.yml up -d
+#
+# Ce fichier ne demarre QUE les dependances. Le backend tourne en dehors
+# (`cargo run`) et le frontend via `npm run tauri dev`. Le backend expose ses
+# traces/metrics/logs vers l'otel-collector (OTLP gRPC :4317) et son endpoint
+# /metrics est scrape par Prometheus via host.docker.internal.
+#
+# Identifiants Postgres de DEV uniquement (accord/accord). En prod, tout passe
+# par des secrets injectes en env — jamais committes ici.
+# ============================================================================
+
+name: accord2-dev
+
+services:
+  # ------------------------------------------------------------------ Postgres
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: accord
+      POSTGRES_PASSWORD: accord
+      POSTGRES_DB: accord
+    ports:
+      - "5432:5432"
+    volumes:
+      - accord-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U accord -d accord"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ------------------------------------------------------------------- Mailpit
+  # Dev SMTP sink: captures every outgoing email. SMTP on :1025 (EMAIL__SMTP_URL),
+  # web UI on http://localhost:8025 to read what the outbox worker delivered.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  # ---------------------------------------------------------------------- NATS
+  # JetStream active (-js) pour la persistance des streams (evenements, presence).
+  nats:
+    image: nats:2-alpine
+    restart: unless-stopped
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"   # client
+      - "8222:8222"   # monitoring HTTP
+    volumes:
+      - accord-nats-data:/data
+
+  # --------------------------------------------------------------------- Redis
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - accord-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # --------------------------------------------------------------------- MinIO
+  # Stockage objet S3-compatible pour les blobs chiffres (pieces jointes).
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: accord
+      MINIO_ROOT_PASSWORD: accord-dev-minio
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # console web
+    volumes:
+      - accord-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------- OTEL Collector
+  # Point d'entree unique de la telemetrie: recoit OTLP du backend puis
+  # fan-out vers Tempo (traces), Prometheus (metrics), Loki (logs).
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.0
+    restart: unless-stopped
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # exporter Prometheus (scrape par prometheus)
+    depends_on:
+      - tempo
+      - loki
+
+  # ---------------------------------------------------------------- Prometheus
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-remote-write-receiver"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - accord-prom-data:/prometheus
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      # Permet a Prometheus (dans le conteneur) de scraper le backend qui
+      # tourne sur l'hote (cargo run) via host.docker.internal:8080.
+      - "host.docker.internal:host-gateway"
+
+  # --------------------------------------------------------------------- Tempo
+  tempo:
+    image: grafana/tempo:2.7.0
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - accord-tempo-data:/var/tempo
+    ports:
+      - "3200:3200"   # API HTTP Tempo
+
+  # ---------------------------------------------------------------------- Loki
+  loki:
+    image: grafana/loki:3.3.2
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./loki.yaml:/etc/loki/loki.yaml:ro
+      - accord-loki-data:/loki
+    ports:
+      - "3100:3100"
+
+  # ------------------------------------------------------------------- Grafana
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - accord-grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+
+  # ------------------------------------------------------------------ LiveKit
+  # SFU self-host pour l'audio/video des appels de groupe.
+  livekit:
+    image: livekit/livekit-server:v1.13.3
+    restart: unless-stopped
+    command: ["--config", "/etc/livekit/livekit.yaml", "--node-ip", "127.0.0.1"]
+    volumes:
+      - ./livekit.yaml:/etc/livekit/livekit.yaml:ro
+    ports:
+      - "7880:7880"           # signaling WS/HTTP
+      - "7881:7881"           # RTC TCP
+      - "7882:7882/udp"       # RTC UDP mux
+    # Cle/secret de DEV uniquement — override par secret en prod.
+
+volumes:
+  accord-pg-data:
+  accord-nats-data:
+  accord-redis-data:
+  accord-minio-data:
+  accord-prom-data:
+  accord-tempo-data:
+  accord-loki-data:
+  accord-grafana-data:

@@ -1,0 +1,100 @@
+/* Security (2FA) modal content. The overlay/content/close/title chrome comes from
+   the shared Dialog primitive; these are the 2FA-specific inner styles. */
+.sec-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.sec-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sec-card__lede {
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  margin: 0;
+}
+.sec-card__error {
+  color: var(--status-danger);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+.sec-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.sec-qr {
+  align-self: center;
+  width: 180px;
+  height: 180px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  background: #fff; /* white quiet zone so the code scans in either theme */
+}
+.sec-qr svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.sec-secret {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--text-1) 6%, transparent);
+  border: 1px solid var(--border);
+}
+.sec-secret code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-sm);
+  letter-spacing: 0.06em;
+  color: var(--text-1);
+  word-break: break-all;
+}
+.sec-secret button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--accent-text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+.sec-uri {
+  font-size: var(--text-xs);
+  color: var(--accent-text);
+  text-decoration: none;
+}
+.sec-uri:hover {
+  text-decoration: underline;
+}
+.sec-codes {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-3);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px var(--space-4);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--text-1) 6%, transparent);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+  color: var(--text-1);
+}

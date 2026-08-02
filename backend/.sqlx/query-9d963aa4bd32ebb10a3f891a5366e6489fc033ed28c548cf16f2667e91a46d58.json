@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mls_key_packages (user_id, device_id, kp_ref, kp_data) SELECT $1, $2, r, d FROM UNNEST($3::bytea[], $4::bytea[]) AS t(r, d) ON CONFLICT (user_id, kp_ref) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "ByteaArray",
+        "ByteaArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9d963aa4bd32ebb10a3f891a5366e6489fc033ed28c548cf16f2667e91a46d58"
+}

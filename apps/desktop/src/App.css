@@ -1,0 +1,245 @@
+/* =============================================================================
+   Accord2 — Application shell (Clay: flush columns, hairline seams)
+   Rail | list | chat | members sit flush on the app backdrop, divided by
+   1px borders (Discord-like), NOT floating cards. Column tracks are driven by
+   --rail-w/--list-w/1fr/--aside-w (written by applyLayout).
+   ========================================================================== */
+
+.shell {
+  display: grid;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text-1);
+  /* List + aside compress under pressure (minmax floor 0) and the chat keeps a
+     usable floor, so a narrow window never collapses or overflows the chat. */
+  grid-template-columns:
+    var(--rail-w)
+    minmax(0, var(--list-w))
+    minmax(min(320px, 40%), 1fr)
+    minmax(0, var(--aside-w));
+  grid-template-rows: var(--titlebar-h) minmax(0, 1fr);
+  grid-template-areas:
+    "titlebar titlebar titlebar titlebar"
+    "rail     list     main     aside";
+  transition: grid-template-columns var(--dur-fast) var(--ease-standard);
+}
+
+.shell[data-resizing="true"] {
+  transition: none;
+}
+
+/* Route-aware aside: admin/settings/changelog don't use the member panel at
+   all — collapse the column entirely instead of showing dead content. */
+.shell[data-no-aside="true"] {
+  grid-template-columns:
+    var(--rail-w)
+    minmax(0, var(--list-w))
+    minmax(min(320px, 40%), 1fr)
+    0;
+}
+.shell[data-no-aside="true"] .shell__aside {
+  display: none;
+}
+
+/* Titlebar — slim strip; the window drag region rides on the
+   `data-tauri-drag-region` attribute (see ShellTitlebar), not CSS. */
+.shell__titlebar {
+  grid-area: titlebar;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  background: var(--bg-app);
+  border-bottom: var(--shell-border-w, 1px) solid var(--border);
+}
+/* macOS Overlay titlebar: the native traffic lights float over the top-left of
+   the client area — clear them. (data-platform is set at bootstrap, Tauri only.) */
+:root[data-platform="mac"] .shell__titlebar {
+  padding-left: 78px;
+}
+.shell__brand {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-md);
+  letter-spacing: -0.01em;
+  color: var(--text-2);
+}
+.shell__titlebar-spacer {
+  flex: 1;
+}
+
+/* Columns — flush, hairline-divided. */
+.shell__rail {
+  grid-area: rail;
+  overflow: hidden;
+  border-right: var(--shell-border-w, 1px) solid var(--border);
+  background: var(--bg-app);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+}
+.shell__list {
+  grid-area: list;
+  position: relative;
+  overflow: hidden auto;
+  border-right: var(--shell-border-w, 1px) solid var(--border);
+  background: var(--bg-app);
+  padding: var(--space-3);
+}
+.shell__main {
+  grid-area: main;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-app);
+  padding: 0;
+}
+.shell__aside {
+  grid-area: aside;
+  position: relative;
+  overflow: hidden auto;
+  border-left: var(--shell-border-w, 1px) solid var(--border);
+  background: var(--bg-app);
+  padding: var(--space-3);
+}
+
+.shell[data-rail="off"] .shell__rail { border-right: none; }
+.shell[data-aside="off"] .shell__aside { border-left: none; }
+
+/* Glass: panels are translucent (--ui-surface-alpha) frosted (--ui-blur) so the
+   app background shows through. At alpha 1 they are fully opaque (default look).
+   The chat (main) goes fully see-through so the wallpaper reads there, while the
+   side panels stay more opaque for legibility (they never fully dissolve).
+   Declared after the per-column rules so it wins. */
+/* Each column publishes its region alpha as --region-alpha, which its inner
+   surfaces (bubbles, cards, search, rows…) inherit — so a glassy region turns
+   glassy all the way down, not just its backdrop. */
+.shell__rail { --region-alpha: var(--alpha-rail, 1); }
+.shell__list,
+.shell__titlebar { --region-alpha: var(--alpha-list, 1); }
+.shell__main { --region-alpha: var(--alpha-main, 1); }
+.shell__aside { --region-alpha: var(--alpha-members, 1); }
+
+.shell__rail,
+.shell__list,
+.shell__titlebar,
+.shell__main,
+.shell__aside {
+  /* Resolve the glass surface tokens HERE (where --region-alpha is set) so the
+     region's alpha is baked in and inherits translucent to inner surfaces. If
+     these were on :root they'd bake --region-alpha=1 and stay opaque.
+     `--glass-tint` mixes the accent into the base colour (frosted glass picks up a
+     tint), then `--region-alpha` applies the translucency. */
+  --glass-surface: color-mix(in srgb, var(--accent) calc(var(--glass-tint, 0) * 22%), var(--bg-surface));
+  --glass-elevated: color-mix(in srgb, var(--accent) calc(var(--glass-tint, 0) * 22%), var(--bg-elevated));
+  --glass-inset: color-mix(in srgb, var(--accent) calc(var(--glass-tint, 0) * 18%), var(--bg-inset));
+  --glass-app: color-mix(in srgb, var(--accent) calc(var(--glass-tint, 0) * 14%), var(--bg-app));
+  --surface-glass: color-mix(in srgb, var(--glass-surface) calc(var(--region-alpha, 1) * 100%), transparent);
+  --elevated-glass: color-mix(in srgb, var(--glass-elevated) calc(var(--region-alpha, 1) * 100%), transparent);
+  --inset-glass: color-mix(in srgb, var(--glass-inset) calc(var(--region-alpha, 1) * 100%), transparent);
+  background: color-mix(in srgb, var(--glass-app) calc(var(--region-alpha, 1) * 100%), transparent);
+  backdrop-filter: blur(var(--ui-blur)) saturate(var(--glass-sat, 100%));
+  -webkit-backdrop-filter: blur(var(--ui-blur)) saturate(var(--glass-sat, 100%));
+}
+/* Depth: the rail frosts less than the panels (layering reads by blur, not just borders). */
+.shell__rail {
+  backdrop-filter: blur(var(--blur-rail, var(--ui-blur))) saturate(var(--glass-sat, 100%));
+  -webkit-backdrop-filter: blur(var(--blur-rail, var(--ui-blur))) saturate(var(--glass-sat, 100%));
+}
+/* Edge lighting: a specular top highlight on rounded glass surfaces. The strength
+   token is 0 by default and flips on with the glass "edge" toggle, so consumers just
+   append `inset 0 1px 0 rgb(255 255 255 / var(--glass-edge-hi))` to their shadow. */
+:root { --glass-edge-hi: 0; }
+:root[data-glass-edge="on"] { --glass-edge-hi: 0.22; }
+
+/* Frost grain: a faint noise veil over the whole UI (on the glass), toggled with
+   the glass "grain" option. Kills gradient banding + adds a tactile frost texture. */
+.app-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  transition: opacity var(--dur-base) var(--ease-standard);
+}
+:root[data-glass-grain="on"] .app-grain { opacity: 0.35; }
+@media (prefers-reduced-transparency: reduce) {
+  .app-grain { display: none; }
+}
+
+/* Navigation side: mirror the columns so rail + list sit on the right. */
+:root[data-nav="right"] .shell {
+  grid-template-columns:
+    minmax(0, var(--aside-w))
+    minmax(min(320px, 40%), 1fr)
+    minmax(0, var(--list-w))
+    var(--rail-w);
+  grid-template-areas:
+    "titlebar titlebar titlebar titlebar"
+    "aside    main     list     rail";
+}
+:root[data-nav="right"] .shell__rail { border-right: none; border-left: var(--shell-border-w, 1px) solid var(--border); }
+:root[data-nav="right"] .shell__list { border-right: none; border-left: var(--shell-border-w, 1px) solid var(--border); }
+:root[data-nav="right"] .shell__aside { border-left: none; border-right: var(--shell-border-w, 1px) solid var(--border); }
+
+/* ----------------------------------------------------------------------------
+   Resize handles — thin invisible hit target straddling the panel edge.
+   ------------------------------------------------------------------------- */
+.resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  right: -5px;
+  cursor: col-resize;
+  z-index: 5;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+.resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.resize-handle:hover::after,
+.resize-handle[data-dragging="true"]::after {
+  background: var(--accent);
+}
+.resize-handle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+/* ----------------------------------------------------------------------------
+   Clay keyframes (from the mockup): morphing brand blob, typing dots, entrances.
+   ------------------------------------------------------------------------- */
+@keyframes blob {
+  0%, 100% { border-radius: 42% 58% 55% 45% / 48% 42% 58% 52%; }
+  50% { border-radius: 60% 40% 42% 58% / 56% 58% 42% 44%; }
+}
+@keyframes tdot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ring {
+  0% { box-shadow: 0 0 0 0 var(--accent-soft); }
+  70% { box-shadow: 0 0 0 12px rgba(0, 0, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+}

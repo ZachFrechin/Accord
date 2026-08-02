@@ -1,0 +1,40 @@
+/* Calque de fond de l'application (uni, dégradé, image ou vidéo).
+   Partagé par le bureau et le mobile : le même réglage doit produire le
+   même rendu des deux côtés. */
+/* ── Background layer (behind the shell) ────────────────────────────────── */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--bg-app);
+  background-image: var(--app-bg-gradient, none);
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+.app-bg__media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Legibility scrim over media/gradient backgrounds. */
+.app-bg__scrim {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+}
+/* AUCUN voile sur les fonds image/vidéo : le média s'affiche brut, les
+   surfaces (alpha par région) portent seules la lisibilité. L'ancien dégradé
+   de --bg-app blanchissait tout en clair et assombrissait tout en sombre. */
+.app-bg[data-kind="image"] .app-bg__scrim,
+.app-bg[data-kind="video"] .app-bg__scrim {
+  background: transparent;
+}
+/* Keep message text legible over a wallpaper (esp. flat style). */
+:root[data-bg="image"] .chat__scroll,
+:root[data-bg="video"] .chat__scroll {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+

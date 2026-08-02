@@ -1,0 +1,54 @@
+# ============================================================================
+# Job de migration de schema — s'execute AVANT que les nouveaux pods servent.
+#
+# Pourquoi un Job separe (et pas au boot du backend) ?
+#   En stateless multi-replica, si chaque pod migrait au demarrage, N pods
+#   tenteraient de migrer en concurrence. On centralise dans un Job unique.
+#
+# Idempotence / concurrence:
+#   `sqlx migrate run` prend un ADVISORY LOCK Postgres (pg_advisory_lock) le
+#   temps de la transaction de migration. Meme si ce Job est rejoue ou qu'un
+#   ancien pod traine, une seule execution modifie le schema a la fois ; les
+#   migrations deja appliquees sont ignorees (table _sqlx_migrations).
+#
+# Hooks Helm: pre-install + pre-upgrade => le rollout du Deployment attend la
+# fin du Job. weight negatif pour qu'il passe en premier.
+# ============================================================================
+{{- if .Values.migrateJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "accord-backend.fullname" . }}-migrate
+  labels:
+    {{- include "accord-backend.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrateJob.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "accord-backend.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ include "accord-backend.imageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # L'image applicative embarque sqlx-cli + le dossier migrations/.
+          # Advisory lock => execution surement sequentielle.
+          command: ["sqlx", "migrate", "run", "--source", "/app/migrations"]
+          # DATABASE_URL (simple '_', attendu par sqlx-cli) provient du Secret
+          # (voir values.yaml: le Secret expose DATABASE_URL et DATABASE__URL).
+          envFrom:
+            - secretRef:
+                name: {{ .Values.existingSecret }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+{{- end }}

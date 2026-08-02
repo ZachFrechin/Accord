@@ -1,0 +1,13 @@
+# Keep the backend image's build context small + reproducible. The Dockerfile only
+# needs backend/ (incl. Cargo.lock + .sqlx) and migrations/.
+**/target
+**/node_modules
+**/dist
+.git
+.github
+apps
+docs
+infra
+.claude
+**/.env
+**/*.log

@@ -1,0 +1,62 @@
+/* Classement (leaderboard) de l'instance. */
+.leaderboard { display: flex; flex-direction: column; gap: var(--space-4); }
+.leaderboard__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+
+.leaderboard__periods { display: flex; gap: var(--space-2); }
+.leaderboard__periods button {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-inset);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+.leaderboard__periods button[data-active="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.leaderboard__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.leaderboard__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+.leaderboard__row + .leaderboard__row {
+  border-top: 1px solid color-mix(in srgb, var(--text-3) 14%, transparent);
+}
+.leaderboard__row[data-me="true"] { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.leaderboard__row[data-podium="1"] .leaderboard__pos { color: #e7c14b; }
+.leaderboard__row[data-podium="2"] .leaderboard__pos { color: #b8c0cc; }
+.leaderboard__row[data-podium="3"] .leaderboard__pos { color: #c98d5a; }
+
+.leaderboard__pos {
+  width: 34px;
+  flex: none;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  color: var(--text-3);
+}
+.leaderboard__profile-btn { display: block; padding: 0; border: none; background: none; line-height: 0; border-radius: 50%; cursor: pointer; }
+.leaderboard__id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.leaderboard__name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.leaderboard__sub { font-size: var(--text-xs); color: var(--text-3); }
+.leaderboard__rank-img { height: 40px; width: auto; flex: none; object-fit: contain; }
+.leaderboard__xp { flex: none; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-2); }

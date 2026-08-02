@@ -1,0 +1,148 @@
+# ============================================================================
+# Accord2 — test-server deployment. The whole backend + its dependencies in one
+# `up`. Configuration is a single .env file (see .env.example / gen-deploy-env.sh).
+#
+#   cd infra
+#   ./gen-deploy-env.sh          # writes .env with fresh, consistent secrets
+#   # (edit SERVER__PUBLIC_URL / STORAGE__PUBLIC_ENDPOINT / CORS for your host)
+#   docker compose -f docker-compose.deploy.yml up -d --build
+#
+# The `migrate` service applies the schema once, then the backend serves on :8090.
+# All secrets come from .env — nothing sensitive is committed here.
+# ============================================================================
+
+name: accord2-deploy
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  nats:
+    image: nats:2-alpine
+    restart: unless-stopped
+    command: ["-js"]
+    volumes:
+      - nats-data:/data
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000" # S3 API — must be reachable by clients for avatar/attachment URLs
+      - "9001:9001" # console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: create the buckets and make the avatars bucket publicly readable
+  # (avatars/banners are non-E2EE, served at a stable URL). Exits when done.
+  createbuckets:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set s3 http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing s3/${STORAGE_BUCKET} &&
+      mc mb --ignore-existing s3/${STORAGE_AVATARS_BUCKET} &&
+      mc anonymous set download s3/${STORAGE_AVATARS_BUCKET} &&
+      echo 'buckets ready'
+      "
+    restart: "no"
+
+  # Transactional-email sink for a test server: every verification / reset mail
+  # lands in Mailpit's web UI (:8025) instead of a real inbox.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025" # web UI
+
+  livekit:
+    image: livekit/livekit-server:v1.13.3
+    restart: unless-stopped
+    command: ["--config", "/etc/livekit/livekit.yaml"]
+    environment:
+      # key: secret — MUST equal LIVEKIT__API_KEY / LIVEKIT__API_SECRET below.
+      LIVEKIT_KEYS: "${LIVEKIT__API_KEY}: ${LIVEKIT__API_SECRET}"
+    volumes:
+      - ./livekit.deploy.yaml:/etc/livekit/livekit.yaml:ro
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+
+  # One-shot: apply the schema, then exit. The backend waits for it to complete.
+  migrate:
+    build:
+      context: ..
+      dockerfile: infra/backend.Dockerfile
+    image: accord-backend:latest
+    command: ["migrate"]
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    image: accord-backend:latest
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8090/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+volumes:
+  pg-data:
+  redis-data:
+  nats-data:
+  minio-data:

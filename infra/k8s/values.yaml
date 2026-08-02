@@ -1,0 +1,80 @@
+# ============================================================================
+# Accord2 backend — valeurs par defaut du chart Helm.
+# Skeleton Phase 0 : stateless, observable, scalable horizontalement.
+# ============================================================================
+
+image:
+  repository: ghcr.io/accord2/accord-backend
+  tag: ""          # defaut = .Chart.AppVersion (voir _helpers.tpl)
+  pullPolicy: IfNotPresent
+
+# Nombre de replicas au repos. Le HPA prend le relais au-dela (voir autoscaling).
+replicaCount: 2
+
+# --- Config applicative non-secrete (injectee en env, separateur '__') -------
+config:
+  SERVER__HOST: "0.0.0.0"
+  SERVER__PORT: "8080"
+  SERVER__CORS_ALLOWED_ORIGINS: "https://app.accord.example"
+  DATABASE__MAX_CONNECTIONS: "10"
+  TELEMETRY__OTLP_ENDPOINT: "http://otel-collector.observability:4317"
+  TELEMETRY__SERVICE_NAME: "accord-backend"
+  TELEMETRY__LOG_FORMAT: "json"
+
+# --- Secrets : reference d'un Secret k8s existant (jamais en clair ici) ------
+# Le Secret doit exposer DEUX cles pointant la meme URL:
+#   - DATABASE__URL  (double '__') pour le backend (crate config).
+#   - DATABASE_URL   (simple '_')  pour sqlx-cli dans le Job de migration.
+# Plus tout autre secret futur (cles JWT, LiveKit, etc.).
+existingSecret: accord-backend-secrets
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# --- Sondes : alignees sur les endpoints du backend --------------------------
+# /health/live -> 200 tant que le process vit.
+# /health/ready -> 200/503 selon la connectivite DB.
+probes:
+  liveness:
+    path: /health/live
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3
+  readiness:
+    path: /health/ready
+    initialDelaySeconds: 3
+    periodSeconds: 5
+    failureThreshold: 3
+
+# Delai de drain (doit couvrir shutdown.rs qui draine sur SIGTERM).
+terminationGracePeriodSeconds: 30
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# --- Autoscaling horizontal (stateless => scale libre) -----------------------
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# --- Job de migration ---------------------------------------------------------
+migrateJob:
+  enabled: true
+  # Image contenant sqlx-cli + les migrations (souvent la meme image applicative).
+  # Advisory lock => idempotent meme si rejoue en parallele du rollout.
+  backoffLimit: 3
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

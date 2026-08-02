@@ -1,0 +1,10 @@
+apiVersion: v2
+name: accord-backend
+description: |
+  Chart Helm du backend Accord2 (API Rust/Axum stateless).
+  Deploiement multi-replica, sondes live/ready, arret gracieux SIGTERM,
+  HPA, et Job de migration a advisory-lock. Skeleton Phase 0.
+type: application
+# version = version du chart ; appVersion = version de l'app deployee.
+version: 0.1.0
+appVersion: "0.1.0"

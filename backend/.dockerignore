@@ -1,0 +1,6 @@
+# Keep the Docker build context small and secret-free.
+# NOTE: .sqlx/ is intentionally NOT ignored — the offline query metadata is
+# required to compile the sqlx macros without a database (Dockerfile SQLX_OFFLINE).
+target/
+.env
+*.log
