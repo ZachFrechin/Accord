@@ -1,5 +1,10 @@
 # Vulnérabilités écartées, avec la raison et la date de réexamen.
 #
+# Une seule entrée à ce jour. Les deux autres alertes signalées par le scanner
+# — rustls-webpki (déni de service sur une CRL malformée) et react-router
+# (contournement CSRF en mode RSC) — ont été CORRIGÉES par mise à jour, pas
+# écartées : elles étaient réellement compilées, contrairement à celle-ci.
+#
 # Rien n'entre ici sans avoir été vérifié : une ligne de ce fichier est une
 # affirmation qu'un problème réel ne s'applique pas à nous, et elle doit pouvoir
 # être contestée par la personne suivante.

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "./lib/isTauri";
 import { openConversation } from "./stores/messagingActions";

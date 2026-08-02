@@ -6,7 +6,7 @@
  */
 
 import { type FormEvent, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 import { ApiError } from "../api/http";
 import type { FriendUser } from "../api/ApiClient";

@@ -6,7 +6,7 @@
 
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 import { MOD } from "./ShortcutsCheatsheet";
 

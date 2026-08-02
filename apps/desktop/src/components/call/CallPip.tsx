@@ -4,7 +4,7 @@
  * title to jump back to the call's conversation; quick mic + hang-up controls.
  */
 
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router";
 
 import { openConversation } from "../../stores/messagingActions";
 import { useCallStore } from "../../stores/useCallStore";

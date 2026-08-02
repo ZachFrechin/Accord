@@ -1,7 +1,7 @@
 /** The conversation list (shell `list` region): search, filters, conversations. */
 
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 import { isTauri } from "../../lib/isTauri";
 import { openConversationPopout } from "../../lib/popout";

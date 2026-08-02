@@ -8,7 +8,7 @@
  */
 
 import { Suspense, lazy, useEffect, type ComponentType, type ReactElement } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router";
 
 import App from "./App";
 import { UpdateBanner } from "./components/UpdateBanner";

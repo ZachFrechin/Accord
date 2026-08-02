@@ -6,7 +6,7 @@
 
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { type ReactNode, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 import type { GameAccount, LevelDto, ProfileDto } from "../../api/ApiClient";
 import {

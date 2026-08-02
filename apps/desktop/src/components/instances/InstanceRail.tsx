@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router";
 
 import { hasUnseenChangelog } from "../../lib/changelog";
 import { useConnection } from "../../realtime/ConnectionProvider";

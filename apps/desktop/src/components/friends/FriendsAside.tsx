@@ -3,7 +3,7 @@
  * live presence and custom status, online first. Clicking one opens the DM.
  */
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 import { openDmWith } from "../../stores/messagingActions";
 import { useFriendsStore } from "../../stores/useFriendsStore";
