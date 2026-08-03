@@ -1622,3 +1622,59 @@
 }
 .msg-system strong { color: var(--text-2); font-weight: var(--weight-semibold); }
 .msg-system__time { opacity: 0.7; font-variant-numeric: tabular-nums; }
+
+/* ── Réglages du groupe (menu de l'en-tête) ─────────────────────────────── */
+.group-settings { display: flex; flex-direction: column; gap: 2px; min-width: 260px; }
+.group-settings__title {
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.group-settings__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.group-settings__item:hover:not(:disabled) { background: var(--surface-glass); }
+.group-settings__item:disabled { opacity: 0.6; cursor: default; }
+.group-settings__form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+.group-settings__form > :first-child { flex: 1; min-width: 0; }
+.group-settings__hint { padding: 0 var(--space-3) var(--space-2); color: var(--text-3); font-size: var(--text-sm); }
+.group-settings__label {
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+/* La liste défile plutôt que d'étirer le menu : au-delà de quelques amis, un
+   popover haut de tout l'écran devient impossible à parcourir. */
+.group-settings__people { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
+.group-settings__person { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); }
+.group-settings__person-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}

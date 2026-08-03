@@ -10,6 +10,11 @@ export interface PopoverProps {
   side?: "top" | "right" | "bottom" | "left";
   /** Alignment along the side (defaults to "center"). */
   align?: "start" | "center" | "end";
+  /** Ouverture pilotée par l'appelant. Utile quand le contenu ne doit être
+   * chargé qu'à l'ouverture plutôt qu'au montage du déclencheur. Absent, le
+   * popover se gère lui-même comme avant. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -24,9 +29,11 @@ export function Popover({
   children,
   side = "bottom",
   align = "center",
+  open,
+  onOpenChange,
 }: PopoverProps) {
   return (
-    <RadixPopover.Root>
+    <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
       <RadixPopover.Trigger asChild>{trigger}</RadixPopover.Trigger>
       <RadixPopover.Portal>
         <RadixPopover.Content

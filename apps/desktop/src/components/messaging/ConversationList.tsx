@@ -1,6 +1,6 @@
 /** The conversation list (shell `list` region): search, filters, conversations. */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { isTauri } from "../../lib/isTauri";
@@ -24,12 +24,23 @@ import {
   openConversation,
   refreshConversations,
 } from "../../stores/messagingActions";
+import type { PresenceStatus } from "../../realtime/wireSchema";
 import { useConversationsStore } from "../../stores/useConversationsStore";
 import { useFriendsStore } from "../../stores/useFriendsStore";
 import { useNotificationStore } from "../../stores/useNotificationStore";
+import { usePresenceStore } from "../../stores/usePresenceStore";
+import { activeInstance, useInstanceStore } from "../../stores/useInstanceStore";
+import { useConnection } from "../../realtime/ConnectionProvider";
 import { Avatar } from "./Avatar";
 
 type Filter = "all" | "groups" | "dms";
+
+const STATUS_LABEL: Record<PresenceStatus, string> = {
+  ONLINE: "En ligne",
+  AWAY: "Absent",
+  DND: "Ne pas déranger",
+  OFFLINE: "Hors ligne",
+};
 
 export function ConversationList() {
   const navigate = useNavigate();
@@ -44,6 +55,15 @@ export function ConversationList() {
     void refreshConversations().catch(() => useConversationsStore.getState().setError(true));
   };
   const incoming = useFriendsStore((s) => s.incoming);
+  const friends = useFriendsStore((s) => s.friends);
+  const presences = usePresenceStore((s) => s.statuses);
+  const myStatus = usePresenceStore((s) => s.myStatus);
+  const myId = useInstanceStore((st) => activeInstance(st)?.account?.userId ?? null);
+  const { client } = useConnection();
+  // Les membres d'un groupe ne sont pas dans la liste des conversations : on les
+  // charge une fois, puis le compte des présents se recalcule tout seul à chaque
+  // changement de présence, sans nouvelle requête.
+  const [groupMembers, setGroupMembers] = useState<Record<string, string[]>>({});
   const muted = useNotificationStore((s) => s.muted);
   const setMuted = useNotificationStore((s) => s.setMuted);
   const confirm = useConfirm();
@@ -82,6 +102,49 @@ export function ConversationList() {
 
   const total = groups.length + dms.length;
 
+  // Un seul chargement par groupe, à l'arrivée de la conversation dans la liste.
+  useEffect(() => {
+    const missing = conversations.filter((c) => c.kind === "group" && !groupMembers[c.id]);
+    if (missing.length === 0) return;
+    let alive = true;
+    void Promise.all(
+      missing.map((c) =>
+        client
+          .conversationMembers(c.id)
+          .then((r) => [c.id, r.members.map((m) => m.user_id)] as const)
+          .catch(() => null),
+      ),
+    ).then((pairs) => {
+      if (!alive) return;
+      const found = pairs.filter((p): p is readonly [string, string[]] => p !== null);
+      if (found.length) setGroupMembers((prev) => ({ ...prev, ...Object.fromEntries(found) }));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [conversations, groupMembers, client]);
+
+  // La présence d'un ami arrive avec la liste d'amis ; celle des autres membres
+  // passe par le store temps réel. Sans ce repli, un membre de groupe qui n'est
+  // pas notre ami paraîtrait toujours hors ligne.
+  const presenceOf = (userId: string): PresenceStatus =>
+    userId === myId
+      ? myStatus
+      : (friends.find((f) => f.user_id === userId)?.presence ?? presences[userId] ?? "OFFLINE");
+
+  /** Sous-titre d'une ligne : l'état de l'interlocuteur, ou le nombre de présents. */
+  const subtitleOf = (c: (typeof conversations)[number]): string => {
+    if (c.kind === "dm") {
+      const peer = peers[c.id];
+      return peer ? STATUS_LABEL[presenceOf(peer.userId)] : "Message direct";
+    }
+    const ids = groupMembers[c.id];
+    // Tant que les membres ne sont pas connus, mieux vaut ne rien affirmer qu'annoncer « 0 en ligne ».
+    if (!ids) return "Groupe";
+    const online = ids.filter((id) => presenceOf(id) !== "OFFLINE").length;
+    return online === 0 ? "Personne en ligne" : `${online} en ligne`;
+  };
+
   const row = (c: (typeof conversations)[number]) => (
     <li key={c.id} className="conv-row-wrap">
       <button
@@ -97,9 +160,7 @@ export function ConversationList() {
         />
         <span className="conv-row__body">
           <span className="conv-row__name">{titles[c.id] ?? "…"}</span>
-          <span className="conv-row__meta">
-            {c.kind === "group" ? "Groupe" : "Message direct"}
-          </span>
+          <span className="conv-row__meta">{subtitleOf(c)}</span>
         </span>
         {c.unread > 0 && (
           <span className="conv-badge">{c.unread > 99 ? "99+" : c.unread}</span>

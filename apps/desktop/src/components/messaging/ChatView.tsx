@@ -49,6 +49,7 @@ import { useLayoutStore } from "../../stores/useLayoutStore";
 import { useUiStore } from "../../stores/useUiStore";
 import { Button, Icon, IconButton, Popover, Skeleton, TextArea, useToast } from "../ui";
 import { Avatar, hueFor } from "./Avatar";
+import { GroupSettings } from "./GroupSettings";
 import { ProfileDialog } from "./ProfileDialog";
 
 const time = (iso: string) =>
@@ -327,6 +328,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
               </div>
             </Popover>
           )}
+          {kind === "group" && <GroupSettings conversationId={conversationId} />}
           <button
             className="chat__action"
             type="button"

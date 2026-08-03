@@ -1,17 +1,10 @@
 /** Conversation details (shell `aside` region): member presence + group mgmt. */
 
-import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { MemberDto } from "../../api/ApiClient";
 import type { PresenceStatus } from "../../realtime/wireSchema";
-import {
-  addMember,
-  removeMember,
-  renameGroup,
-  updateGroupProfile,
-  uploadGroupAvatar,
-} from "../../stores/messagingActions";
-import { processAvatar } from "../profile/ProfileSection";
+import { removeMember } from "../../stores/messagingActions";
 import { useConnection } from "../../realtime/ConnectionProvider";
 import { useConversationsStore } from "../../stores/useConversationsStore";
 import { useFriendsStore } from "../../stores/useFriendsStore";
@@ -19,7 +12,7 @@ import { useMessagesStore } from "../../stores/useMessagesStore";
 import { useUiStore } from "../../stores/useUiStore";
 import { usePresenceStore } from "../../stores/usePresenceStore";
 import { activeInstance, useInstanceStore } from "../../stores/useInstanceStore";
-import { Button, Field, Icon, IconButton, useConfirm, useToast } from "../ui";
+import { Button, Icon, IconButton, useConfirm } from "../ui";
 import { Avatar } from "./Avatar";
 import { ProfileDialog } from "./ProfileDialog";
 
@@ -32,7 +25,6 @@ const STATUS_LABEL: Record<PresenceStatus, string> = {
 
 export function ConversationDetails() {
   const { client } = useConnection();
-  const { toast } = useToast();
   const confirm = useConfirm();
   const activeId = useConversationsStore((s) => s.activeId);
   const conv = useConversationsStore((s) => s.conversations.find((c) => c.id === s.activeId));
@@ -49,13 +41,6 @@ export function ConversationDetails() {
 
   const [members, setMembers] = useState<MemberDto[]>([]);
   const [membersError, setMembersError] = useState(false);
-  const [renaming, setRenaming] = useState(false);
-  const [newName, setNewName] = useState("");
-  // Group profile (avatar + description) — admin-editable.
-  const groupAvatarRef = useRef<HTMLInputElement>(null);
-  const [avatarBusy, setAvatarBusy] = useState(false);
-  const [descEditing, setDescEditing] = useState(false);
-  const [descDraft, setDescDraft] = useState("");
 
   useEffect(() => {
     if (!activeId) {
@@ -91,7 +76,6 @@ export function ConversationDetails() {
 
   const isGroup = conv.kind === "group";
   const isAdmin = members.find((m) => m.user_id === myId)?.role === "admin";
-  const addable = friends.filter((f) => !members.some((m) => m.user_id === f.user_id));
 
   // Prefer a friend's live presence, else the presence store (covers non-friend group
   // members, who otherwise always looked offline), else offline.
@@ -114,10 +98,6 @@ export function ConversationDetails() {
     const r = await client.conversationMembers(activeId).catch(() => null);
     if (r) setMembers(r.members);
   };
-  const doAdd = async (userId: string) => {
-    await addMember(activeId, userId);
-    await reloadMembers();
-  };
   const doRemove = async (member: MemberDto) => {
     if (
       await confirm({
@@ -131,37 +111,8 @@ export function ConversationDetails() {
       await reloadMembers();
     }
   };
-  const rename = (e: FormEvent) => {
-    e.preventDefault();
-    if (newName.trim()) void renameGroup(activeId, newName.trim());
-    setRenaming(false);
-  };
 
-  const onPickGroupAvatar = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setAvatarBusy(true);
-    try {
-      const { blob, mime } = await processAvatar(file);
-      await uploadGroupAvatar(activeId, blob, mime);
-    } catch (err) {
-      toast({
-        title: "Échec de l'avatar",
-        description: err instanceof Error ? err.message : undefined,
-      });
-    } finally {
-      setAvatarBusy(false);
-    }
-  };
 
-  const saveDescription = (e: FormEvent) => {
-    e.preventDefault();
-    setDescEditing(false);
-    void updateGroupProfile(activeId, { description: descDraft.trim() }).catch(() =>
-      toast({ title: "Échec de la mise à jour de la description" }),
-    );
-  };
 
   const memberRow = (m: MemberDto) => {
     const presence = presenceOf(m.user_id);
@@ -254,88 +205,6 @@ export function ConversationDetails() {
         </div>
       )}
 
-      {isGroup && isAdmin && addable.length > 0 && (
-        <>
-          <div className="details__section-label">Ajouter un ami</div>
-          {addable.map((f) => (
-            <div key={f.user_id} className="details__member">
-              <Avatar name={f.username} size={36} presence={f.presence} />
-              <div className="details__member-body">
-                <span className="details__member-name">{f.username}</span>
-              </div>
-              <Button size="sm" onClick={() => void doAdd(f.user_id)}>
-                Ajouter
-              </Button>
-            </div>
-          ))}
-        </>
-      )}
-
-      {isGroup && isAdmin && (
-        <div className="details__rename">
-          {renaming ? (
-            <form className="details__rename" onSubmit={rename} style={{ width: "100%" }}>
-              <Field
-                label="Renommer"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-              />
-              <Button size="sm" type="submit">
-                OK
-              </Button>
-            </form>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setNewName(title ?? "");
-                setRenaming(true);
-              }}
-            >
-              Renommer le groupe
-            </Button>
-          )}
-          {descEditing ? (
-            <form className="details__rename" onSubmit={saveDescription} style={{ width: "100%" }}>
-              <Field
-                label="Description"
-                value={descDraft}
-                onChange={(e) => setDescDraft(e.target.value)}
-              />
-              <Button size="sm" type="submit">
-                OK
-              </Button>
-            </form>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setDescDraft(conv.description ?? "");
-                setDescEditing(true);
-              }}
-            >
-              Modifier la description
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={avatarBusy}
-            onClick={() => groupAvatarRef.current?.click()}
-          >
-            {avatarBusy ? "Envoi…" : "Changer l'avatar"}
-          </Button>
-          <input
-            ref={groupAvatarRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            hidden
-            onChange={(e) => void onPickGroupAvatar(e)}
-          />
-        </div>
-      )}
 
     </div>
   );
