@@ -10,6 +10,7 @@
  */
 
 import { GroupsCard } from "./GroupsCard";
+import { SanctionPopover, UserMoreMenu } from "./UserActions";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 
 import {
@@ -171,15 +172,6 @@ export function AdministrationSection() {
       danger: true,
     });
   }
-  function suspend(u: AdminUserDto): void {
-    void apply(u, { disabled: true }, {
-      title: `Suspendre @${u.username} ?`,
-      description:
-        "Toutes ses sessions sont révoquées immédiatement et la connexion lui est refusée jusqu'à réactivation.",
-      confirmLabel: "Suspendre",
-      danger: true,
-    });
-  }
   function reinstate(u: AdminUserDto): void {
     void apply(u, { disabled: false }, {
       title: `Réactiver @${u.username} ?`,
@@ -246,7 +238,13 @@ export function AdministrationSection() {
                 </span>
               ) : null;
             })}
-            {u.disabled && <span className="admin__badge admin__badge--danger">suspendu</span>}
+            {u.disabled && (
+              <span className="admin__badge admin__badge--danger" title={u.disabled_reason ?? undefined}>
+                {u.disabled_until
+                  ? `suspendu jusqu'au ${new Date(u.disabled_until).toLocaleDateString("fr-FR")}`
+                  : "suspendu"}
+              </span>
+            )}
             {!u.email_verified && !u.disabled && (
               <span className="admin__badge admin__badge--muted">non vérifié</span>
             )}
@@ -321,10 +319,25 @@ export function AdministrationSection() {
                   <Icon name="check" size={14} /> Réactiver
                 </Button>
               ) : (
-                <Button variant="ghost" size="sm" disabled={busy} onClick={() => suspend(u)}>
-                  <Icon name="x" size={14} /> Suspendre
-                </Button>
+                <SanctionPopover
+                  user={u}
+                  disabled={busy}
+                  onDone={(updated) =>
+                    setUsers((prev) =>
+                      prev.map((x) => (x.id === updated.id ? { ...updated, role_ids: x.role_ids } : x)),
+                    )
+                  }
+                />
               )}
+              <UserMoreMenu
+                user={u}
+                disabled={busy}
+                onDone={(updated) =>
+                  setUsers((prev) =>
+                    prev.map((x) => (x.id === updated.id ? { ...updated, role_ids: x.role_ids } : x)),
+                  )
+                }
+              />
             </>
           )}
         </div>

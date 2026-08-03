@@ -394,3 +394,62 @@
   line-height: var(--leading-normal);
 }
 .admin__notice svg { flex: none; margin-top: 2px; color: var(--accent); }
+
+/* Sanction et gestes rares : des panneaux, pas des boutons de rang égal. */
+.admin__sanction,
+.admin__more { display: flex; flex-direction: column; gap: var(--space-2); min-width: 280px; }
+.admin__sanction-title {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.admin__sanction-durations { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.admin__sanction-durations button {
+  flex: 1;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.admin__sanction-durations button[data-active="true"] { background: var(--accent); color: var(--accent-contrast); }
+.admin__more-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.admin__more-item:hover { background: var(--surface-glass); }
+.admin__more-item svg { flex: none; margin-top: 2px; color: var(--text-3); }
+.admin__more-item em { display: block; color: var(--text-3); font-size: var(--text-xs); font-style: normal; }
+.admin__more-row { display: flex; gap: var(--space-2); align-items: flex-end; }
+.admin__more-row > :first-child { flex: 1; }
+/* Le mot de passe engendré : sélectionnable d'un geste, et dit clairement qu'il
+   ne réapparaîtra pas. */
+.admin__generated {
+  padding: var(--space-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--surface-glass);
+}
+.admin__generated code {
+  display: block;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-sm);
+  word-break: break-all;
+  user-select: all;
+}
+.admin__generated p { margin: var(--space-1) 0 0; color: var(--text-3); font-size: var(--text-xs); }
