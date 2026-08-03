@@ -262,14 +262,19 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while running the Accord desktop application")
-        .run(|app, event| {
+        .run(|_app, _event| {
             // macOS : cliquer l'icône du Dock d'une application sans fenêtre
             // visible n'ouvre rien par défaut. Depuis que la croix range la
             // fenêtre au lieu de quitter, ce clic est le geste le plus naturel
             // pour la retrouver — l'ignorer donnerait une application qui ne
             // répond plus.
-            if let tauri::RunEvent::Reopen { .. } = event {
-                tray::show_main(app);
+            //
+            // La garde de plateforme est obligatoire : `Reopen` n'existe QUE sur
+            // macOS, et sans elle la compilation Windows échoue — ce qu'on ne
+            // voit jamais en développant sur un Mac.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = _event {
+                tray::show_main(_app);
             }
         });
 }

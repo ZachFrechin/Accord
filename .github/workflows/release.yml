@@ -197,8 +197,18 @@ jobs:
           # contenu est déjà dans latest.json.
           rm -f ./*.sig
 
-          gh release create "$TAG" \
-            --repo "$REPO" \
-            --title "Accord $TAG" \
-            --notes "$(printf 'Accord desktop %s.\n\n%s\n\nTéléchargez un installeur ci-dessous. Au premier lancement, Accord vous demandera l'"'"'adresse de votre serveur.' "$TAG" "$NOTES")" \
-            ./*
+          NOTES_FULL="$(printf 'Accord desktop %s.\n\n%s\n\nTéléchargez un installeur ci-dessous. Au premier lancement, Accord vous demandera l'"'"'adresse de votre serveur.' "$TAG" "$NOTES")"
+          # Rejouer une release ne doit pas échouer sur « existe déjà » : quand
+          # une seule plateforme a fauté, on veut compléter la release en place,
+          # pas la recréer. --clobber remplace aussi latest.json, qui doit
+          # refléter TOUTES les plateformes finalement construites.
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$REPO" --notes "$NOTES_FULL"
+            gh release upload "$TAG" --repo "$REPO" --clobber ./*
+          else
+            gh release create "$TAG" \
+              --repo "$REPO" \
+              --title "Accord $TAG" \
+              --notes "$NOTES_FULL" \
+              ./*
+          fi
