@@ -136,12 +136,18 @@ mod tests {
             <meta property="og:title" content="Le Titre &amp; plus"/>
             <meta name="og:description" content='Une description.'>
             </head></html>"#;
-        assert_eq!(extract_meta(html, "og:title").as_deref(), Some("Le Titre & plus"));
+        assert_eq!(
+            extract_meta(html, "og:title").as_deref(),
+            Some("Le Titre & plus")
+        );
         assert_eq!(
             extract_meta(html, "og:description").as_deref(),
             Some("Une description.")
         );
-        assert_eq!(extract_tag_text(html, "title").as_deref(), Some("Fallback & Co"));
+        assert_eq!(
+            extract_tag_text(html, "title").as_deref(),
+            Some("Fallback & Co")
+        );
         assert_eq!(extract_meta(html, "og:image"), None);
     }
 }

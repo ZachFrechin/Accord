@@ -12,10 +12,10 @@
 //! commands (`mls_*`, see `mls.rs`): the OpenMLS engine + private keys live here,
 //! never in the webview.
 
-mod tray;
 mod link_preview;
 mod mls;
 mod notifications;
+mod tray;
 
 use keyring::{Entry, Error as KeyringError};
 
@@ -125,7 +125,11 @@ fn mls_add_member(
     mls::cmd_add_member(&instance_id, &group_id, &key_package)
 }
 #[tauri::command]
-fn mls_remove_member(instance_id: String, group_id: String, leaf_index: u32) -> Result<String, String> {
+fn mls_remove_member(
+    instance_id: String,
+    group_id: String,
+    leaf_index: u32,
+) -> Result<String, String> {
     mls::cmd_remove_member(&instance_id, &group_id, leaf_index)
 }
 #[tauri::command]
@@ -157,11 +161,19 @@ fn mls_member_identities(instance_id: String, group_id: String) -> Result<Vec<St
     mls::cmd_member_identities(&instance_id, &group_id)
 }
 #[tauri::command]
-fn mls_process(instance_id: String, group_id: String, frame: String) -> Result<Option<String>, String> {
+fn mls_process(
+    instance_id: String,
+    group_id: String,
+    frame: String,
+) -> Result<Option<String>, String> {
     mls::cmd_process(&instance_id, &group_id, &frame)
 }
 #[tauri::command]
-fn mls_encrypt_app(instance_id: String, group_id: String, plaintext: String) -> Result<String, String> {
+fn mls_encrypt_app(
+    instance_id: String,
+    group_id: String,
+    plaintext: String,
+) -> Result<String, String> {
     mls::cmd_encrypt_app(&instance_id, &group_id, &plaintext)
 }
 #[tauri::command]

@@ -62,7 +62,10 @@ impl SecretStore for MemorySecretStore {
         self.entries
             .lock()
             .map_err(|_| "secret store poisoned".to_string())?
-            .insert((service.to_string(), account.to_string()), value.to_string());
+            .insert(
+                (service.to_string(), account.to_string()),
+                value.to_string(),
+            );
         Ok(())
     }
 

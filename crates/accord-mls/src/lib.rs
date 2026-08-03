@@ -36,7 +36,8 @@ fn unb64(s: &str) -> Result<Vec<u8>, String> {
     STANDARD.decode(s).map_err(|e| format!("base64: {e}"))
 }
 fn ser<T: tls_codec::Serialize>(v: &T) -> Result<Vec<u8>, String> {
-    v.tls_serialize_detached().map_err(|e| format!("tls_serialize: {e}"))
+    v.tls_serialize_detached()
+        .map_err(|e| format!("tls_serialize: {e}"))
 }
 
 /// Group config — ratchet-tree extension ON so a Welcome carries the tree and a
@@ -93,7 +94,12 @@ impl Device {
     /// bytes plus the KeyPackageRef (the directory's single-use identifier).
     pub fn key_package(&self) -> Result<(Vec<u8>, Vec<u8>), String> {
         let bundle = KeyPackage::builder()
-            .build(CIPHERSUITE, &self.provider, &self.signer, self.credential.clone())
+            .build(
+                CIPHERSUITE,
+                &self.provider,
+                &self.signer,
+                self.credential.clone(),
+            )
             .map_err(|e| format!("key package build: {e:?}"))?;
         let kp = bundle.key_package();
         let data = ser(kp)?;
@@ -164,9 +170,13 @@ impl Device {
     /// The commit is NOT merged locally: the caller submits it to the Delivery
     /// Service and calls `merge_pending` once the DS accepts it (RFC 9750), or
     /// `clear_pending` + rebase on a 409. The new device joins from the welcome.
-    pub fn add_member(&self, group_id: &[u8], key_package: &[u8]) -> Result<(Vec<u8>, Vec<u8>), String> {
-        let kp_in =
-            KeyPackageIn::tls_deserialize_exact(key_package).map_err(|e| format!("kp decode: {e}"))?;
+    pub fn add_member(
+        &self,
+        group_id: &[u8],
+        key_package: &[u8],
+    ) -> Result<(Vec<u8>, Vec<u8>), String> {
+        let kp_in = KeyPackageIn::tls_deserialize_exact(key_package)
+            .map_err(|e| format!("kp decode: {e}"))?;
         let kp = kp_in
             .validate(self.provider.crypto(), ProtocolVersion::Mls10)
             .map_err(|e| format!("kp validate: {e:?}"))?;
@@ -183,7 +193,11 @@ impl Device {
     pub fn remove_member(&self, group_id: &[u8], leaf_index: u32) -> Result<Vec<u8>, String> {
         let mut group = self.load_group(group_id)?;
         let (commit, _welcome, _group_info) = group
-            .remove_members(&self.provider, &self.signer, &[LeafNodeIndex::new(leaf_index)])
+            .remove_members(
+                &self.provider,
+                &self.signer,
+                &[LeafNodeIndex::new(leaf_index)],
+            )
             .map_err(|e| format!("remove_members: {e:?}"))?;
         ser(&commit)
     }
@@ -260,13 +274,19 @@ impl Device {
         if let Some(group_id) = replace_group {
             self.delete_group(group_id)?;
         }
-        let msg = MlsMessageIn::tls_deserialize_exact(welcome).map_err(|e| format!("welcome decode: {e}"))?;
+        let msg = MlsMessageIn::tls_deserialize_exact(welcome)
+            .map_err(|e| format!("welcome decode: {e}"))?;
         let welcome = match msg.extract() {
             MlsMessageBodyIn::Welcome(w) => w,
             _ => return Err("not a welcome message".to_string()),
         };
-        let staged = StagedWelcome::new_from_welcome(&self.provider, group_config().join_config(), welcome, None)
-            .map_err(|e| format!("staged welcome: {e:?}"))?;
+        let staged = StagedWelcome::new_from_welcome(
+            &self.provider,
+            group_config().join_config(),
+            welcome,
+            None,
+        )
+        .map_err(|e| format!("staged welcome: {e:?}"))?;
         let group = staged
             .into_group(&self.provider)
             .map_err(|e| format!("join group: {e:?}"))?;
@@ -276,7 +296,8 @@ impl Device {
     /// Process an incoming handshake or application frame. Returns Some(plaintext)
     /// for an application message, None for a commit/proposal (which is applied).
     pub fn process(&self, group_id: &[u8], frame: &[u8]) -> Result<Option<Vec<u8>>, String> {
-        let msg = MlsMessageIn::tls_deserialize_exact(frame).map_err(|e| format!("frame decode: {e}"))?;
+        let msg =
+            MlsMessageIn::tls_deserialize_exact(frame).map_err(|e| format!("frame decode: {e}"))?;
         let protocol = msg
             .try_into_protocol_message()
             .map_err(|e| format!("not a protocol message: {e:?}"))?;
@@ -459,7 +480,13 @@ fn state_dir() -> Result<PathBuf, String> {
 fn state_path(instance_id: &str) -> Result<PathBuf, String> {
     let safe: String = instance_id
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     Ok(state_dir()?.join(format!("{safe}.bin")))
 }
@@ -556,7 +583,9 @@ fn with_device<T>(
     instance_id: &str,
     f: impl FnOnce(&Device) -> Result<T, String>,
 ) -> Result<T, String> {
-    let mut reg = registry().lock().map_err(|_| "mls registry poisoned".to_string())?;
+    let mut reg = registry()
+        .lock()
+        .map_err(|_| "mls registry poisoned".to_string())?;
     if !reg.contains_key(instance_id) {
         match load_snapshot(instance_id)? {
             Some(snap) => {
@@ -574,7 +603,9 @@ fn with_device<T>(
 /// Create (or load, idempotent) this device's MLS identity. Returns its base64
 /// signature public key (the AS attests its binding to the account).
 pub fn cmd_init_identity(instance_id: &str, identity: &str) -> Result<String, String> {
-    let mut reg = registry().lock().map_err(|_| "mls registry poisoned".to_string())?;
+    let mut reg = registry()
+        .lock()
+        .map_err(|_| "mls registry poisoned".to_string())?;
     if let Some(snap) = load_snapshot(instance_id)? {
         let device = Device::restore(&snap)?;
         let public = device.signature_public();
@@ -602,7 +633,9 @@ pub fn cmd_group_epoch(instance_id: &str, group_id: &str) -> Result<u64, String>
 }
 /// Base64 of the 32-byte E2EE call key derived from the group's MLS exporter.
 pub fn cmd_export_call_key(instance_id: &str, group_id: &str) -> Result<String, String> {
-    with_device(instance_id, |d| d.export_call_key(group_id.as_bytes()).map(|k| b64(&k)))
+    with_device(instance_id, |d| {
+        d.export_call_key(group_id.as_bytes()).map(|k| b64(&k))
+    })
 }
 pub fn cmd_merge_pending(instance_id: &str, group_id: &str) -> Result<(), String> {
     with_device(instance_id, |d| d.merge_pending(group_id.as_bytes()))
@@ -621,8 +654,15 @@ pub fn cmd_add_member(
         Ok((b64(&commit), b64(&welcome)))
     })
 }
-pub fn cmd_remove_member(instance_id: &str, group_id: &str, leaf_index: u32) -> Result<String, String> {
-    with_device(instance_id, |d| d.remove_member(group_id.as_bytes(), leaf_index).map(|c| b64(&c)))
+pub fn cmd_remove_member(
+    instance_id: &str,
+    group_id: &str,
+    leaf_index: u32,
+) -> Result<String, String> {
+    with_device(instance_id, |d| {
+        d.remove_member(group_id.as_bytes(), leaf_index)
+            .map(|c| b64(&c))
+    })
 }
 
 pub fn cmd_remove_members_by_prefix(
@@ -636,7 +676,9 @@ pub fn cmd_remove_members_by_prefix(
     })
 }
 pub fn cmd_self_update(instance_id: &str, group_id: &str) -> Result<String, String> {
-    with_device(instance_id, |d| d.self_update(group_id.as_bytes()).map(|c| b64(&c)))
+    with_device(instance_id, |d| {
+        d.self_update(group_id.as_bytes()).map(|c| b64(&c))
+    })
 }
 /// `group_id_hint`: the group this Welcome is for (the DS knows) — any divergent
 /// local group under that id is wiped before joining, so the Welcome's state
@@ -658,19 +700,32 @@ pub fn cmd_delete_group(instance_id: &str, group_id: &str) -> Result<(), String>
 pub fn cmd_member_identities(instance_id: &str, group_id: &str) -> Result<Vec<String>, String> {
     with_device(instance_id, |d| d.member_identities(group_id.as_bytes()))
 }
-pub fn cmd_process(instance_id: &str, group_id: &str, frame_b64: &str) -> Result<Option<String>, String> {
+pub fn cmd_process(
+    instance_id: &str,
+    group_id: &str,
+    frame_b64: &str,
+) -> Result<Option<String>, String> {
     let frame = unb64(frame_b64)?;
     with_device(instance_id, |d| {
         d.process(group_id.as_bytes(), &frame)
             .map(|opt| opt.map(|pt| String::from_utf8_lossy(&pt).into_owned()))
     })
 }
-pub fn cmd_encrypt_app(instance_id: &str, group_id: &str, plaintext: &str) -> Result<String, String> {
+pub fn cmd_encrypt_app(
+    instance_id: &str,
+    group_id: &str,
+    plaintext: &str,
+) -> Result<String, String> {
     with_device(instance_id, |d| {
-        d.encrypt_app(group_id.as_bytes(), plaintext.as_bytes()).map(|c| b64(&c))
+        d.encrypt_app(group_id.as_bytes(), plaintext.as_bytes())
+            .map(|c| b64(&c))
     })
 }
-pub fn cmd_decrypt_app(instance_id: &str, group_id: &str, frame_b64: &str) -> Result<String, String> {
+pub fn cmd_decrypt_app(
+    instance_id: &str,
+    group_id: &str,
+    frame_b64: &str,
+) -> Result<String, String> {
     let frame = unb64(frame_b64)?;
     with_device(instance_id, |d| {
         d.decrypt_app(group_id.as_bytes(), &frame)
@@ -739,7 +794,7 @@ mod tests {
         alice.delete_group(GID).unwrap();
         assert!(alice.epoch(GID).is_err(), "state must be gone after delete");
         alice.delete_group(GID).unwrap(); // absent → still Ok
-        // A fresh create after a wipe starts over at epoch 0.
+                                          // A fresh create after a wipe starts over at epoch 0.
         alice.create_group(GID).unwrap();
         assert_eq!(alice.epoch(GID).unwrap(), 0);
     }
@@ -782,7 +837,11 @@ mod tests {
         bob.join_from_welcome(&welcome, None).unwrap();
 
         let ct = alice.encrypt_app(GID, b"hello").unwrap();
-        assert_eq!(alice.process(GID, &ct).unwrap(), None, "own frame → benign skip");
+        assert_eq!(
+            alice.process(GID, &ct).unwrap(),
+            None,
+            "own frame → benign skip"
+        );
         assert_eq!(bob.decrypt_app(GID, &ct).unwrap(), b"hello");
     }
 
@@ -806,7 +865,10 @@ mod tests {
         alice.merge_pending(GID).unwrap();
         bob.process(GID, &commit).unwrap();
         // Alice must still decrypt the older-epoch frame.
-        assert_eq!(alice.decrypt_app(GID, &in_flight).unwrap(), b"racing the commit");
+        assert_eq!(
+            alice.decrypt_app(GID, &in_flight).unwrap(),
+            b"racing the commit"
+        );
     }
 
     #[test]
@@ -892,7 +954,10 @@ mod tests {
         // A message sent AFTER restore is still decryptable — group state (ratchet
         // tree + signer) survived the round-trip.
         let ct = alice.encrypt_app(GID, b"after restore").unwrap();
-        assert_eq!(bob_restored.decrypt_app(GID, &ct).unwrap(), b"after restore");
+        assert_eq!(
+            bob_restored.decrypt_app(GID, &ct).unwrap(),
+            b"after restore"
+        );
     }
 
     #[test]
@@ -902,7 +967,9 @@ mod tests {
         let carol = Device::new(b"carol:d").unwrap();
 
         alice.create_group(GID).unwrap();
-        let (_c, welcome) = alice.add_member(GID, &bob.key_package().unwrap().0).unwrap();
+        let (_c, welcome) = alice
+            .add_member(GID, &bob.key_package().unwrap().0)
+            .unwrap();
         alice.merge_pending(GID).unwrap();
         bob.join_from_welcome(&welcome, None).unwrap();
         // Alice + Bob both at epoch 1.
@@ -939,11 +1006,15 @@ mod tests {
         let bob2 = Device::new(b"bob:d2").unwrap();
 
         alice.create_group(GID).unwrap();
-        let (_c, w1) = alice.add_member(GID, &bob1.key_package().unwrap().0).unwrap();
+        let (_c, w1) = alice
+            .add_member(GID, &bob1.key_package().unwrap().0)
+            .unwrap();
         alice.merge_pending(GID).unwrap();
         bob1.join_from_welcome(&w1, None).unwrap();
         // Add Bob's second device; the existing member (bob1) applies that commit.
-        let (c2, w2) = alice.add_member(GID, &bob2.key_package().unwrap().0).unwrap();
+        let (c2, w2) = alice
+            .add_member(GID, &bob2.key_package().unwrap().0)
+            .unwrap();
         alice.merge_pending(GID).unwrap();
         assert!(bob1.process(GID, &c2).unwrap().is_none());
         bob2.join_from_welcome(&w2, None).unwrap();
@@ -965,7 +1036,10 @@ mod tests {
         let ct_after = alice.encrypt_app(GID, b"after").unwrap();
         assert!(bob1.decrypt_app(GID, &ct_after).is_err());
         assert!(bob2.decrypt_app(GID, &ct_after).is_err());
-        assert!(alice.remove_members_by_prefix(GID, b"bob:").unwrap().is_none());
+        assert!(alice
+            .remove_members_by_prefix(GID, b"bob:")
+            .unwrap()
+            .is_none());
         // The commit we produced is a real handshake frame (opaque).
         assert!(!commit.is_empty());
     }
@@ -979,7 +1053,9 @@ mod tests {
         let bob = Device::new(b"bob:dev1").unwrap();
 
         alice.create_group(GID).unwrap();
-        let (_c, welcome) = alice.add_member(GID, &bob.key_package().unwrap().0).unwrap();
+        let (_c, welcome) = alice
+            .add_member(GID, &bob.key_package().unwrap().0)
+            .unwrap();
         alice.merge_pending(GID).unwrap();
         bob.join_from_welcome(&welcome, None).unwrap();
 
@@ -1076,7 +1152,13 @@ mod e2e {
     }
 
     /// Register + activate (email-verify gate) + login → (access_token, user_id).
-    fn make_user(c: &Client, base: &str, username: &str, email: &str, password: &str) -> (String, String) {
+    fn make_user(
+        c: &Client,
+        base: &str,
+        username: &str,
+        email: &str,
+        password: &str,
+    ) -> (String, String) {
         let (st, body) = post(
             c,
             &format!("{base}/auth/register"),
@@ -1084,7 +1166,10 @@ mod e2e {
             json!({ "username": username, "email": email, "password": password }),
         );
         // 200/201/202 (verification_required) on success; 409 if a re-run collided.
-        assert!((200..300).contains(&st) || st == 409, "register {username}: {st} {body}");
+        assert!(
+            (200..300).contains(&st) || st == 409,
+            "register {username}: {st} {body}"
+        );
 
         // Login is gated on a verified email; flip it directly in the dev DB.
         // Native psql first (ACCORD_E2E_DB, defaulting to the dev stack URL);
@@ -1129,7 +1214,10 @@ mod e2e {
             json!({ "username_or_email": username, "password": password }),
         );
         assert_eq!(st, 200, "login {username}: {body}");
-        let token = body["access_token"].as_str().expect("access_token").to_string();
+        let token = body["access_token"]
+            .as_str()
+            .expect("access_token")
+            .to_string();
         let uid = jwt_sub(&token);
         (token, uid)
     }
@@ -1150,13 +1238,31 @@ mod e2e {
         println!("users: alice={a_id} bob={b_id}");
 
         // 2) Befriend (gates KeyPackage claim + DM membership), then open a DM.
-        let (st, body) = post(&c, &format!("{base}/friends/requests"), Some(&a_tok), json!({ "username": b_user }));
+        let (st, body) = post(
+            &c,
+            &format!("{base}/friends/requests"),
+            Some(&a_tok),
+            json!({ "username": b_user }),
+        );
         assert_eq!(st, 200, "friend request: {body}");
-        let (st, body) = post(&c, &format!("{base}/friends/requests/{a_id}/accept"), Some(&b_tok), json!({}));
+        let (st, body) = post(
+            &c,
+            &format!("{base}/friends/requests/{a_id}/accept"),
+            Some(&b_tok),
+            json!({}),
+        );
         assert_eq!(st, 200, "accept friend: {body}");
-        let (st, body) = post(&c, &format!("{base}/conversations/dm"), Some(&a_tok), json!({ "user_id": b_id }));
+        let (st, body) = post(
+            &c,
+            &format!("{base}/conversations/dm"),
+            Some(&a_tok),
+            json!({ "user_id": b_id }),
+        );
         assert_eq!(st, 200, "open dm: {body}");
-        let conv = body["conversation_id"].as_str().expect("conversation_id").to_string();
+        let conv = body["conversation_id"]
+            .as_str()
+            .expect("conversation_id")
+            .to_string();
         let gid = conv.as_bytes();
         println!("conversation: {conv}");
 
@@ -1173,7 +1279,11 @@ mod e2e {
                 .unwrap_or("?")
                 .to_string()
         };
-        assert_eq!(protocol_of(&a_tok), "mls", "a new DM is born MLS (v0.7 MLS-only)");
+        assert_eq!(
+            protocol_of(&a_tok),
+            "mls",
+            "a new DM is born MLS (v0.7 MLS-only)"
+        );
         // Re-asserting the protocol must stay a 200 no-op (idempotent upgrade)…
         let (st, body) = post(
             &c,
@@ -1182,7 +1292,11 @@ mod e2e {
             json!({ "protocol": "mls" }),
         );
         assert_eq!(st, 200, "mls re-assert is idempotent: {body}");
-        assert_eq!(protocol_of(&b_tok), "mls", "protocol is authoritative + visible to the peer");
+        assert_eq!(
+            protocol_of(&b_tok),
+            "mls",
+            "protocol is authoritative + visible to the peer"
+        );
         // …while a downgrade back to the legacy protocol is refused outright.
         let (st, body) = post(
             &c,
@@ -1190,7 +1304,10 @@ mod e2e {
             Some(&a_tok),
             json!({ "protocol": "x25519" }),
         );
-        assert!(st >= 400, "downgrade to x25519 must be refused: {st} {body}");
+        assert!(
+            st >= 400,
+            "downgrade to x25519 must be refused: {st} {body}"
+        );
 
         // 3) Real MLS devices; both publish a KeyPackage to the directory.
         let (a_dev, b_dev) = ("e2edevA", "e2edevB");
@@ -1208,7 +1325,12 @@ mod e2e {
         }
 
         // 4) Alice creates the group and adds Bob (claim his KP → Add commit → submit).
-        let (st, body) = post(&c, &format!("{base}/mls/groups/{conv}"), Some(&a_tok), json!({}));
+        let (st, body) = post(
+            &c,
+            &format!("{base}/mls/groups/{conv}"),
+            Some(&a_tok),
+            json!({}),
+        );
         assert_eq!(st, 200, "create group: {body}");
         alice.create_group(gid).unwrap();
 
@@ -1219,7 +1341,12 @@ mod e2e {
             json!({ "user_id": b_id, "device_ids": [b_dev] }),
         );
         assert_eq!(st, 200, "claim bob kp: {body}");
-        let bob_kp = unb64(body["packages"][0]["key_package"].as_str().expect("claimed kp")).unwrap();
+        let bob_kp = unb64(
+            body["packages"][0]["key_package"]
+                .as_str()
+                .expect("claimed kp"),
+        )
+        .unwrap();
 
         let (commit, welcome) = alice.add_member(gid, &bob_kp).unwrap();
         let (st, body) = post(
@@ -1236,9 +1363,15 @@ mod e2e {
         alice.merge_pending(gid).unwrap(); // DS accepted → apply our own commit
 
         // 5) Bob pulls his Welcome from the mailbox and joins.
-        let (st, body) = get(&c, &format!("{base}/mls/welcomes?device_id={b_dev}"), &b_tok);
+        let (st, body) = get(
+            &c,
+            &format!("{base}/mls/welcomes?device_id={b_dev}"),
+            &b_tok,
+        );
         assert_eq!(st, 200, "pull welcomes: {body}");
-        let w = body["welcomes"][0]["welcome"].as_str().expect("a queued welcome");
+        let w = body["welcomes"][0]["welcome"]
+            .as_str()
+            .expect("a queued welcome");
         let joined = bob.join_from_welcome(&unb64(w).unwrap(), None).unwrap();
         assert_eq!(joined, gid, "bob joined the conversation's group");
 
@@ -1254,7 +1387,11 @@ mod e2e {
         assert_eq!(st, 200, "submit frame: {body}");
 
         // 7) Bob replays the ordered log and decrypts it.
-        let (st, body) = get(&c, &format!("{base}/mls/groups/{conv}/frames?after=0"), &b_tok);
+        let (st, body) = get(
+            &c,
+            &format!("{base}/mls/groups/{conv}/frames?after=0"),
+            &b_tok,
+        );
         assert_eq!(st, 200, "pull frames: {body}");
         let frames = body["frames"].as_array().expect("frames array");
         let mut recovered: Vec<Vec<u8>> = Vec::new();
@@ -1274,13 +1411,19 @@ mod e2e {
         assert!(
             recovered.iter().any(|p| p.as_slice() == plaintext),
             "bob decrypted Alice's message end-to-end (got {:?})",
-            recovered.iter().map(|p| String::from_utf8_lossy(p).to_string()).collect::<Vec<_>>()
+            recovered
+                .iter()
+                .map(|p| String::from_utf8_lossy(p).to_string())
+                .collect::<Vec<_>>()
         );
         assert!(
             !server_saw_plaintext,
             "server-stored frames must be opaque ciphertext — plaintext leaked into the log"
         );
-        println!("OK — bob decrypted {:?} through the live DS; server stored only ciphertext", String::from_utf8_lossy(plaintext));
+        println!(
+            "OK — bob decrypted {:?} through the live DS; server stored only ciphertext",
+            String::from_utf8_lossy(plaintext)
+        );
 
         // 8) L5-4: Alice revokes Bob's whole membership (all his devices, one commit)
         //    through the DS → epoch rekeys. A message sent after must be unreadable to
@@ -1311,7 +1454,11 @@ mod e2e {
 
         // Bob replays what landed after his cursor: the revoke commit + the new
         // message. He must NOT recover the plaintext.
-        let (st, body) = get(&c, &format!("{base}/mls/groups/{conv}/frames?after={bob_seq}"), &b_tok);
+        let (st, body) = get(
+            &c,
+            &format!("{base}/mls/groups/{conv}/frames?after={bob_seq}"),
+            &b_tok,
+        );
         assert_eq!(st, 200, "pull post-revoke frames: {body}");
         let mut bob_read_after_revoke = false;
         for f in body["frames"].as_array().expect("frames") {
@@ -1326,7 +1473,9 @@ mod e2e {
             !bob_read_after_revoke,
             "revoked member must not read post-removal messages (PCS)"
         );
-        println!("OK — Alice revoked Bob through the live DS; Bob cannot read post-revocation messages");
+        println!(
+            "OK — Alice revoked Bob through the live DS; Bob cannot read post-revocation messages"
+        );
     }
 
     /// The split-brain contract, end-to-end against the live DS: creation is
@@ -1345,13 +1494,31 @@ mod e2e {
         let pw = format!("Zx9!e2e-{sfx}-Qw7r");
         let (a_tok, a_id) = make_user(&c, &base, &a_user, &format!("{a_user}@e2e.local"), &pw);
         let (b_tok, b_id) = make_user(&c, &base, &b_user, &format!("{b_user}@e2e.local"), &pw);
-        let (st, body) = post(&c, &format!("{base}/friends/requests"), Some(&a_tok), json!({ "username": b_user }));
+        let (st, body) = post(
+            &c,
+            &format!("{base}/friends/requests"),
+            Some(&a_tok),
+            json!({ "username": b_user }),
+        );
         assert_eq!(st, 200, "friend request: {body}");
-        let (st, body) = post(&c, &format!("{base}/friends/requests/{a_id}/accept"), Some(&b_tok), json!({}));
+        let (st, body) = post(
+            &c,
+            &format!("{base}/friends/requests/{a_id}/accept"),
+            Some(&b_tok),
+            json!({}),
+        );
         assert_eq!(st, 200, "accept friend: {body}");
-        let (st, body) = post(&c, &format!("{base}/conversations/dm"), Some(&a_tok), json!({ "user_id": b_id }));
+        let (st, body) = post(
+            &c,
+            &format!("{base}/conversations/dm"),
+            Some(&a_tok),
+            json!({ "user_id": b_id }),
+        );
         assert_eq!(st, 200, "open dm: {body}");
-        let conv = body["conversation_id"].as_str().expect("conversation_id").to_string();
+        let conv = body["conversation_id"]
+            .as_str()
+            .expect("conversation_id")
+            .to_string();
         let gid = conv.as_bytes();
 
         // Devices + published KeyPackages.
@@ -1370,13 +1537,31 @@ mod e2e {
         }
 
         // ── Creation arbitration: exactly one caller is the creator ─────────
-        let (st, body) = post(&c, &format!("{base}/mls/groups/{conv}"), Some(&a_tok), json!({}));
+        let (st, body) = post(
+            &c,
+            &format!("{base}/mls/groups/{conv}"),
+            Some(&a_tok),
+            json!({}),
+        );
         assert_eq!(st, 200, "first create: {body}");
-        assert_eq!(body["created"], json!(true), "first caller must be THE creator: {body}");
+        assert_eq!(
+            body["created"],
+            json!(true),
+            "first caller must be THE creator: {body}"
+        );
         assert_eq!(body["current_epoch"], json!(0));
-        let (st, body) = post(&c, &format!("{base}/mls/groups/{conv}"), Some(&b_tok), json!({}));
+        let (st, body) = post(
+            &c,
+            &format!("{base}/mls/groups/{conv}"),
+            Some(&b_tok),
+            json!({}),
+        );
         assert_eq!(st, 200, "second create: {body}");
-        assert_eq!(body["created"], json!(false), "second caller must NOT create: {body}");
+        assert_eq!(
+            body["created"],
+            json!(false),
+            "second caller must NOT create: {body}"
+        );
 
         // Alice (the arbitrated creator) builds the real group and adds Bob.
         alice.create_group(gid).unwrap();
@@ -1419,7 +1604,10 @@ mod e2e {
             Some(&b_tok),
             json!({ "epoch": 0, "frame": b64(&fork_commit), "welcomes": [] }),
         );
-        assert_eq!(st, 409, "a forked commit must 409, not fork the log: {body}");
+        assert_eq!(
+            st, 409,
+            "a forked commit must 409, not fork the log: {body}"
+        );
         bob.clear_pending(gid).unwrap();
 
         // Advance the real group to epoch 3 so the fork lags beyond the window.
@@ -1456,13 +1644,27 @@ mod e2e {
         assert_eq!(st, 200, "claim-less frame keeps legacy behavior: {body}");
 
         // ── Welcome ACK (at-least-once) + repair ────────────────────────────
-        let (st, body) = get(&c, &format!("{base}/mls/welcomes?device_id={b_dev}&ack=true"), &b_tok);
+        let (st, body) = get(
+            &c,
+            &format!("{base}/mls/welcomes?device_id={b_dev}&ack=true"),
+            &b_tok,
+        );
         assert_eq!(st, 200, "pull welcomes (ack mode): {body}");
-        let w_id = body["welcomes"][0]["id"].as_str().expect("welcome id").to_string();
-        assert_eq!(body["welcomes"][0]["group_id"].as_str(), Some(conv.as_str()));
+        let w_id = body["welcomes"][0]["id"]
+            .as_str()
+            .expect("welcome id")
+            .to_string();
+        assert_eq!(
+            body["welcomes"][0]["group_id"].as_str(),
+            Some(conv.as_str())
+        );
         let w = unb64(body["welcomes"][0]["welcome"].as_str().expect("welcome")).unwrap();
         // Fetch again: still pending — an ack-mode fetch must not consume it.
-        let (_st, body) = get(&c, &format!("{base}/mls/welcomes?device_id={b_dev}&ack=true"), &b_tok);
+        let (_st, body) = get(
+            &c,
+            &format!("{base}/mls/welcomes?device_id={b_dev}&ack=true"),
+            &b_tok,
+        );
         assert!(
             !body["welcomes"].as_array().expect("welcomes").is_empty(),
             "welcome must survive the fetch until acked"
@@ -1472,9 +1674,18 @@ mod e2e {
         // real group's state at the add epoch.
         let joined = bob.join_from_welcome(&w, Some(gid)).unwrap();
         assert_eq!(joined, gid, "rejoined the real group");
-        let (st, body) = post(&c, &format!("{base}/mls/welcomes/{w_id}/ack"), Some(&b_tok), json!({}));
+        let (st, body) = post(
+            &c,
+            &format!("{base}/mls/welcomes/{w_id}/ack"),
+            Some(&b_tok),
+            json!({}),
+        );
         assert_eq!(st, 200, "ack welcome: {body}");
-        let (_st, body) = get(&c, &format!("{base}/mls/welcomes?device_id={b_dev}&ack=true"), &b_tok);
+        let (_st, body) = get(
+            &c,
+            &format!("{base}/mls/welcomes?device_id={b_dev}&ack=true"),
+            &b_tok,
+        );
         assert!(
             body["welcomes"].as_array().expect("welcomes").is_empty(),
             "welcome consumed after the ack"
@@ -1482,7 +1693,11 @@ mod e2e {
 
         // Replay the whole log: pre-join / own / foreign frames are benign skips;
         // the two later self-updates must apply and converge the epochs.
-        let (st, body) = get(&c, &format!("{base}/mls/groups/{conv}/frames?after=0"), &b_tok);
+        let (st, body) = get(
+            &c,
+            &format!("{base}/mls/groups/{conv}/frames?after=0"),
+            &b_tok,
+        );
         assert_eq!(st, 200, "replay: {body}");
         for f in body["frames"].as_array().expect("frames") {
             let bytes = unb64(f["frame"].as_str().unwrap()).unwrap();

@@ -195,12 +195,11 @@ mod platform {
             UNUserNotificationCenter::currentNotificationCenter()
                 .getNotificationSettingsWithCompletionHandler(&block);
         }
-        let status = tauri::async_runtime::spawn_blocking(move || {
-            rx.recv_timeout(Duration::from_secs(10))
-        })
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|_| "notification settings query timed out".to_string())?;
+        let status =
+            tauri::async_runtime::spawn_blocking(move || rx.recv_timeout(Duration::from_secs(10)))
+                .await
+                .map_err(|e| e.to_string())?
+                .map_err(|_| "notification settings query timed out".to_string())?;
         Ok(match status {
             UNAuthorizationStatus::Denied => "denied",
             UNAuthorizationStatus::NotDetermined => "default",

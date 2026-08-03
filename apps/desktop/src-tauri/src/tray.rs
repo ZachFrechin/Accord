@@ -27,6 +27,11 @@ static TRAY_READY: AtomicBool = AtomicBool::new(false);
 
 /// Ramène la fenêtre au premier plan, qu'elle soit cachée ou simplement derrière.
 pub fn show_main(app: &AppHandle) {
+    // macOS masque l'APPLICATION quand sa dernière fenêtre visible disparaît.
+    // Rendre la fenêtre visible ne suffit alors pas : tant que l'application
+    // reste masquée, rien ne s'affiche. Il faut la démasquer d'abord.
+    #[cfg(target_os = "macos")]
+    let _ = app.show();
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.unminimize();
@@ -52,9 +57,11 @@ fn build(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&open, &quit])?;
 
     TrayIconBuilder::with_id("main")
-        .icon(app.default_window_icon().cloned().ok_or_else(|| {
-            tauri::Error::AssetNotFound("icône d'application introuvable".into())
-        })?)
+        .icon(
+            app.default_window_icon().cloned().ok_or_else(|| {
+                tauri::Error::AssetNotFound("icône d'application introuvable".into())
+            })?,
+        )
         .icon_as_template(true)
         .tooltip("Accord")
         .menu(&menu)
