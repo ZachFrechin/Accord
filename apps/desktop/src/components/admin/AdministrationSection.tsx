@@ -9,6 +9,7 @@
  * permission bits, color).
  */
 
+import { GroupsCard } from "./GroupsCard";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 
 import {
@@ -34,6 +35,16 @@ import "./admin.css";
 
 const PER_PAGE = 25;
 
+/** Onglets du panel. Tout tenait sur une seule page qui s'allongeait à chaque
+ * ajout ; passé trois sujets, on ne trouve plus rien sans faire défiler. */
+const TABS = [
+  { id: "users", label: "Utilisateurs" },
+  { id: "groups", label: "Groupes" },
+  { id: "roles", label: "Rôles" },
+  { id: "audit", label: "Journal" },
+] as const;
+type TabId = (typeof TABS)[number]["id"];
+
 const PERMISSION_LABELS: { bit: number; label: string; hint: string }[] = [
   { bit: AdminPermission.PANEL, label: "Voir le panel", hint: "Statistiques et liste des membres" },
   { bit: AdminPermission.MANAGE_USERS, label: "Gérer les utilisateurs", hint: "Suspendre / réactiver des comptes" },
@@ -41,6 +52,16 @@ const PERMISSION_LABELS: { bit: number; label: string; hint: string }[] = [
   { bit: AdminPermission.MODERATE, label: "Supprimer les messages", hint: "Supprimer n'importe quel message, dans toutes les conversations" },
   { bit: AdminPermission.EDIT_PROFILES, label: "Modifier les profils", hint: "Renommer le pseudo et le nom d'affichage des membres" },
   { bit: AdminPermission.VIEW_AUDIT, label: "Journal d'audit", hint: "Consulter l'historique des actions d'administration" },
+  { bit: AdminPermission.MANAGE_GROUPS, label: "Gérer les groupes", hint: "Créer, renommer et supprimer des conversations de groupe" },
+  { bit: AdminPermission.MANAGE_LEVELS, label: "Gérer les niveaux", hint: "Fixer ou remettre à zéro l'expérience d'un compte" },
+  {
+    bit: AdminPermission.RESET_PASSWORDS,
+    label: "Réinitialiser les mots de passe",
+    // Distincte de « gérer les utilisateurs » à dessein : suspendre est
+    // réversible et visible, reprendre la main sur un mot de passe ouvre l'accès
+    // au compte. Le libellé doit le dire, sinon la case se coche sans y penser.
+    hint: "Donne accès au compte : à réserver. Le contenu reste chiffré.",
+  },
 ];
 
 function formatCount(n: number): string {
@@ -53,6 +74,7 @@ export function AdministrationSection() {
   const { toast } = useToast();
   const confirm = useConfirm();
 
+  const [tab, setTab] = useState<TabId>("users");
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [roles, setRoles] = useState<AdminRole[]>([]);
 
@@ -320,6 +342,24 @@ export function AdministrationSection() {
         </p>
       )}
 
+      <div className="admin__tabs" role="tablist">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            data-active={tab === t.id}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "groups" && <GroupsCard />}
+
+      {tab === "users" && (
       <section className="admin__card" aria-label="Utilisateurs">
         <div className="admin__users-head">
           <h2 className="admin__card-title">
@@ -387,9 +427,10 @@ export function AdministrationSection() {
           </div>
         )}
       </section>
+      )}
 
-      <RolesCard client={client} roles={roles} onChanged={loadRoles} />
-      <AuditCard client={client} />
+      {tab === "roles" && <RolesCard client={client} roles={roles} onChanged={loadRoles} />}
+      {tab === "audit" && <AuditCard client={client} />}
     </div>
   );
 }

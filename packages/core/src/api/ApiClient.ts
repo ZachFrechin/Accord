@@ -38,6 +38,11 @@ export interface AdminUserDto {
   role: "member" | "admin";
   email_verified: boolean;
   disabled: boolean;
+  /** Échéance de la suspension. Absente avec `disabled` = sans terme. */
+  disabled_until?: string | null;
+  disabled_reason?: string | null;
+  /** Expérience cumulée, pour afficher et régler le niveau. */
+  xp?: number;
   created_at: string;
   /** Custom role ids assigned to this user (details via adminRoles()). */
   role_ids: string[];
@@ -50,7 +55,40 @@ export interface AdminRole {
   color: string | null;
   position: number;
   permissions: number;
+  /** Rôle suspendu : il garde ses membres mais n'accorde plus rien. */
+  suspended?: boolean;
 }
+
+/** Une conversation vue du panel. */
+export interface AdminConversation {
+  id: string;
+  kind: "dm" | "group";
+  name: string | null;
+  created_at: string;
+  members: number;
+  messages: number;
+  last_message_at: string | null;
+}
+
+/** L'ENVELOPPE d'un message. Le contenu n'est jamais servi : il est chiffré de
+ * bout en bout et le serveur n'en détient aucune clé. */
+export interface AdminMessage {
+  id: string;
+  sender_id: string | null;
+  sender_username: string | null;
+  created_at: string;
+  edited_at: string | null;
+  deleted: boolean;
+  size_bytes: number;
+}
+
+export type AdminUserSort = "recent" | "oldest" | "name_asc" | "name_desc" | "xp_desc";
+export type AdminConversationSort =
+  | "recent"
+  | "oldest"
+  | "name_asc"
+  | "members_desc"
+  | "busiest";
 
 /** Permission bits carried by custom roles (mirror of the backend). */
 export const AdminPermission = {
@@ -60,6 +98,9 @@ export const AdminPermission = {
   MODERATE: 1 << 3,
   EDIT_PROFILES: 1 << 4,
   VIEW_AUDIT: 1 << 5,
+  MANAGE_GROUPS: 1 << 6,
+  MANAGE_LEVELS: 1 << 7,
+  RESET_PASSWORDS: 1 << 8,
 } as const;
 
 /** The caller's effective instance capabilities (GET /admin/me — never 403s). */
@@ -388,13 +429,90 @@ export class ApiClient {
   adminStats(): Promise<AdminStats> {
     return this.request<AdminStats>("/admin/stats");
   }
-  adminUsers(params: { q?: string; page?: number; perPage?: number } = {}): Promise<AdminUserPage> {
+  adminUsers(
+    params: {
+      q?: string;
+      page?: number;
+      perPage?: number;
+      sort?: AdminUserSort;
+      from?: string;
+      to?: string;
+    } = {},
+  ): Promise<AdminUserPage> {
     const qs = new URLSearchParams();
     if (params.q) qs.set("q", params.q);
     if (params.page) qs.set("page", String(params.page));
     if (params.perPage) qs.set("per_page", String(params.perPage));
+    if (params.sort) qs.set("sort", params.sort);
+    if (params.from) qs.set("from", params.from);
+    if (params.to) qs.set("to", params.to);
     const suffix = qs.size > 0 ? `?${qs.toString()}` : "";
     return this.request<AdminUserPage>(`/admin/users${suffix}`);
+  }
+  /** Suspend (ou rétablit) un compte. `until` absent = sans terme. */
+  adminSuspendUser(
+    id: string,
+    body: { until?: string | null; reason?: string } = {},
+  ): Promise<AdminUserDto> {
+    return this.send("POST", `/admin/users/${id}/suspend`, body);
+  }
+  adminReinstateUser(id: string): Promise<AdminUserDto> {
+    return this.send("POST", `/admin/users/${id}/reinstate`, {});
+  }
+  /** Engendre un mot de passe temporaire — renvoyé UNE seule fois. */
+  adminTemporaryPassword(id: string): Promise<{ password: string }> {
+    return this.send("POST", `/admin/users/${id}/password/temporary`, {});
+  }
+  /** Envoie un lien de réinitialisation : le secret ne passe pas par l'admin. */
+  adminSendResetLink(id: string): Promise<{ status: string }> {
+    return this.send("POST", `/admin/users/${id}/password/link`, {});
+  }
+  /** Fixe l'expérience (0 = remise à zéro). */
+  adminSetLevel(id: string, xp: number): Promise<AdminUserDto> {
+    return this.send("PUT", `/admin/users/${id}/level`, { xp });
+  }
+  adminSetRoleSuspension(id: string, suspended: boolean): Promise<{ suspended: boolean }> {
+    return this.send("POST", `/admin/roles/${id}/suspension`, { suspended });
+  }
+  adminConversations(
+    params: {
+      q?: string;
+      kind?: "dm" | "group";
+      page?: number;
+      perPage?: number;
+      sort?: AdminConversationSort;
+    } = {},
+  ): Promise<{ items: AdminConversation[]; total: number; page: number; per_page: number }> {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set("q", params.q);
+    if (params.kind) qs.set("kind", params.kind);
+    if (params.page) qs.set("page", String(params.page));
+    if (params.perPage) qs.set("per_page", String(params.perPage));
+    if (params.sort) qs.set("sort", params.sort);
+    const suffix = qs.size > 0 ? `?${qs.toString()}` : "";
+    return this.request(`/admin/conversations${suffix}`);
+  }
+  adminCreateGroup(body: { name: string; member_ids?: string[] }): Promise<AdminConversation> {
+    return this.send("POST", "/admin/conversations", body);
+  }
+  adminDeleteConversation(id: string): Promise<{ deleted: boolean }> {
+    return this.send("DELETE", `/admin/conversations/${id}`, {});
+  }
+  adminMessages(
+    conversationId: string,
+    params: { page?: number; perPage?: number } = {},
+  ): Promise<{
+    items: AdminMessage[];
+    total: number;
+    page: number;
+    per_page: number;
+    content_readable: boolean;
+  }> {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", String(params.page));
+    if (params.perPage) qs.set("per_page", String(params.perPage));
+    const suffix = qs.size > 0 ? `?${qs.toString()}` : "";
+    return this.request(`/admin/conversations/${conversationId}/messages${suffix}`);
   }
   adminRoles(): Promise<{ roles: AdminRole[] }> {
     return this.request("/admin/roles");

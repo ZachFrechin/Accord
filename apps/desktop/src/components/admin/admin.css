@@ -310,3 +310,87 @@
 .admin__audit-text strong { color: var(--text-1); font-weight: var(--weight-semibold); }
 .admin__audit-detail { color: var(--text-3); }
 .admin__audit-time { flex: none; font-size: var(--text-xs); color: var(--text-3); }
+
+/* ── Panel v3 : onglets, tableaux, filtres ──────────────────────────────── */
+.admin__tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-glass);
+}
+.admin__tabs button {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+.admin__tabs button:hover { color: var(--text-1); }
+.admin__tabs button[data-active="true"] { background: var(--accent); color: var(--accent-contrast); }
+
+.admin__card-head { display: flex; align-items: center; gap: var(--space-3); }
+.admin__card-head .admin__card-title { flex: 1; }
+
+.admin__filters { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+.admin__filters .admin__search { flex: 1; min-width: 200px; }
+.admin__select {
+  height: var(--input-height);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-glass);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.admin__create { display: flex; gap: var(--space-2); align-items: flex-end; flex-wrap: wrap; }
+.admin__create > :first-child { flex: 1; min-width: 220px; }
+.admin__create .admin__hint { flex-basis: 100%; margin: 0; }
+
+/* Un tableau plutôt que des cartes : on compare des lignes, on trie par colonne,
+   et la densité est ce qu'on attend d'un écran d'administration. */
+.admin__table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.admin__table th {
+  text-align: left;
+  padding: var(--space-2) var(--space-2);
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.admin__table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  vertical-align: middle;
+}
+.admin__table tbody tr:hover { background: var(--surface-glass); }
+.admin__num { text-align: right; font-variant-numeric: tabular-nums; }
+.admin__muted { color: var(--text-3); }
+.admin__row-actions { display: flex; gap: var(--space-1); justify-content: flex-end; }
+.admin__link { border: none; background: none; padding: 0; color: var(--accent); cursor: pointer; font: inherit; }
+
+/* L'avertissement sur le chiffrement : visible, mais pas alarmiste — ce n'est
+   pas une panne, c'est la garantie qui fait tenir le produit. */
+.admin__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-glass);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+.admin__notice svg { flex: none; margin-top: 2px; color: var(--accent); }
