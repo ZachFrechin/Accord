@@ -1,0 +1,62 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id, c.kind, c.name,\n                  c.created_at,\n                  count(DISTINCT cm.user_id) AS \"members!\",\n                  count(DISTINCT m.id)       AS \"messages!\",\n                  max(m.created_at)          AS \"last_message_at?\"\n           FROM conversations c\n           LEFT JOIN conversation_members cm ON cm.conversation_id = c.id\n           LEFT JOIN messages m ON m.conversation_id = c.id\n           WHERE ($1::text IS NULL OR c.name ILIKE $1)\n             AND ($4::text IS NULL OR c.kind = $4)\n           GROUP BY c.id\n           ORDER BY\n             CASE WHEN $5 = 'oldest'       THEN c.created_at END ASC,\n             CASE WHEN $5 = 'name_asc'     THEN lower(coalesce(c.name, '')) END ASC,\n             CASE WHEN $5 = 'members_desc' THEN count(DISTINCT cm.user_id) END DESC,\n             CASE WHEN $5 = 'busiest'      THEN count(DISTINCT m.id) END DESC,\n             c.created_at DESC\n           LIMIT $2 OFFSET $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "members!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "messages!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_message_at?",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "481cce1e697c0a6f0878d40bc04382e3d7c0909fc6962fae3fdee58b1b329dbe"
+}

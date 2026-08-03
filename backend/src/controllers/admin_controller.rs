@@ -15,7 +15,7 @@ use crate::domain::{permissions, validation};
 use crate::error::ApiError;
 use crate::middleware::auth::{self, AuthUser, PanelUser};
 use crate::realtime::presence;
-use crate::repositories::{admin_repo, profile_repo, session_repo, user_repo};
+use crate::repositories::{admin_repo, conversation_repo, profile_repo, session_repo, user_repo};
 use crate::state::AppState;
 
 /// Best-effort audit write: a journal hiccup never aborts the action it records.
@@ -799,4 +799,228 @@ pub async fn set_role_suspension(
     )
     .await;
     Ok(Json(json!({ "suspended": body.suspended })))
+}
+
+// ── Groupes et messages (panel v3) ───────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct AdminConversationDto {
+    pub id: Uuid,
+    pub kind: String,
+    pub name: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub members: i64,
+    pub messages: i64,
+    pub last_message_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ConversationListResponse {
+    pub items: Vec<AdminConversationDto>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConversationsQuery {
+    #[serde(default)]
+    pub q: Option<String>,
+    /// `dm` ou `group` ; absent = les deux.
+    #[serde(default)]
+    pub kind: Option<String>,
+    #[serde(default = "default_page")]
+    pub page: i64,
+    #[serde(default = "default_per_page")]
+    pub per_page: i64,
+    /// `recent` (défaut), `oldest`, `name_asc`, `members_desc`, `busiest`.
+    #[serde(default)]
+    pub sort: Option<String>,
+}
+
+fn conversation_sort(raw: Option<&str>) -> &'static str {
+    match raw {
+        Some("oldest") => "oldest",
+        Some("name_asc") => "name_asc",
+        Some("members_desc") => "members_desc",
+        Some("busiest") => "busiest",
+        _ => "recent",
+    }
+}
+
+/// `GET /admin/conversations` — la liste, filtrée et triée.
+pub async fn list_conversations(
+    State(state): State<AppState>,
+    panel: PanelUser,
+    Query(query): Query<ConversationsQuery>,
+) -> Result<Json<ConversationListResponse>, ApiError> {
+    panel.require(permissions::MANAGE_GROUPS, "voir les groupes")?;
+    let per_page = query.per_page.clamp(1, 100);
+    let page = query.page.max(1);
+    let kind = match query.kind.as_deref() {
+        Some("dm") => Some("dm"),
+        Some("group") => Some("group"),
+        _ => None,
+    };
+    let search = query.q.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let (rows, total) = admin_repo::list_conversations(
+        &state.db,
+        search,
+        kind,
+        per_page,
+        (page - 1) * per_page,
+        conversation_sort(query.sort.as_deref()),
+    )
+    .await?;
+    Ok(Json(ConversationListResponse {
+        items: rows
+            .into_iter()
+            .map(|r| AdminConversationDto {
+                id: r.id,
+                kind: r.kind,
+                name: r.name,
+                created_at: r.created_at,
+                members: r.members,
+                messages: r.messages,
+                last_message_at: r.last_message_at,
+            })
+            .collect(),
+        total,
+        page,
+        per_page,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateGroupBody {
+    pub name: String,
+    #[serde(default)]
+    pub member_ids: Vec<Uuid>,
+}
+
+/// `POST /admin/conversations` — crée un groupe.
+///
+/// L'administrateur en est membre et responsable : un groupe créé sans personne
+/// pour l'administrer ne pourrait plus jamais être modifié depuis l'application.
+pub async fn create_group(
+    State(state): State<AppState>,
+    panel: PanelUser,
+    Json(body): Json<CreateGroupBody>,
+) -> Result<Json<AdminConversationDto>, ApiError> {
+    panel.require(permissions::MANAGE_GROUPS, "créer un groupe")?;
+    let name = body.name.trim();
+    if name.is_empty() || name.chars().count() > 100 {
+        return Err(ApiError::Validation("nom de groupe invalide".to_string()));
+    }
+    // Le créateur devient membre et responsable du groupe : sans personne pour
+    // l'administrer, il ne pourrait plus jamais être modifié depuis l'application.
+    let id = conversation_repo::create_group(&state.db, panel.user_id, name).await?;
+    let mut members = 1_i64;
+    for user_id in body
+        .member_ids
+        .iter()
+        .copied()
+        .filter(|u| *u != panel.user_id)
+    {
+        // Un identifiant erroné ne doit pas annuler la création : le groupe
+        // existe, il suffira d'y ajouter la personne manquante ensuite.
+        match conversation_repo::add_member(&state.db, id, user_id, "member").await {
+            Ok(true) => members += 1,
+            Ok(false) => {}
+            Err(e) => tracing::warn!(error = %e, %user_id, "ajout au groupe impossible"),
+        }
+    }
+    audit(
+        &state,
+        panel.user_id,
+        "conversation.create",
+        Some(id),
+        json!({ "name": name, "members": members }),
+    )
+    .await;
+    Ok(Json(AdminConversationDto {
+        id,
+        kind: "group".to_string(),
+        name: Some(name.to_string()),
+        created_at: Utc::now(),
+        members,
+        messages: 0,
+        last_message_at: None,
+    }))
+}
+
+/// `DELETE /admin/conversations/{id}` — supprime définitivement.
+pub async fn delete_conversation(
+    State(state): State<AppState>,
+    panel: PanelUser,
+    Path(conversation_id): Path<Uuid>,
+) -> Result<Json<Value>, ApiError> {
+    panel.require(permissions::MANAGE_GROUPS, "supprimer une conversation")?;
+    admin_repo::delete_conversation(&state.db, conversation_id).await?;
+    audit(
+        &state,
+        panel.user_id,
+        "conversation.delete",
+        Some(conversation_id),
+        json!({}),
+    )
+    .await;
+    Ok(Json(json!({ "deleted": true })))
+}
+
+#[derive(Debug, Serialize)]
+pub struct AdminMessageDto {
+    pub id: Uuid,
+    pub sender_id: Option<Uuid>,
+    pub sender_username: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub edited_at: Option<DateTime<Utc>>,
+    pub deleted: bool,
+    /// Taille du chiffré. Le contenu, lui, n'est pas lisible d'ici.
+    pub size_bytes: i32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MessageListResponse {
+    pub items: Vec<AdminMessageDto>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+    /// Rappel porté par l'API : aucun texte ne peut être servi ici.
+    pub content_readable: bool,
+}
+
+/// `GET /admin/conversations/{id}/messages` — les enveloppes, sans le contenu.
+pub async fn list_messages(
+    State(state): State<AppState>,
+    panel: PanelUser,
+    Path(conversation_id): Path<Uuid>,
+    Query(query): Query<UsersQuery>,
+) -> Result<Json<MessageListResponse>, ApiError> {
+    panel.require(permissions::MODERATE, "voir les messages")?;
+    let per_page = query.per_page.clamp(1, 100);
+    let page = query.page.max(1);
+    let (rows, total) =
+        admin_repo::list_messages(&state.db, conversation_id, per_page, (page - 1) * per_page)
+            .await?;
+    Ok(Json(MessageListResponse {
+        items: rows
+            .into_iter()
+            .map(|r| AdminMessageDto {
+                id: r.id,
+                sender_id: r.sender_id,
+                sender_username: r.sender_username,
+                created_at: r.created_at,
+                edited_at: r.edited_at,
+                deleted: r.deleted_at.is_some(),
+                size_bytes: r.size_bytes,
+            })
+            .collect(),
+        total,
+        page,
+        per_page,
+        // Toujours faux, et dit explicitement : un panel qui prétendrait afficher
+        // le texte ne pourrait que mentir.
+        content_readable: false,
+    }))
 }

@@ -488,3 +488,138 @@ pub async fn set_role_suspended(
     .map_err(|e| ApiError::Internal(anyhow::anyhow!("suspension du rôle : {e}")))?;
     Ok(())
 }
+
+// ── Groupes et messages vus du panel ─────────────────────────────────────────
+
+/// Une conversation, telle que le panel la liste.
+#[derive(Debug)]
+pub struct AdminConversationRow {
+    pub id: Uuid,
+    pub kind: String,
+    pub name: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub members: i64,
+    pub messages: i64,
+    pub last_message_at: Option<DateTime<Utc>>,
+}
+
+/// Liste les conversations, avec recherche, tri et pagination.
+///
+/// Les compteurs sont agrégés dans la même requête : les demander ligne par
+/// ligne ferait deux requêtes par conversation affichée.
+pub async fn list_conversations(
+    pool: &PgPool,
+    search: Option<&str>,
+    kind: Option<&str>,
+    limit: i64,
+    offset: i64,
+    sort: &str,
+) -> Result<(Vec<AdminConversationRow>, i64), ApiError> {
+    let pattern = search.map(like_pattern);
+    let rows = sqlx::query_as!(
+        AdminConversationRow,
+        r#"SELECT c.id, c.kind, c.name,
+                  c.created_at,
+                  count(DISTINCT cm.user_id) AS "members!",
+                  count(DISTINCT m.id)       AS "messages!",
+                  max(m.created_at)          AS "last_message_at?"
+           FROM conversations c
+           LEFT JOIN conversation_members cm ON cm.conversation_id = c.id
+           LEFT JOIN messages m ON m.conversation_id = c.id
+           WHERE ($1::text IS NULL OR c.name ILIKE $1)
+             AND ($4::text IS NULL OR c.kind = $4)
+           GROUP BY c.id
+           ORDER BY
+             CASE WHEN $5 = 'oldest'       THEN c.created_at END ASC,
+             CASE WHEN $5 = 'name_asc'     THEN lower(coalesce(c.name, '')) END ASC,
+             CASE WHEN $5 = 'members_desc' THEN count(DISTINCT cm.user_id) END DESC,
+             CASE WHEN $5 = 'busiest'      THEN count(DISTINCT m.id) END DESC,
+             c.created_at DESC
+           LIMIT $2 OFFSET $3"#,
+        pattern.as_deref(),
+        limit,
+        offset,
+        kind,
+        sort,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(ApiError::from)?;
+
+    let total = sqlx::query_scalar!(
+        "SELECT count(*) FROM conversations c \
+         WHERE ($1::text IS NULL OR c.name ILIKE $1) \
+           AND ($2::text IS NULL OR c.kind = $2)",
+        pattern.as_deref(),
+        kind,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(ApiError::from)?
+    .unwrap_or(0);
+    Ok((rows, total))
+}
+
+/// Supprime une conversation et tout ce qui s'y rattache.
+///
+/// Les suppressions en cascade de la base emportent membres et messages ; ce
+/// qui part ne revient pas, d'où la confirmation exigée côté panel.
+pub async fn delete_conversation(pool: &PgPool, id: Uuid) -> Result<(), ApiError> {
+    sqlx::query!("DELETE FROM conversations WHERE id = $1", id)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::Internal(anyhow::anyhow!("suppression de conversation : {e}")))?;
+    Ok(())
+}
+
+/// L'enveloppe d'un message, sans son contenu.
+///
+/// Le panel ne peut RIEN afficher du texte : il est chiffré de bout en bout et
+/// le serveur n'en détient aucune clé. On expose donc ce qui reste — qui a
+/// écrit, quand, quelle taille — de quoi retrouver un message signalé et le
+/// supprimer, jamais de quoi le lire.
+#[derive(Debug)]
+pub struct AdminMessageRow {
+    pub id: Uuid,
+    pub sender_id: Option<Uuid>,
+    pub sender_username: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub edited_at: Option<DateTime<Utc>>,
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub size_bytes: i32,
+}
+
+pub async fn list_messages(
+    pool: &PgPool,
+    conversation_id: Uuid,
+    limit: i64,
+    offset: i64,
+) -> Result<(Vec<AdminMessageRow>, i64), ApiError> {
+    let rows = sqlx::query_as!(
+        AdminMessageRow,
+        r#"SELECT m.id, m.sender_id,
+                  u.username AS "sender_username?",
+                  m.created_at, m.edited_at, m.deleted_at,
+                  length(m.ciphertext) AS "size_bytes!"
+           FROM messages m
+           LEFT JOIN users u ON u.id = m.sender_id
+           WHERE m.conversation_id = $1
+           ORDER BY m.created_at DESC
+           LIMIT $2 OFFSET $3"#,
+        conversation_id,
+        limit,
+        offset,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(ApiError::from)?;
+    let total = sqlx::query_scalar!(
+        "SELECT count(*) FROM messages WHERE conversation_id = $1",
+        conversation_id,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(ApiError::from)?
+    .unwrap_or(0);
+    Ok((rows, total))
+}

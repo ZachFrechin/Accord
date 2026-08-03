@@ -268,6 +268,18 @@ pub fn build_router(state: AppState) -> Router {
         .route("/admin/audit", get(admin_controller::audit_log))
         .route("/admin/users", get(admin_controller::list_users))
         .route(
+            "/admin/conversations",
+            get(admin_controller::list_conversations).post(admin_controller::create_group),
+        )
+        .route(
+            "/admin/conversations/{conversation_id}",
+            delete(admin_controller::delete_conversation),
+        )
+        .route(
+            "/admin/conversations/{conversation_id}/messages",
+            get(admin_controller::list_messages),
+        )
+        .route(
             "/admin/roles",
             get(admin_controller::list_roles).post(admin_controller::create_role),
         )
