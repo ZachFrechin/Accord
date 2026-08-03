@@ -1380,6 +1380,33 @@ export async function renameGroup(conversationId: string, name: string): Promise
 export async function addMember(conversationId: string, userId: string): Promise<void> {
   if (!rt) return;
   await rt.client.addMember(conversationId, userId);
+  // Rejoindre la conversation côté serveur ne donne AUCUNE clé. Sans cet ajout
+  // au groupe MLS, la personne entre dans la liste des membres et se retrouve
+  // incapable de lire, d'écrire ou d'appeler — le symptôme ne dit pas qu'il lui
+  // manque une invitation, il ressemble à une application cassée.
+  //
+  // Le retrait faisait déjà son pendant MLS juste en dessous ; l'ajout, lui,
+  // avait sa fonction écrite mais jamais appelée.
+  if (isMls(conversationId)) {
+    const bundle = await rt.client.keyBundle(userId).catch(() => null);
+    const deviceIds = bundle?.devices.map((d) => d.device_id) ?? [];
+    if (deviceIds.length) {
+      await mls
+        .addToMlsGroup(
+          rt.client,
+          rt.instanceId,
+          conversationId,
+          [{ userId, deviceIds }],
+          deliverSwept(conversationId),
+        )
+        .catch((e) => console.warn("MLS member add failed", e));
+    } else {
+      // Aucun appareil publié : la personne ne s'est jamais connectée depuis
+      // que le chiffrement existe. Le balayage périodique la rattrapera dès
+      // qu'elle publiera une clé — rien à faire ici, mais il faut le dire.
+      console.warn("MLS: aucun appareil connu pour", userId, "— ajout différé");
+    }
+  }
   invalidateMembers(conversationId);
 }
 export async function removeMember(conversationId: string, userId: string): Promise<void> {
@@ -1587,8 +1614,20 @@ export async function onMemberChange(
 
   // A member ADDED to an MLS conversation must also enter the MLS tree, or they
   // can never read anything — force a sweep now (bypasses the hourly throttle).
+  //
+  // L'échec était avalé en silence, et c'est ce qui rendait le symptôme
+  // indéchiffrable : la personne se retrouvait muette dans le groupe sans que
+  // rien, nulle part, n'indique qu'une invitation avait manqué. Ce chemin reste
+  // un filet — l'ajout direct dans `addMember` est la voie normale — mais quand
+  // le filet cède, il faut que ça se voie.
   if (action === "added" && isMls(conversationId)) {
-    await sweepConversationDevices(conversationId, true).catch(() => {});
+    await sweepConversationDevices(conversationId, true).catch((e) =>
+      console.error(
+        `MLS: ${userId} ajouté à ${conversationId} n'a pas pu entrer dans le groupe —`,
+        "il ne pourra ni lire, ni écrire, ni appeler tant que ce ne sera pas réglé.",
+        e,
+      ),
+    );
   }
 }
 export async function onFriendEvent(userId: string): Promise<void> {
