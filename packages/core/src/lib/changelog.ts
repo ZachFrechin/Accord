@@ -17,6 +17,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.16.0",
+    date: "2026-08-03",
+    title: "Fermer sans quitter, et un panel d'administration complet",
+    notes: [
+      "La croix range Accord dans la barre de menus au lieu de le quitter : un appel en cours n'est plus coupé par une fenêtre qu'on referme. Un clic sur l'icône le ramène, « Quitter » l'arrête pour de bon.",
+      "Correction d'un bug qui, toutes les dix minutes, vous ramenait au menu en quittant la conversation ouverte — y compris pendant un appel.",
+      "Un son signale les arrivées et les départs en vocal, et les appels manqués laissent une trace dans la conversation.",
+      "Les réglages d'un groupe passent dans une roue crantée en haut de la conversation, où ils sont enfin trouvables.",
+      "La liste des conversations affiche l'état de votre interlocuteur, et le nombre de personnes présentes dans un groupe.",
+      "Panel d'administration refondu en onglets : suspensions à durée choisie avec motif, réinitialisation de mot de passe, gestion des niveaux, des groupes et des rôles, avec recherche et tri.",
+      "Accord a son logo, sur l'application comme dans la barre des tâches.",
+      "Deux failles corrigées dans des bibliothèques tierces, et les avatars s'affichent de nouveau en tête de conversation.",
+    ],
+  },
+  {
     version: "0.15.0",
     date: "2026-08-02",
     title: "Accord passe en open source",
