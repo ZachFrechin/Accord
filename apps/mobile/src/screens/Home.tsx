@@ -27,6 +27,7 @@ import {
 import { useConnection } from "@accord/core/realtime/ConnectionProvider";
 import { useConversationsStore } from "@accord/core/stores/useConversationsStore";
 import { useFriendsStore } from "@accord/core/stores/useFriendsStore";
+import { usePresenceStore } from "@accord/core/stores/usePresenceStore";
 
 import { Avatar } from "../ui/Avatar";
 import { Conversation } from "./Conversation";
@@ -51,6 +52,13 @@ function Messages({ onOpen }: { onOpen: (id: string) => void }) {
   const [groupName, setGroupName] = useState("");
   const [busy, setBusy] = useState(false);
   const friends = useFriendsStore((s) => s.friends);
+  const presences = usePresenceStore((s) => s.statuses);
+
+  // La présence d'un ami arrive avec la liste d'amis ; celle des autres passe
+  // par le flux temps réel. Sans ce repli, un interlocuteur qui n'est pas notre
+  // ami paraîtrait éternellement hors ligne.
+  const presenceOf = (userId: string) =>
+    friends.find((f) => f.user_id === userId)?.presence ?? presences[userId] ?? "OFFLINE";
 
   useEffect(() => {
     void refreshConversations();
@@ -117,7 +125,15 @@ function Messages({ onOpen }: { onOpen: (id: string) => void }) {
           return (
             <li key={c.id}>
               <button type="button" className="conv" onClick={() => onOpen(c.id)}>
-                <Avatar name={title} size={46} src={peers[c.id]?.avatarUrl} />
+                <Avatar
+                  name={title}
+                  size={46}
+                  src={peers[c.id]?.avatarUrl}
+                  // Un groupe n'a pas d'état de présence.
+                  presence={
+                    c.kind === "dm" && peers[c.id] ? presenceOf(peers[c.id].userId) : undefined
+                  }
+                />
                 <span className="conv__body">
                   <span className="conv__title">{title}</span>
                   <span className="conv__sub">

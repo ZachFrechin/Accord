@@ -45,9 +45,10 @@ export function Avatar({ name, size = 36, presence, src }: AvatarProps) {
           {initials(name)}
         </span>
       )}
-      {presence && presence !== "OFFLINE" && (
-        <span className="avatar__dot" data-status={presence} />
-      )}
+      {/* La pastille s'affiche AUSSI hors ligne, en gris. Ne rien montrer
+          rendait « hors ligne » indiscernable de « on ne sait pas », et c'est
+          justement l'ambiguïté qu'on cherche à lever. */}
+      {presence && <span className="avatar__dot" data-status={presence} />}
     </span>
   );
 }

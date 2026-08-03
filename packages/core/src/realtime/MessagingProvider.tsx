@@ -28,6 +28,7 @@ import {
   refreshFriends,
   resyncAll,
   setMessagingRuntime,
+  refreshPresences,
 } from "../stores/messagingActions";
 import { useOngoingCallsStore } from "../stores/useOngoingCallsStore";
 import { monitorTransparency } from "../stores/useTransparencyStore";
@@ -132,6 +133,9 @@ export function MessagingProvider({
         })
         .catch(() => {});
     };
+    // L'état de présence initial : sans lui, on n'apprend que les changements
+    // survenus APRÈS la connexion, et tout le monde paraît hors ligne à l'arrivée.
+    void refreshPresences().catch(() => {});
     checkLevel();
     const levelTimer = setInterval(checkLevel, 120_000);
 

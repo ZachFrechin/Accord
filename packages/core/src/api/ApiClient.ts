@@ -514,6 +514,15 @@ export class ApiClient {
     const suffix = qs.size > 0 ? `?${qs.toString()}` : "";
     return this.request(`/admin/conversations/${conversationId}/messages${suffix}`);
   }
+  /** État de présence de plusieurs comptes, en une requête.
+   *
+   * Le serveur plafonne à 100 identifiants par appel ; le découpage est fait par
+   * l'appelant. Ne renvoie que le statut brut — le texte personnalisé passe par
+   * /friends, qui lui est filtré par relation. */
+  presences(ids: string[]): Promise<Record<string, PresenceStatus>> {
+    if (ids.length === 0) return Promise.resolve({});
+    return this.request(`/presences?ids=${encodeURIComponent(ids.join(","))}`);
+  }
   adminRoles(): Promise<{ roles: AdminRole[] }> {
     return this.request("/admin/roles");
   }

@@ -890,3 +890,24 @@ body { font-weight: var(--weight-user-base, 400); }
    d'en inventer de nouveaux. */
 .tabbar { border-top: var(--shell-border-w, 1px) solid var(--border); }
 .chatbar { border-bottom: var(--shell-border-w, 1px) solid var(--border); }
+
+/* Pastille de présence. Généreuse à dessein : sur un téléphone tenu à bout de
+   bras, une pastille de 9 px ne distingue pas le vert de l'orange — et c'est
+   toute l'information qu'elle porte. L'anneau la détache de la photo. */
+.avatar { position: relative; }
+.avatar__dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 38%;
+  height: 38%;
+  min-width: 14px;
+  min-height: 14px;
+  border-radius: 50%;
+  border: 2.5px solid var(--bg-app);
+  background: var(--text-3);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
+}
+.avatar__dot[data-status="ONLINE"] { background: var(--status-good); }
+.avatar__dot[data-status="AWAY"] { background: var(--status-warn); }
+.avatar__dot[data-status="DND"] { background: var(--status-danger); }

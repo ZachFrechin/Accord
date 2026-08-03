@@ -1112,6 +1112,45 @@ export function sendTyping(conversationId: string): void {
 }
 /** Set the local user's presence and broadcast it to the server (other devices +
  * peers). Local state updates even when offline; the socket send is best-effort. */
+/** Charge l'état de présence de tout le monde qu'on affiche.
+ *
+ * Sans cet appel, on n'apprend QUE les changements survenus après la connexion :
+ * quelqu'un déjà en ligne à notre arrivée reste affiché hors ligne jusqu'à ce
+ * qu'il change d'état — et à l'inverse, quelqu'un parti pendant qu'on était
+ * déconnecté reste affiché en ligne. C'est exactement ce que les utilisateurs
+ * décrivaient comme « mal synchronisé ».
+ *
+ * À rappeler après chaque reconnexion : le temps passé hors ligne est
+ * précisément celui pendant lequel les changements n'ont pas été reçus.
+ */
+export async function refreshPresences(): Promise<void> {
+  if (!rt) return;
+  const ids = new Set<string>();
+  for (const f of useFriendsStore.getState().friends) ids.add(f.user_id);
+  const convs = useConversationsStore.getState();
+  for (const peer of Object.values(convs.peers)) ids.add(peer.userId);
+  // Les membres des groupes déjà ouverts : ce sont les visages qu'on voit.
+  for (const conversationId of Object.keys(useMessagesStore.getState().byConversation)) {
+    const members = await rt.client
+      .conversationMembers(conversationId)
+      .then((r) => r.members.map((m) => m.user_id))
+      .catch(() => []);
+    for (const id of members) ids.add(id);
+  }
+  ids.delete(rt.myUserId); // notre propre statut est local, et fait autorité
+  const all = [...ids];
+  const store = usePresenceStore.getState();
+  // Le serveur plafonne à 100 identifiants par requête.
+  for (let i = 0; i < all.length; i += 100) {
+    const chunk = all.slice(i, i + 100);
+    const statuses = await rt.client.presences(chunk).catch(() => null);
+    if (!statuses) continue;
+    // Un identifiant absent de la réponse est hors ligne : la présence vit dans
+    // Redis, l'absence d'entrée EST l'information.
+    for (const id of chunk) store.setPresence(id, statuses[id] ?? "OFFLINE");
+  }
+}
+
 export function setPresenceStatus(status: PresenceStatus): void {
   usePresenceStore.getState().setMyStatus(status);
   rt?.ws.send({ type: "UPDATE_PRESENCE", status });

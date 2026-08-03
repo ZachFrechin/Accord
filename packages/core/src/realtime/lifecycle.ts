@@ -21,6 +21,7 @@ import {
   messagingReady,
   refreshConversations,
   refreshFriends,
+  refreshPresences,
   retryMessage,
 } from "../stores/messagingActions";
 import { useMessagesStore } from "../stores/useMessagesStore";
@@ -59,7 +60,7 @@ async function flushFailed(): Promise<void> {
 /** Recharge ce qui a pu changer pendant l'absence. */
 export async function catchUp(): Promise<void> {
   if (!(await messagingReady())) return;
-  await Promise.allSettled([refreshConversations(), refreshFriends()]);
+  await Promise.allSettled([refreshConversations(), refreshFriends(), refreshPresences()]);
   const open = Object.keys(useMessagesStore.getState().byConversation).slice(0, CATCHUP_LIMIT);
   await Promise.allSettled(open.map((id) => loadMessages(id)));
   await flushFailed();

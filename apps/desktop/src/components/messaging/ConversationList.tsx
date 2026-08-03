@@ -157,6 +157,9 @@ export function ConversationList() {
           name={titles[c.id] ?? "?"}
           size={40}
           src={c.kind === "dm" ? peers[c.id]?.avatarUrl : (c.avatar_url ?? null)}
+          // Un groupe n'a pas d'état de présence : la pastille n'a de sens que
+          // pour une personne.
+          presence={c.kind === "dm" && peers[c.id] ? presenceOf(peers[c.id].userId) : undefined}
         />
         <span className="conv-row__body">
           <span className="conv-row__name">{titles[c.id] ?? "…"}</span>

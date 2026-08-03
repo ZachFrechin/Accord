@@ -36,17 +36,22 @@
   object-fit: cover;
   background: var(--bg-inset);
 }
+/* Pastille de présence : plus grande et mieux détourée qu'avant. À 9 px sur un
+   fond sombre, la nuance entre vert et orange ne se voyait pas — or c'est TOUTE
+   l'information qu'elle porte. L'anneau reprend le fond pour la détacher de la
+   photo, et une ombre douce la tient lisible même sur un avatar clair. */
 .avatar__dot {
   position: absolute;
-  right: -1px;
-  bottom: -1px;
-  width: 32%;
-  height: 32%;
-  min-width: 9px;
-  min-height: 9px;
+  right: -2px;
+  bottom: -2px;
+  width: 38%;
+  height: 38%;
+  min-width: 13px;
+  min-height: 13px;
   border-radius: 50%;
-  border: 2px solid var(--bg-app);
+  border: 2.5px solid var(--bg-app);
   background: var(--text-3);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
 }
 .avatar__dot[data-status="ONLINE"] { background: var(--status-good); }
 .avatar__dot[data-status="AWAY"] { background: var(--status-warn); }

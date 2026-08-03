@@ -4,6 +4,8 @@
  * la même couleur d'un écran à l'autre.
  */
 
+import type { PresenceStatus } from "@accord/core/realtime/wireSchema";
+
 /** Teinte stable dérivée du nom (0-359). */
 export function hueFor(name: string): number {
   let hash = 0;
@@ -20,10 +22,14 @@ export function Avatar({
   name,
   size = 44,
   src,
+  presence,
 }: {
   name: string;
   size?: number;
   src?: string | null;
+  /** Affichée même hors ligne, en gris : ne rien montrer rendrait « hors
+   *  ligne » indiscernable de « on ne sait pas ». */
+  presence?: PresenceStatus;
 }) {
   const hue = hueFor(name);
   return (
@@ -38,6 +44,7 @@ export function Avatar({
       }}
     >
       {src ? <img src={src} alt="" loading="lazy" /> : initials(name)}
+      {presence && <span className="avatar__dot" data-status={presence} />}
     </span>
   );
 }
