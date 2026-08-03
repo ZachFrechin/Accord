@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.id, u.username, u.email, p.display_name AS \"display_name?\",\n                  u.role, u.is_active, u.disabled_at, u.created_at\n           FROM users u\n           LEFT JOIN user_profiles p ON p.user_id = u.id\n           WHERE u.id = $1",
+  "query": "SELECT id, username, email, password_hash, email_verified_at, is_active, role, disabled_at, disabled_until FROM users WHERE username = $1",
   "describe": {
     "columns": [
       {
@@ -20,13 +20,13 @@
       },
       {
         "ordinal": 3,
-        "name": "display_name?",
+        "name": "password_hash",
         "type_info": "Text"
       },
       {
         "ordinal": 4,
-        "name": "role",
-        "type_info": "Text"
+        "name": "email_verified_at",
+        "type_info": "Timestamptz"
       },
       {
         "ordinal": 5,
@@ -35,30 +35,36 @@
       },
       {
         "ordinal": 6,
+        "name": "role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
         "name": "disabled_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 7,
-        "name": "created_at",
+        "ordinal": 8,
+        "name": "disabled_until",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Text"
       ]
     },
     "nullable": [
       false,
       false,
       false,
+      false,
       true,
       false,
       false,
       true,
-      false
+      true
     ]
   },
-  "hash": "d255fe5630cea3b2cf2213d68e85ce70a5b68774576bf91430663fce5c204d59"
+  "hash": "a901fa729727368b33104f8aca4653e07262040278ec0089a3cea5559f01d8e9"
 }

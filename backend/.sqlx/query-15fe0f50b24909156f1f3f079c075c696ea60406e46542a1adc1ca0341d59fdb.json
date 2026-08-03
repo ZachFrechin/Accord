@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.id, u.username, u.email, p.display_name AS \"display_name?\",\n                  u.role, u.is_active, u.disabled_at, u.created_at\n           FROM users u\n           LEFT JOIN user_profiles p ON p.user_id = u.id\n           WHERE $1::text IS NULL\n              OR u.username ILIKE $1\n              OR u.email ILIKE $1\n              OR p.display_name ILIKE $1\n           ORDER BY u.created_at DESC\n           LIMIT $2 OFFSET $3",
+  "query": "SELECT u.id, u.username, u.email, p.display_name AS \"display_name?\",\n                  u.role, u.is_active, u.disabled_at, u.disabled_until,\n                  u.disabled_reason, u.created_at, x.xp AS \"xp?\"\n           FROM users u\n           LEFT JOIN user_profiles p ON p.user_id = u.id\n           LEFT JOIN user_xp x ON x.user_id = u.id\n           WHERE u.id = $1",
   "describe": {
     "columns": [
       {
@@ -40,15 +40,28 @@
       },
       {
         "ordinal": 7,
+        "name": "disabled_until",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "disabled_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
         "name": "created_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "xp?",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Int8",
-        "Int8"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -59,8 +72,11 @@
       false,
       false,
       true,
+      true,
+      true,
+      false,
       false
     ]
   },
-  "hash": "d0fd4383fda691c23aa5ff15b692533da510415dd4288699e2b59e2144d9f0e7"
+  "hash": "15fe0f50b24909156f1f3f079c075c696ea60406e46542a1adc1ca0341d59fdb"
 }

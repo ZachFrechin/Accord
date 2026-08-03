@@ -17,7 +17,12 @@ pub struct AdminUserRow {
     pub role: String,
     pub is_active: bool,
     pub disabled_at: Option<DateTime<Utc>>,
+    /// Échéance de la suspension (`None` avec `disabled_at` = sans terme).
+    pub disabled_until: Option<DateTime<Utc>>,
+    pub disabled_reason: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// Expérience cumulée, pour afficher et régler le niveau depuis le panel.
+    pub xp: Option<i64>,
 }
 
 /// Instance-wide counters for the admin overview.
@@ -79,23 +84,38 @@ pub async fn list_users(
     search: Option<&str>,
     limit: i64,
     offset: i64,
+    created_from: Option<DateTime<Utc>>,
+    created_to: Option<DateTime<Utc>>,
+    sort: &str,
 ) -> Result<(Vec<AdminUserRow>, i64), ApiError> {
     let pattern = search.map(like_pattern);
     let rows = sqlx::query_as!(
         AdminUserRow,
         r#"SELECT u.id, u.username, u.email, p.display_name AS "display_name?",
-                  u.role, u.is_active, u.disabled_at, u.created_at
+                  u.role, u.is_active, u.disabled_at, u.disabled_until,
+                  u.disabled_reason, u.created_at, x.xp AS "xp?"
            FROM users u
            LEFT JOIN user_profiles p ON p.user_id = u.id
-           WHERE $1::text IS NULL
+           LEFT JOIN user_xp x ON x.user_id = u.id
+           WHERE ($1::text IS NULL
               OR u.username ILIKE $1
               OR u.email ILIKE $1
-              OR p.display_name ILIKE $1
-           ORDER BY u.created_at DESC
+              OR p.display_name ILIKE $1)
+             AND ($4::timestamptz IS NULL OR u.created_at >= $4)
+             AND ($5::timestamptz IS NULL OR u.created_at <= $5)
+           ORDER BY
+             CASE WHEN $6 = 'name_asc'    THEN lower(u.username) END ASC,
+             CASE WHEN $6 = 'name_desc'   THEN lower(u.username) END DESC,
+             CASE WHEN $6 = 'oldest'      THEN u.created_at END ASC,
+             CASE WHEN $6 = 'xp_desc'     THEN coalesce(x.xp, 0) END DESC,
+             u.created_at DESC
            LIMIT $2 OFFSET $3"#,
         pattern.as_deref(),
         limit,
         offset,
+        created_from,
+        created_to,
+        sort,
     )
     .fetch_all(pool)
     .await?;
@@ -121,9 +141,11 @@ pub async fn get_user(pool: &PgPool, id: Uuid) -> Result<Option<AdminUserRow>, A
     sqlx::query_as!(
         AdminUserRow,
         r#"SELECT u.id, u.username, u.email, p.display_name AS "display_name?",
-                  u.role, u.is_active, u.disabled_at, u.created_at
+                  u.role, u.is_active, u.disabled_at, u.disabled_until,
+                  u.disabled_reason, u.created_at, x.xp AS "xp?"
            FROM users u
            LEFT JOIN user_profiles p ON p.user_id = u.id
+           LEFT JOIN user_xp x ON x.user_id = u.id
            WHERE u.id = $1"#,
         id,
     )
@@ -372,4 +394,97 @@ pub async fn list_mls_tombstones(
     )
     .fetch_all(pool)
     .await?)
+}
+
+// ── Panel v3 : sanctions, mots de passe, niveaux ─────────────────────────────
+
+/// Suspend un compte. `until = None` = sans terme.
+///
+/// `disabled_at` est TOUJOURS réécrit : reposer une sanction sur un compte déjà
+/// suspendu doit dater la nouvelle décision, sans quoi le journal raconterait
+/// l'ancienne.
+pub async fn suspend_user(
+    pool: &PgPool,
+    user_id: Uuid,
+    until: Option<DateTime<Utc>>,
+    reason: Option<&str>,
+) -> Result<(), ApiError> {
+    sqlx::query!(
+        "UPDATE users SET disabled_at = now(), disabled_until = $2, disabled_reason = $3 \
+         WHERE id = $1",
+        user_id,
+        until,
+        reason,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| ApiError::Internal(anyhow::anyhow!("suspension : {e}")))?;
+    Ok(())
+}
+
+/// Lève la suspension et efface ce qui l'accompagnait.
+pub async fn reinstate_user(pool: &PgPool, user_id: Uuid) -> Result<(), ApiError> {
+    sqlx::query!(
+        "UPDATE users SET disabled_at = NULL, disabled_until = NULL, disabled_reason = NULL \
+         WHERE id = $1",
+        user_id,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| ApiError::Internal(anyhow::anyhow!("levée de suspension : {e}")))?;
+    Ok(())
+}
+
+/// Remplace le mot de passe (empreinte déjà calculée par l'appelant).
+pub async fn set_password_hash(pool: &PgPool, user_id: Uuid, hash: &str) -> Result<(), ApiError> {
+    sqlx::query!(
+        "UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1",
+        user_id,
+        hash,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| ApiError::Internal(anyhow::anyhow!("mise à jour du mot de passe : {e}")))?;
+    Ok(())
+}
+
+/// Fixe l'expérience d'un compte (0 = remise à zéro).
+///
+/// Les compteurs de la journée et de la semaine sont remis à zéro eux aussi :
+/// les laisser garderait les plafonds anti-abus déjà atteints, et un compte
+/// « remis à zéro » ne pourrait plus rien gagner avant le lendemain.
+pub async fn set_xp(pool: &PgPool, user_id: Uuid, xp: i64) -> Result<(), ApiError> {
+    sqlx::query!(
+        "INSERT INTO user_xp (user_id, xp, week_xp, day_xp, updated_at) \
+         VALUES ($1, $2, 0, 0, now()) \
+         ON CONFLICT (user_id) DO UPDATE \
+           SET xp = EXCLUDED.xp, week_xp = 0, day_xp = 0, updated_at = now()",
+        user_id,
+        xp,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| ApiError::Internal(anyhow::anyhow!("mise à jour de l'expérience : {e}")))?;
+    Ok(())
+}
+
+/// Suspend ou rétablit un rôle.
+///
+/// Un rôle suspendu garde ses membres et ses permissions mais n'accorde plus
+/// rien. Le supprimer perdrait la liste de ses titulaires, qu'il faudrait
+/// reconstituer à la main pour revenir en arrière.
+pub async fn set_role_suspended(
+    pool: &PgPool,
+    role_id: Uuid,
+    suspended: bool,
+) -> Result<(), ApiError> {
+    sqlx::query!(
+        "UPDATE roles SET suspended_at = CASE WHEN $2 THEN now() ELSE NULL END WHERE id = $1",
+        role_id,
+        suspended,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| ApiError::Internal(anyhow::anyhow!("suspension du rôle : {e}")))?;
+    Ok(())
 }

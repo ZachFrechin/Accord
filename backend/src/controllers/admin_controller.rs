@@ -57,6 +57,11 @@ pub struct AdminUserDto {
     pub role: String,
     pub email_verified: bool,
     pub disabled: bool,
+    /// Échéance de la suspension (absente = sans terme).
+    pub disabled_until: Option<DateTime<Utc>>,
+    pub disabled_reason: Option<String>,
+    /// Expérience cumulée, pour afficher et régler le niveau.
+    pub xp: i64,
     pub created_at: DateTime<Utc>,
     /// Custom role ids assigned to this user (details come from /admin/roles).
     #[serde(default)]
@@ -72,7 +77,13 @@ impl From<admin_repo::AdminUserRow> for AdminUserDto {
             display_name: row.display_name,
             role: row.role,
             email_verified: row.is_active,
-            disabled: row.disabled_at.is_some(),
+            // « Suspendu » au sens de MAINTENANT : une sanction à terme échu ne
+            // bloque plus rien, l'afficher comme active induirait en erreur.
+            disabled: row.disabled_at.is_some()
+                && row.disabled_until.is_none_or(|until| until > Utc::now()),
+            disabled_until: row.disabled_until,
+            disabled_reason: row.disabled_reason,
+            xp: row.xp.unwrap_or(0),
             created_at: row.created_at,
             role_ids: Vec::new(),
         }
@@ -131,6 +142,26 @@ pub struct UsersQuery {
     pub page: i64,
     #[serde(default = "default_per_page")]
     pub per_page: i64,
+    /// `recent` (défaut), `oldest`, `name_asc`, `name_desc`, `xp_desc`.
+    #[serde(default)]
+    pub sort: Option<String>,
+    /// Bornes d'inscription, incluses.
+    #[serde(default)]
+    pub from: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub to: Option<DateTime<Utc>>,
+}
+
+/// Tris acceptés. Une valeur inconnue retombe sur le plus récent plutôt que de
+/// rejeter la requête : un tri inattendu ne vaut pas une page d'erreur.
+fn sort_key(raw: Option<&str>) -> &'static str {
+    match raw {
+        Some("oldest") => "oldest",
+        Some("name_asc") => "name_asc",
+        Some("name_desc") => "name_desc",
+        Some("xp_desc") => "xp_desc",
+        _ => "recent",
+    }
 }
 
 fn default_page() -> i64 {
@@ -159,8 +190,16 @@ pub async fn list_users(
     let per_page = query.per_page.clamp(1, 100);
     let page = query.page.max(1);
     let search = query.q.as_deref().map(str::trim).filter(|s| !s.is_empty());
-    let (rows, total) =
-        admin_repo::list_users(&state.db, search, per_page, (page - 1) * per_page).await?;
+    let (rows, total) = admin_repo::list_users(
+        &state.db,
+        search,
+        per_page,
+        (page - 1) * per_page,
+        query.from,
+        query.to,
+        sort_key(query.sort.as_deref()),
+    )
+    .await?;
     let mut items: Vec<AdminUserDto> = rows.into_iter().map(Into::into).collect();
     // One query attaches every custom-role assignment of the page (no N+1).
     let ids: Vec<Uuid> = items.iter().map(|u| u.id).collect();
@@ -510,4 +549,254 @@ pub async fn my_permissions(
 ) -> Result<Json<Value>, ApiError> {
     let (is_admin, perms) = auth::instance_permissions(&state, caller.user_id).await?;
     Ok(Json(json!({ "is_admin": is_admin, "permissions": perms })))
+}
+
+// ── Sanctions, mots de passe et niveaux (panel v3) ───────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct SuspendBody {
+    /// Échéance. Absente = suspension sans terme.
+    #[serde(default)]
+    pub until: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+/// Vérifie qu'on a le droit d'agir sur ce compte, et renvoie sa ligne.
+///
+/// Deux garde-fous que rien d'autre ne rattraperait : on ne se sanctionne pas
+/// soi-même — ce serait le seul moyen de se verrouiller hors de son propre panel
+/// — et un modérateur ne touche pas à un administrateur, faute de quoi la
+/// hiérarchie s'inverserait.
+async fn target_user(
+    state: &AppState,
+    panel: &PanelUser,
+    user_id: Uuid,
+) -> Result<admin_repo::AdminUserRow, ApiError> {
+    if user_id == panel.user_id {
+        return Err(ApiError::Forbidden(
+            "vous ne pouvez pas appliquer cette action à votre propre compte".to_string(),
+        ));
+    }
+    let Some(target) = admin_repo::get_user(&state.db, user_id).await? else {
+        return Err(ApiError::NotFound("utilisateur introuvable".to_string()));
+    };
+    if target.role == "admin" && !panel.is_admin {
+        return Err(ApiError::Forbidden(
+            "seul un administrateur peut agir sur un administrateur".to_string(),
+        ));
+    }
+    Ok(target)
+}
+
+/// `POST /admin/users/{id}/suspend` — suspend, avec ou sans échéance.
+pub async fn suspend_user(
+    State(state): State<AppState>,
+    panel: PanelUser,
+    Path(user_id): Path<Uuid>,
+    Json(body): Json<SuspendBody>,
+) -> Result<Json<AdminUserDto>, ApiError> {
+    panel.require(permissions::MANAGE_USERS, "suspendre un compte")?;
+    target_user(&state, &panel, user_id).await?;
+    if let Some(until) = body.until
+        && until <= Utc::now()
+    {
+        return Err(ApiError::Validation(
+            "l'échéance doit être dans le futur".to_string(),
+        ));
+    }
+    let reason = body
+        .reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
+    admin_repo::suspend_user(&state.db, user_id, body.until, reason).await?;
+    // Les sessions ouvertes doivent tomber : sans ça, la sanction n'agirait qu'à
+    // la prochaine connexion et un onglet déjà ouvert continuerait de fonctionner.
+    session_repo::revoke_all_for_user(&state.db, user_id).await?;
+    audit(
+        &state,
+        panel.user_id,
+        "user.suspend",
+        Some(user_id),
+        json!({ "until": body.until, "reason": reason }),
+    )
+    .await;
+    let row = admin_repo::get_user(&state.db, user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("utilisateur introuvable".to_string()))?;
+    Ok(Json(row.into()))
+}
+
+/// `POST /admin/users/{id}/reinstate` — lève la suspension.
+pub async fn reinstate_user(
+    State(state): State<AppState>,
+    panel: PanelUser,
+    Path(user_id): Path<Uuid>,
+) -> Result<Json<AdminUserDto>, ApiError> {
+    panel.require(permissions::MANAGE_USERS, "rétablir un compte")?;
+    target_user(&state, &panel, user_id).await?;
+    admin_repo::reinstate_user(&state.db, user_id).await?;
+    audit(
+        &state,
+        panel.user_id,
+        "user.reinstate",
+        Some(user_id),
+        json!({}),
+    )
+    .await;
+    let row = admin_repo::get_user(&state.db, user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("utilisateur introuvable".to_string()))?;
+    Ok(Json(row.into()))
+}
+
+#[derive(Debug, Serialize)]
+pub struct TemporaryPasswordResponse {
+    /// Affiché UNE seule fois : seule son empreinte est conservée.
+    pub password: String,
+}
+
+/// `POST /admin/users/{id}/password/temporary` — engendre un mot de passe.
+///
+/// Le mot de passe n'est renvoyé qu'ici, en clair, et jamais journalisé : c'est
+/// à l'administrateur de le transmettre. Toutes les sessions tombent, sinon la
+/// personne resterait connectée avec un mot de passe qu'elle ne connaît plus.
+pub async fn temporary_password(
+    State(state): State<AppState>,
+    panel: PanelUser,
+    Path(user_id): Path<Uuid>,
+) -> Result<Json<TemporaryPasswordResponse>, ApiError> {
+    panel.require(
+        permissions::RESET_PASSWORDS,
+        "réinitialiser un mot de passe",
+    )?;
+    target_user(&state, &panel, user_id).await?;
+    let plain = crate::domain::secrets::random_token();
+    // Le jeton fait 43 caractères base64url : au-delà d'une trentaine, il devient
+    // pénible à transmettre sans rien gagner en solidité.
+    let plain: String = plain.chars().take(24).collect();
+    let hash = crate::domain::password::hash_password(
+        plain.clone(),
+        crate::domain::password::Argon2Params::from(&state.config.auth),
+    )
+    .await?;
+    admin_repo::set_password_hash(&state.db, user_id, &hash).await?;
+    session_repo::revoke_all_for_user(&state.db, user_id).await?;
+    // Le journal retient le geste, jamais le secret.
+    audit(
+        &state,
+        panel.user_id,
+        "user.password.temporary",
+        Some(user_id),
+        json!({}),
+    )
+    .await;
+    Ok(Json(TemporaryPasswordResponse { password: plain }))
+}
+
+/// `POST /admin/users/{id}/password/link` — envoie un lien de réinitialisation.
+///
+/// À préférer au mot de passe temporaire : le secret ne transite jamais par
+/// l'administrateur, et la personne choisit elle-même son nouveau mot de passe.
+pub async fn send_reset_link(
+    State(state): State<AppState>,
+    panel: PanelUser,
+    Path(user_id): Path<Uuid>,
+) -> Result<Json<Value>, ApiError> {
+    panel.require(
+        permissions::RESET_PASSWORDS,
+        "envoyer un lien de réinitialisation",
+    )?;
+    let target = target_user(&state, &panel, user_id).await?;
+    let token = crate::domain::secrets::random_token();
+    let token_hash = crate::domain::secrets::sha256(token.as_bytes());
+    let expires = Utc::now() + chrono::Duration::hours(1);
+    crate::repositories::verification_repo::create_password_reset(
+        &state.db,
+        user_id,
+        &token_hash,
+        expires,
+    )
+    .await?;
+    crate::repositories::verification_repo::enqueue_email(
+        &state.db,
+        &target.email,
+        "password_reset",
+        &json!({ "token": token }),
+    )
+    .await?;
+    audit(
+        &state,
+        panel.user_id,
+        "user.password.link",
+        Some(user_id),
+        json!({}),
+    )
+    .await;
+    Ok(Json(json!({ "status": "reset_email_sent" })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LevelBody {
+    /// Expérience cible. 0 remet le compte à zéro.
+    pub xp: i64,
+}
+
+/// `PUT /admin/users/{id}/level` — fixe l'expérience (donc le niveau).
+pub async fn set_level(
+    State(state): State<AppState>,
+    panel: PanelUser,
+    Path(user_id): Path<Uuid>,
+    Json(body): Json<LevelBody>,
+) -> Result<Json<AdminUserDto>, ApiError> {
+    panel.require(permissions::MANAGE_LEVELS, "modifier un niveau")?;
+    if body.xp < 0 {
+        return Err(ApiError::Validation(
+            "l'expérience ne peut pas être négative".to_string(),
+        ));
+    }
+    target_user(&state, &panel, user_id).await?;
+    admin_repo::set_xp(&state.db, user_id, body.xp).await?;
+    audit(
+        &state,
+        panel.user_id,
+        "user.level",
+        Some(user_id),
+        json!({ "xp": body.xp }),
+    )
+    .await;
+    let row = admin_repo::get_user(&state.db, user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("utilisateur introuvable".to_string()))?;
+    Ok(Json(row.into()))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RoleSuspendBody {
+    pub suspended: bool,
+}
+
+/// `POST /admin/roles/{id}/suspension` — suspend ou rétablit un rôle.
+pub async fn set_role_suspension(
+    State(state): State<AppState>,
+    panel: PanelUser,
+    Path(role_id): Path<Uuid>,
+    Json(body): Json<RoleSuspendBody>,
+) -> Result<Json<Value>, ApiError> {
+    panel.require(permissions::MANAGE_ROLES, "suspendre un rôle")?;
+    admin_repo::set_role_suspended(&state.db, role_id, body.suspended).await?;
+    audit(
+        &state,
+        panel.user_id,
+        if body.suspended {
+            "role.suspend"
+        } else {
+            "role.reinstate"
+        },
+        Some(role_id),
+        json!({}),
+    )
+    .await;
+    Ok(Json(json!({ "suspended": body.suspended })))
 }

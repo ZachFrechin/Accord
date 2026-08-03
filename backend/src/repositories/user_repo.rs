@@ -21,6 +21,23 @@ pub struct User {
     pub role: String,
     /// Set when an administrator suspends the account; `None` = usable.
     pub disabled_at: Option<DateTime<Utc>>,
+    /// Échéance de la suspension. `None` avec `disabled_at` posé = sans terme.
+    pub disabled_until: Option<DateTime<Utc>>,
+}
+
+impl User {
+    /// Le compte est-il bloqué À CET INSTANT ?
+    ///
+    /// Une suspension à terme se lève d'elle-même : sans ce calcul il faudrait
+    /// qu'un administrateur repasse derrière chaque sanction, et la moindre
+    /// distraction laisserait un compte fermé indéfiniment.
+    pub fn is_suspended(&self) -> bool {
+        match (self.disabled_at, self.disabled_until) {
+            (None, _) => false,
+            (Some(_), None) => true,
+            (Some(_), Some(until)) => until > Utc::now(),
+        }
+    }
 }
 
 /// Inserts a new, inactive user. Returns [`ApiError::Conflict`] on a unique
@@ -35,7 +52,7 @@ pub async fn create(
     sqlx::query_as!(
         User,
         "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) \
-         RETURNING id, username, email, password_hash, email_verified_at, is_active, role, disabled_at",
+         RETURNING id, username, email, password_hash, email_verified_at, is_active, role, disabled_at, disabled_until",
         username,
         email,
         password_hash,
@@ -49,7 +66,7 @@ pub async fn create(
 pub async fn find_by_username(pool: &PgPool, username: &str) -> Result<Option<User>, ApiError> {
     sqlx::query_as!(
         User,
-        "SELECT id, username, email, password_hash, email_verified_at, is_active, role, disabled_at \
+        "SELECT id, username, email, password_hash, email_verified_at, is_active, role, disabled_at, disabled_until \
          FROM users WHERE username = $1",
         username,
     )
@@ -62,7 +79,7 @@ pub async fn find_by_username(pool: &PgPool, username: &str) -> Result<Option<Us
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, ApiError> {
     sqlx::query_as!(
         User,
-        "SELECT id, username, email, password_hash, email_verified_at, is_active, role, disabled_at \
+        "SELECT id, username, email, password_hash, email_verified_at, is_active, role, disabled_at, disabled_until \
          FROM users WHERE email = $1",
         email,
     )
@@ -75,7 +92,7 @@ pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, A
 pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<User>, ApiError> {
     sqlx::query_as!(
         User,
-        "SELECT id, username, email, password_hash, email_verified_at, is_active, role, disabled_at \
+        "SELECT id, username, email, password_hash, email_verified_at, is_active, role, disabled_at, disabled_until \
          FROM users WHERE id = $1",
         id,
     )

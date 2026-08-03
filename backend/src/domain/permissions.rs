@@ -16,7 +16,27 @@ pub const MODERATE: i64 = 1 << 3;
 pub const EDIT_PROFILES: i64 = 1 << 4;
 /// Read the administration audit log.
 pub const VIEW_AUDIT: i64 = 1 << 5;
+/// Créer, renommer et supprimer des groupes ; en gérer les membres.
+pub const MANAGE_GROUPS: i64 = 1 << 6;
+/// Fixer ou remettre à zéro l'expérience et le niveau d'un compte.
+pub const MANAGE_LEVELS: i64 = 1 << 7;
+/// Réinitialiser un mot de passe : engendrer un mot de passe temporaire ou
+/// envoyer un lien de réinitialisation.
+///
+/// Séparée de MANAGE_USERS à dessein : suspendre un compte est réversible et
+/// visible de son propriétaire, alors que reprendre la main sur son mot de passe
+/// ouvre l'accès à ses conversations. Les deux ne se confient pas aux mêmes
+/// personnes. (Le contenu, lui, reste chiffré de bout en bout : même avec le mot
+/// de passe, il faudrait aussi les clés de l'appareil.)
+pub const RESET_PASSWORDS: i64 = 1 << 8;
 
 /// Every currently defined bit (used to sanitize client input).
-pub const ALL: i64 =
-    ADMIN_PANEL | MANAGE_USERS | MANAGE_ROLES | MODERATE | EDIT_PROFILES | VIEW_AUDIT;
+pub const ALL: i64 = ADMIN_PANEL
+    | MANAGE_USERS
+    | MANAGE_ROLES
+    | MODERATE
+    | EDIT_PROFILES
+    | VIEW_AUDIT
+    | MANAGE_GROUPS
+    | MANAGE_LEVELS
+    | RESET_PASSWORDS;

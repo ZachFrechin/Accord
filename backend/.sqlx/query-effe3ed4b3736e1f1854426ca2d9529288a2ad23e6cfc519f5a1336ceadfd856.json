@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id, username, email, password_hash, email_verified_at, is_active, role, disabled_at",
+  "query": "SELECT id, username, email, password_hash, email_verified_at, is_active, role, disabled_at, disabled_until FROM users WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -42,13 +42,16 @@
         "ordinal": 7,
         "name": "disabled_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "disabled_until",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Text",
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -59,8 +62,9 @@
       true,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "136f8968666afeb49bc5e0baecd834e1a18a6faa96c26179e27ef035805fdd1a"
+  "hash": "effe3ed4b3736e1f1854426ca2d9529288a2ad23e6cfc519f5a1336ceadfd856"
 }

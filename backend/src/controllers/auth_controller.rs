@@ -612,7 +612,7 @@ pub async fn refresh(
             let user = user_repo::find_by_id(&state.db, user_id)
                 .await?
                 .ok_or_else(|| ApiError::Unauthorized("invalid refresh token".to_string()))?;
-            if user.disabled_at.is_some() {
+            if user.is_suspended() {
                 return Err(ApiError::Forbidden(
                     "this account has been suspended".to_string(),
                 ));
@@ -715,7 +715,7 @@ async fn issue_session(
 ) -> Result<TokenResponse, ApiError> {
     // Single chokepoint for token issue: a suspended account gets no session,
     // whichever login path (password or 2FA) led here.
-    if user.disabled_at.is_some() {
+    if user.is_suspended() {
         return Err(ApiError::Forbidden(
             "this account has been suspended".to_string(),
         ));

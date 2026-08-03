@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE roles SET suspended_at = CASE WHEN $2 THEN now() ELSE NULL END WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "314afbd06b245d318bbda80f39e88684a1f4407c3ad50938d3e948cf0d5c18b5"
+}

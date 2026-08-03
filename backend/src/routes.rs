@@ -280,6 +280,30 @@ pub fn build_router(state: AppState) -> Router {
             put(admin_controller::set_user_roles),
         )
         .route(
+            "/admin/users/{user_id}/suspend",
+            post(admin_controller::suspend_user),
+        )
+        .route(
+            "/admin/users/{user_id}/reinstate",
+            post(admin_controller::reinstate_user),
+        )
+        .route(
+            "/admin/users/{user_id}/password/temporary",
+            post(admin_controller::temporary_password),
+        )
+        .route(
+            "/admin/users/{user_id}/password/link",
+            post(admin_controller::send_reset_link),
+        )
+        .route(
+            "/admin/users/{user_id}/level",
+            put(admin_controller::set_level),
+        )
+        .route(
+            "/admin/roles/{role_id}/suspension",
+            post(admin_controller::set_role_suspension),
+        )
+        .route(
             "/admin/users/{user_id}",
             patch(admin_controller::update_user),
         )
