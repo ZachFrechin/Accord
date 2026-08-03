@@ -96,6 +96,12 @@ export function MessagingProvider({
   callSink = call ?? null;
   const instance = useInstanceStore(activeInstance);
   const account = instance?.account ?? null;
+  // L'effet ne lit que ces deux chaînes des objets ci-dessus. Dépendre des
+  // objets eux-mêmes rendait le câblage sensible à leur simple RECONSTRUCTION :
+  // son nettoyage vide toutes les listes, et l'utilisateur se retrouvait renvoyé
+  // au menu. Un rôle accordé ne doit pas fermer la conversation en cours.
+  const instanceId = instance?.id ?? null;
+  const myUserId = account?.userId ?? null;
 
   useEffect(() => {
     if (!instance || !account) return;
@@ -286,7 +292,7 @@ export function MessagingProvider({
       useMessagesStore.getState().reset();
       useOngoingCallsStore.getState().reset();
     };
-  }, [client, ws, instance, account]);
+  }, [client, ws, instanceId, myUserId]);
 
   return <>{children}</>;
 }

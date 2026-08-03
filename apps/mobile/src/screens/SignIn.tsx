@@ -9,9 +9,9 @@
  * stockage sécurisé des jetons, mêmes règles.
  */
 
+import logoUrl from "@accord/core/assets/logo.png";
 import { useState, type FormEvent } from "react";
 
-import { Icon } from "@accord/core/ui/Icon";
 
 import { health, isMfaChallenge, login, verifyTotp, type TokenResponse } from "@accord/core/api/auth";
 import { secureStore } from "@accord/core/lib/secureStore";
@@ -105,9 +105,7 @@ export function SignIn() {
     <div className="app">
       <div className="centered">
       <div className="brand">
-        <span className="brand__mark">
-          <Icon name="chat-circle-dots" size={32} />
-        </span>
+        <img className="brand__mark" src={logoUrl} alt="" width={64} height={64} />
         <h1 className="brand__name">Accord</h1>
         <p className="brand__sub">
           {step === "server"

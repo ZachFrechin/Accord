@@ -7,6 +7,7 @@
  * stored, so a cancelled/failed attempt never leaves a half-added instance.
  */
 
+import logoUrl from "@accord/core/assets/logo.png";
 import { useEffect, useState, type FormEvent } from "react";
 
 import {
@@ -216,9 +217,7 @@ export default function Onboarding() {
     <div className="onboarding">
       <div className="onboarding__card">
         <div className="onboarding__brand">
-          <span className="onboarding__mark">
-            <Icon name="chat-circle-dots" size={22} />
-          </span>
+          <img className="onboarding__mark" src={logoUrl} alt="" width={36} height={36} />
           <span className="onboarding__wordmark">Accord</span>
         </div>
 

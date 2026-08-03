@@ -81,12 +81,28 @@ export const useInstanceStore = create<InstanceState>()(
         return instance;
       },
 
+      // Appelé à CHAQUE rafraîchissement de jeton, avec presque toujours les
+      // mêmes valeurs. Écrire quand même reconstruisait un objet neuf toutes les
+      // dix minutes, et tout ce qui en dépendait se croyait face à un nouveau
+      // compte — jusqu'à vider la liste des conversations et renvoyer
+      // l'utilisateur au menu en plein appel. On ne touche donc au state que si
+      // quelque chose a réellement changé.
       updateAccount: (id, account) =>
-        set((s) => ({
-          instances: s.instances.map((i) =>
-            i.id === id ? { ...i, account } : i,
-          ),
-        })),
+        set((s) => {
+          const current = s.instances.find((i) => i.id === id)?.account;
+          if (
+            current &&
+            current.userId === account.userId &&
+            current.username === account.username &&
+            current.email === account.email &&
+            current.role === account.role
+          ) {
+            return s;
+          }
+          return {
+            instances: s.instances.map((i) => (i.id === id ? { ...i, account } : i)),
+          };
+        }),
 
       removeInstance: (id) =>
         set((s) => {
