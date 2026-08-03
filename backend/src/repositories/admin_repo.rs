@@ -21,8 +21,8 @@ pub struct AdminUserRow {
     pub disabled_until: Option<DateTime<Utc>>,
     pub disabled_reason: Option<String>,
     pub created_at: DateTime<Utc>,
-    /// Expérience cumulée, pour afficher et régler le niveau depuis le panel.
-    pub xp: Option<i64>,
+    /// Expérience cumulée. Zéro quand le compte n'a encore rien gagné.
+    pub xp: i64,
 }
 
 /// Instance-wide counters for the admin overview.
@@ -93,7 +93,7 @@ pub async fn list_users(
         AdminUserRow,
         r#"SELECT u.id, u.username, u.email, p.display_name AS "display_name?",
                   u.role, u.is_active, u.disabled_at, u.disabled_until,
-                  u.disabled_reason, u.created_at, x.xp AS "xp?"
+                  u.disabled_reason, u.created_at, coalesce(x.xp, 0) AS "xp!"
            FROM users u
            LEFT JOIN user_profiles p ON p.user_id = u.id
            LEFT JOIN user_xp x ON x.user_id = u.id
@@ -142,7 +142,7 @@ pub async fn get_user(pool: &PgPool, id: Uuid) -> Result<Option<AdminUserRow>, A
         AdminUserRow,
         r#"SELECT u.id, u.username, u.email, p.display_name AS "display_name?",
                   u.role, u.is_active, u.disabled_at, u.disabled_until,
-                  u.disabled_reason, u.created_at, x.xp AS "xp?"
+                  u.disabled_reason, u.created_at, coalesce(x.xp, 0) AS "xp!"
            FROM users u
            LEFT JOIN user_profiles p ON p.user_id = u.id
            LEFT JOIN user_xp x ON x.user_id = u.id

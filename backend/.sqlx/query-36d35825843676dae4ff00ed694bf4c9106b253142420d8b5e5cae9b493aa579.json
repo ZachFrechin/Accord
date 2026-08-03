@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.id, u.username, u.email, p.display_name AS \"display_name?\",\n                  u.role, u.is_active, u.disabled_at, u.disabled_until,\n                  u.disabled_reason, u.created_at, x.xp AS \"xp?\"\n           FROM users u\n           LEFT JOIN user_profiles p ON p.user_id = u.id\n           LEFT JOIN user_xp x ON x.user_id = u.id\n           WHERE u.id = $1",
+  "query": "SELECT u.id, u.username, u.email, p.display_name AS \"display_name?\",\n                  u.role, u.is_active, u.disabled_at, u.disabled_until,\n                  u.disabled_reason, u.created_at, coalesce(x.xp, 0) AS \"xp!\"\n           FROM users u\n           LEFT JOIN user_profiles p ON p.user_id = u.id\n           LEFT JOIN user_xp x ON x.user_id = u.id\n           WHERE u.id = $1",
   "describe": {
     "columns": [
       {
@@ -55,7 +55,7 @@
       },
       {
         "ordinal": 10,
-        "name": "xp?",
+        "name": "xp!",
         "type_info": "Int8"
       }
     ],
@@ -75,8 +75,8 @@
       true,
       true,
       false,
-      false
+      null
     ]
   },
-  "hash": "15fe0f50b24909156f1f3f079c075c696ea60406e46542a1adc1ca0341d59fdb"
+  "hash": "36d35825843676dae4ff00ed694bf4c9106b253142420d8b5e5cae9b493aa579"
 }

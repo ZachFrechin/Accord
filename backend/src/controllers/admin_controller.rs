@@ -83,7 +83,7 @@ impl From<admin_repo::AdminUserRow> for AdminUserDto {
                 && row.disabled_until.is_none_or(|until| until > Utc::now()),
             disabled_until: row.disabled_until,
             disabled_reason: row.disabled_reason,
-            xp: row.xp.unwrap_or(0),
+            xp: row.xp,
             created_at: row.created_at,
             role_ids: Vec::new(),
         }
