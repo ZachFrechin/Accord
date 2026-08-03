@@ -12,6 +12,7 @@
 //! commands (`mls_*`, see `mls.rs`): the OpenMLS engine + private keys live here,
 //! never in the webview.
 
+mod tray;
 mod link_preview;
 mod mls;
 mod notifications;
@@ -186,9 +187,10 @@ pub fn run() {
         // Windows) gets forwarded — bring the window to front, the deep-link
         // feature re-emits the URL to the frontend listener.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_focus();
-            }
+            // `set_focus` seul ne ramène pas une fenêtre CACHÉE : depuis que la
+            // croix range l'application au lieu de la quitter, relancer Accord
+            // doit d'abord la rendre visible.
+            tray::show_main(app);
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
@@ -210,8 +212,12 @@ pub fn run() {
                 .app_local_data_dir()
                 .map_err(|e| format!("resolving app_local_data_dir: {e}"))?;
             mls::init_storage_dir(dir);
+            // L'icône de la zone de notification : sans elle, une fenêtre fermée
+            // rendrait l'application introuvable ET impossible à quitter.
+            tray::init(app.handle());
             Ok(())
         })
+        .on_window_event(tray::on_window_event)
         .invoke_handler(tauri::generate_handler![
             link_preview::fetch_link_preview,
             notifications::notif_show,
@@ -242,6 +248,16 @@ pub fn run() {
             mls_encrypt_app,
             mls_decrypt_app
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running the Accord desktop application");
+        .build(tauri::generate_context!())
+        .expect("error while running the Accord desktop application")
+        .run(|app, event| {
+            // macOS : cliquer l'icône du Dock d'une application sans fenêtre
+            // visible n'ouvre rien par défaut. Depuis que la croix range la
+            // fenêtre au lieu de quitter, ce clic est le geste le plus naturel
+            // pour la retrouver — l'ignorer donnerait une application qui ne
+            // répond plus.
+            if let tauri::RunEvent::Reopen { .. } = event {
+                tray::show_main(app);
+            }
+        });
 }

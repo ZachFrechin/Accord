@@ -85,6 +85,13 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   );
   // DM peer (for the header's key-verification shield).
   const dmPeer = useConversationsStore((s) => s.peers[conversationId]);
+  // La photo affichée en tête et sur l'écran d'ouverture : celle du groupe s'il
+  // en a une, sinon celle de l'interlocuteur. Sans elle on retombe sur les
+  // initiales, ce qui donne la même vignette à deux personnes aux mêmes lettres.
+  const groupAvatar = useConversationsStore(
+    (s) => s.conversations.find((c) => c.id === conversationId)?.avatar_url ?? null,
+  );
+  const convAvatar = groupAvatar ?? dmPeer?.avatarUrl ?? undefined;
   // Reactions are stored server-side (aggregatable metadata) and so ride the
   // Legacy conversations: every row has a server reaction row. MLS: native
   // messages react via encrypted frames (per-row check at the call site).
@@ -255,7 +262,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
       ) : (
         <header className="chat__header">
         <div className="chat__head-main">
-          <Avatar name={title ?? "Conversation"} size={40} />
+          <Avatar name={title ?? "Conversation"} size={40} src={convAvatar} />
           <div className="chat__head-text">
             <span className="chat__title">{title ?? "Conversation"}</span>
             <span className="chat__subtitle">{subtitle}</span>
@@ -378,7 +385,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
           <>
             {!hasOlder && (
               <div className="chat__hero">
-                <Avatar name={title ?? "Conversation"} size={64} />
+                <Avatar name={title ?? "Conversation"} size={64} src={convAvatar} />
                 <span className="chat__hero-title">{title ?? "Conversation"}</span>
                 <span className="chat__hero-sub">
                   Début de la conversation — les messages sont chiffrés de bout en bout, le
@@ -822,6 +829,20 @@ function MessageRow({
       }
     }
   };
+
+  // Repère d'appel manqué : une ligne centrée, sans avatar ni actions — ce n'est
+  // pas un message, on ne peut ni y répondre, ni y réagir, ni le supprimer.
+  if (msg.system?.kind === "missed_call") {
+    return (
+      <div className="msg-system" role="note">
+        <Icon name="phone-x" size={16} />
+        <span>
+          Appel manqué de <strong>{msg.system.fromName}</strong>
+        </span>
+        <span className="msg-system__time">{time(msg.createdAt)}</span>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -147,3 +147,50 @@ export function previewRingtone(id: RingtoneId, volume = 0.6): void {
   const stop = startRinging(id, volume);
   setTimeout(stop, ringtoneLoopSeconds(id) * 1000);
 }
+
+// ── Sons d'arrivée et de départ en vocal ─────────────────────────────────────
+
+/** Deux notes brèves, jouées une seule fois.
+ *
+ * Montantes pour une arrivée, descendantes pour un départ : le sens se comprend
+ * sans avoir à l'apprendre, et sans regarder l'écran — ce qui est tout l'intérêt
+ * quand on est en train de faire autre chose. Volume bas et durée courte : ce
+ * son se déclenche à chaque mouvement dans le salon, il doit informer sans
+ * jamais couvrir la voix de quelqu'un. */
+function blip(rising: boolean, volume: number): void {
+  let ctx: AudioContext;
+  try {
+    ctx = new AudioContext();
+  } catch {
+    return; // Pas de sortie audio : l'absence de son n'est pas une erreur.
+  }
+  const master = ctx.createGain();
+  master.gain.value = volume;
+  master.connect(ctx.destination);
+  const [a, b] = rising ? [587.33, 880.0] : [880.0, 587.33];
+  scheduleLoop(
+    ctx,
+    master,
+    {
+      loop: 0.4,
+      notes: [
+        { at: 0, freq: a, dur: 0.09, gain: 0.5, type: "sine" },
+        { at: 0.1, freq: b, dur: 0.12, gain: 0.45, type: "sine" },
+      ],
+    },
+    ctx.currentTime + 0.01,
+  );
+  // Le contexte se ferme seul une fois le son écoulé : en laisser un ouvert par
+  // arrivée finirait par épuiser le quota de contextes audio du navigateur.
+  window.setTimeout(() => void ctx.close().catch(() => {}), 600);
+}
+
+/** Quelqu'un vient de rejoindre le vocal. */
+export function playJoinSound(volume = 0.35): void {
+  blip(true, volume);
+}
+
+/** Quelqu'un vient de quitter le vocal. */
+export function playLeaveSound(volume = 0.35): void {
+  blip(false, volume);
+}

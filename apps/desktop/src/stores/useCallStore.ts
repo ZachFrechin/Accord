@@ -29,6 +29,8 @@ async function livekit(): Promise<typeof import("livekit-client")> {
   return lkModule;
 }
 
+import { playJoinSound, playLeaveSound } from "../lib/ringtones";
+import { useMessagesStore } from "./useMessagesStore";
 import { isTauri } from "../lib/isTauri";
 import { VIEWER_MARK } from "../lib/popout";
 import { useMediaSettingsStore } from "./useMediaSettingsStore";
@@ -160,6 +162,27 @@ interface CallState {
   declineIncoming: () => void;
   /** Dismiss a ringing prompt if it matches the given call id (on CALL_END). */
   dismissIncoming: (callId: string) => void;
+}
+
+/** Pose un repère « appel manqué » dans le fil de la conversation.
+ *
+ * L'identifiant porte l'horodatage : deux appels manqués à la même seconde
+ * seraient fusionnés, ce qui est un compromis acceptable là où deux repères
+ * identiques n'apprendraient rien de plus. */
+function noteMissedCall(conversationId: string, fromName: string): void {
+  const now = new Date().toISOString();
+  useMessagesStore.getState().upsert(conversationId, {
+    id: `missed-call:${conversationId}:${now}`,
+    senderId: null,
+    senderDevice: "",
+    createdAt: now,
+    editedAt: null,
+    deleted: false,
+    content: null,
+    replyTo: null,
+    reactions: [],
+    system: { kind: "missed_call", fromName },
+  });
 }
 
 export const useCallStore = create<CallState>((set, get) => {
@@ -364,8 +387,20 @@ export const useCallStore = create<CallState>((set, get) => {
             if (pub.source === Track.Source.ScreenShare) set({ screenEnabled: false });
           }
         })
-        .on(RoomEvent.ParticipantConnected, () => set({ participants: roster() }))
-        .on(RoomEvent.ParticipantDisconnected, () => set({ participants: roster() }))
+        // Un son bref à chaque mouvement : on suit qui entre et qui sort sans
+        // avoir à regarder l'écran, ce qui est justement l'intérêt quand on est
+        // en train de faire autre chose.
+        // Les fenêtres pop-out se connectent comme des participants sans en être :
+        // elles n'ont pas de tuile, et elles ne doivent pas faire de bruit non
+        // plus, sinon ouvrir un stream sonnerait comme une arrivée.
+        .on(RoomEvent.ParticipantConnected, (p: Participant) => {
+          set({ participants: roster() });
+          if (!isViewer(p.identity)) playJoinSound();
+        })
+        .on(RoomEvent.ParticipantDisconnected, (p: Participant) => {
+          set({ participants: roster() });
+          if (!isViewer(p.identity)) playLeaveSound();
+        })
         .on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) =>
           set({ activeSpeakers: speakers.map((p) => p.identity) }),
         )
@@ -637,8 +672,16 @@ export const useCallStore = create<CallState>((set, get) => {
       void endCall(inc.conversationId, inc.callId); // tell the caller
     },
 
-    dismissIncoming: (callId) =>
-      set((s) => (s.incoming?.callId === callId ? { incoming: null } : s)),
+    dismissIncoming: (callId) => {
+      const inc = get().incoming;
+      // La sonnerie s'arrête alors qu'on n'a pas décroché : l'appelant a
+      // raccroché. Sans trace dans le fil, un appel manqué disparaît sans
+      // laisser le moindre indice — on ne sait même pas qu'on a raté quelque
+      // chose. Le repère est purement local : le serveur ne voit pas passer les
+      // conversations, il ne pourrait pas le poser à notre place.
+      if (inc?.callId === callId) noteMissedCall(inc.conversationId, inc.fromName);
+      set((s) => (s.incoming?.callId === callId ? { incoming: null } : s));
+    },
   };
 });
 

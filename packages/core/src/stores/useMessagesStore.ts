@@ -55,6 +55,11 @@ export interface DecryptedMessage {
   /** Optimistic send state (MLS path). Absent = confirmed/received; "pending" =
    * in flight; "failed" = send failed, offer a retry. */
   status?: "pending" | "failed";
+  /** Repère local, jamais chiffré ni envoyé : un appel manqué laisse une trace
+   * dans le fil pour qu'on sache qu'on a raté quelque chose. Il ne peut pas
+   * venir du serveur — celui-ci ne saurait pas de quoi il parle — donc il vit
+   * uniquement sur l'appareil qui a manqué l'appel. */
+  system?: { kind: "missed_call"; fromName: string };
 }
 
 /** How long a TYPING signal is shown before it expires (ms). */
