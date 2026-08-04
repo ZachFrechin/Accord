@@ -320,10 +320,9 @@ button { font-family: inherit; color: inherit; }
 }
 .brand { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
 .brand__mark {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-lg);
-  object-fit: cover;
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
 }
 .brand__name {
   margin: 0;

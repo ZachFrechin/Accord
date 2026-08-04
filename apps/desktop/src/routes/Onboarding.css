@@ -25,10 +25,9 @@
   margin-bottom: var(--space-6);
 }
 .onboarding__mark {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-md);
-  object-fit: cover;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
 }
 .onboarding__wordmark {
   font-family: var(--font-display);
