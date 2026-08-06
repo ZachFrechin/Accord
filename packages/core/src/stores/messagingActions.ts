@@ -152,7 +152,17 @@ async function decryptPage(conversationId: string, msgs: MessageDto[]): Promise<
 // ── Loads ─────────────────────────────────────────────────────────────────────
 export async function refreshFriends(): Promise<void> {
   if (!rt) return;
-  useFriendsStore.getState().setFriends(await rt.client.friends());
+  const data = await rt.client.friends();
+  useFriendsStore.getState().setFriends(data);
+  // La présence portée par /friends AMORCE le store au lieu de lui faire
+  // concurrence. Deux sources pour une même information, c'est celle qui n'est
+  // jamais rafraîchie qui finit par être lue — et l'affichage se fige.
+  const presence = usePresenceStore.getState();
+  for (const f of data.friends) {
+    if (f.presence && f.user_id !== rt.myUserId) {
+      presence.setPresence(f.user_id, f.presence, f.status_text ?? undefined);
+    }
+  }
 }
 export async function refreshConversations(): Promise<void> {
   if (!rt) return;

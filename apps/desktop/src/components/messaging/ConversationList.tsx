@@ -28,7 +28,7 @@ import type { PresenceStatus } from "../../realtime/wireSchema";
 import { useConversationsStore } from "../../stores/useConversationsStore";
 import { useFriendsStore } from "../../stores/useFriendsStore";
 import { useNotificationStore } from "../../stores/useNotificationStore";
-import { usePresenceStore } from "../../stores/usePresenceStore";
+import { presenceOf as presenceFrom, usePresenceStore } from "../../stores/usePresenceStore";
 import { activeInstance, useInstanceStore } from "../../stores/useInstanceStore";
 import { useConnection } from "../../realtime/ConnectionProvider";
 import { Avatar } from "./Avatar";
@@ -55,9 +55,7 @@ export function ConversationList() {
     void refreshConversations().catch(() => useConversationsStore.getState().setError(true));
   };
   const incoming = useFriendsStore((s) => s.incoming);
-  const friends = useFriendsStore((s) => s.friends);
-  const presences = usePresenceStore((s) => s.statuses);
-  const myStatus = usePresenceStore((s) => s.myStatus);
+  const presenceState = usePresenceStore();
   const myId = useInstanceStore((st) => activeInstance(st)?.account?.userId ?? null);
   const { client } = useConnection();
   // Les membres d'un groupe ne sont pas dans la liste des conversations : on les
@@ -128,9 +126,7 @@ export function ConversationList() {
   // passe par le store temps réel. Sans ce repli, un membre de groupe qui n'est
   // pas notre ami paraîtrait toujours hors ligne.
   const presenceOf = (userId: string): PresenceStatus =>
-    userId === myId
-      ? myStatus
-      : (friends.find((f) => f.user_id === userId)?.presence ?? presences[userId] ?? "OFFLINE");
+    presenceFrom(presenceState, userId, myId);
 
   /** Sous-titre d'une ligne : l'état de l'interlocuteur, ou le nombre de présents. */
   const subtitleOf = (c: (typeof conversations)[number]): string => {

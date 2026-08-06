@@ -23,6 +23,26 @@ interface PresenceState {
   reset: () => void;
 }
 
+/** L'état de présence effectif d'une personne — la SEULE façon de le lire.
+ *
+ * Ce store est alimenté par le temps réel et par les instantanés ; il fait
+ * autorité. La liste d'amis porte aussi un champ `presence`, mais figé à
+ * l'instant de son chargement : le consulter en priorité gelait l'affichage,
+ * et un ami qui se déconnectait restait indéfiniment en ligne — les événements
+ * arrivaient bien, personne ne les regardait.
+ *
+ * Une entrée absente vaut « hors ligne » : la présence vit dans Redis côté
+ * serveur, l'absence d'entrée EST l'information.
+ */
+export function presenceOf(
+  state: PresenceState,
+  userId: string,
+  myId?: string | null,
+): PresenceStatus {
+  if (myId && userId === myId) return state.myStatus;
+  return state.statuses[userId] ?? "OFFLINE";
+}
+
 export const usePresenceStore = create<PresenceState>((set) => ({
   myStatus: "ONLINE",
   statuses: {},

@@ -142,3 +142,30 @@ pub async fn list_for_user(
     .await
     .map_err(ApiError::from)
 }
+
+/// Les personnes qui doivent voir la présence de `user_id`.
+///
+/// Ses amis acceptés, plus toute personne partageant une conversation avec elle
+/// — un membre de groupe n'est pas forcément un ami, et il voit pourtant son
+/// avatar dans la barre des membres.
+///
+/// Le bloc `status_text` n'est PAS concerné : il reste réservé aux amis et
+/// passe par `/friends`. Ici on ne diffuse que le statut brut.
+pub async fn presence_audience(pool: &sqlx::PgPool, user_id: Uuid) -> Result<Vec<Uuid>, ApiError> {
+    sqlx::query_scalar!(
+        r#"SELECT DISTINCT other AS "other!" FROM (
+             SELECT (CASE WHEN f.user_lo = $1 THEN f.user_hi ELSE f.user_lo END) AS other
+             FROM friendships f
+             WHERE (f.user_lo = $1 OR f.user_hi = $1) AND f.state = 'accepted'
+             UNION
+             SELECT cm2.user_id AS other
+             FROM conversation_members cm1
+             JOIN conversation_members cm2 ON cm2.conversation_id = cm1.conversation_id
+             WHERE cm1.user_id = $1 AND cm2.user_id <> $1
+           ) audience"#,
+        user_id,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(ApiError::from)
+}

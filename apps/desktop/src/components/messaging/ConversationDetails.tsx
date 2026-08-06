@@ -10,7 +10,7 @@ import { useConversationsStore } from "../../stores/useConversationsStore";
 import { useFriendsStore } from "../../stores/useFriendsStore";
 import { useMessagesStore } from "../../stores/useMessagesStore";
 import { useUiStore } from "../../stores/useUiStore";
-import { usePresenceStore } from "../../stores/usePresenceStore";
+import { presenceOf as presenceFrom, usePresenceStore } from "../../stores/usePresenceStore";
 import { activeInstance, useInstanceStore } from "../../stores/useInstanceStore";
 import { Button, Icon, IconButton, useConfirm } from "../ui";
 import { Avatar } from "./Avatar";
@@ -30,8 +30,7 @@ export function ConversationDetails() {
   const conv = useConversationsStore((s) => s.conversations.find((c) => c.id === s.activeId));
   const title = useConversationsStore((s) => (s.activeId ? s.titles[s.activeId] : undefined));
   const friends = useFriendsStore((s) => s.friends);
-  const presences = usePresenceStore((s) => s.statuses);
-  const myStatus = usePresenceStore((s) => s.myStatus);
+  const presenceState = usePresenceStore();
   const myStatusText = usePresenceStore((s) => s.myStatusText);
   const statusTexts = usePresenceStore((s) => s.statusTexts);
   const myId = useInstanceStore((s) => activeInstance(s)?.account?.userId ?? null);
@@ -80,9 +79,7 @@ export function ConversationDetails() {
   // Prefer a friend's live presence, else the presence store (covers non-friend group
   // members, who otherwise always looked offline), else offline.
   const presenceOf = (userId: string): PresenceStatus =>
-    userId === myId
-      ? myStatus
-      : friends.find((f) => f.user_id === userId)?.presence ?? presences[userId] ?? "OFFLINE";
+    presenceFrom(presenceState, userId, myId);
 
   // Custom status text: mine locally, peers' via the /friends pull (or the WS
   // store as a fallback — self-only today, so effectively friends carry it).

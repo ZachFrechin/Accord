@@ -21,6 +21,7 @@ use crate::middleware::rate_limit;
 use crate::realtime::presence;
 use crate::realtime::protocol::{ClientCommand, ServerEvent};
 use crate::repositories::conversation_repo;
+use crate::repositories::friend_repo;
 use crate::state::AppState;
 
 /// Ticket lifetime, seconds.
@@ -282,20 +283,48 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, user_id: Uuid, se
     }
 }
 
-/// Recomputes a user's effective presence and delivers it to their own sockets.
-/// (Peers pull presence + status text from `GET /friends`, so — as in Phase 1 —
-/// this stays self-delivery; a live peer fan-out is a separate presence lot.)
+/// Recalcule la présence effective d'une personne et la diffuse.
+///
+/// Elle partait UNIQUEMENT vers les propres appareils de l'intéressé : les pairs
+/// étaient censés la lire via `GET /friends`, à chaque rafraîchissement. En
+/// pratique personne ne voyait jamais quelqu'un passer en ligne ou hors ligne —
+/// l'information n'arrivait qu'au rechargement de la liste d'amis.
+///
+/// Elle part donc aussi vers ceux que ça concerne : les amis acceptés et les
+/// personnes partageant une conversation. Le texte de statut personnalisé, lui,
+/// reste réservé aux amis et continue de passer par `/friends` — d'où le champ
+/// vidé pour les pairs.
 async fn broadcast_presence(state: &AppState, user_id: Uuid) {
-    match presence::effective_status(&state.redis, user_id).await {
-        Ok(eff) => {
-            let event = ServerEvent::PresenceUpdate {
-                user_id,
-                status: eff.status,
-                status_text: eff.status_text,
-            };
-            let _ = state.realtime.deliver_to_user(user_id, &event).await;
+    let eff = match presence::effective_status(&state.redis, user_id).await {
+        Ok(eff) => eff,
+        Err(err) => {
+            tracing::warn!(%user_id, error = %err, "ws: presence broadcast failed");
+            return;
         }
-        Err(err) => tracing::warn!(%user_id, error = %err, "ws: presence broadcast failed"),
+    };
+    // Vers soi-même : avec le texte, qui sert à synchroniser ses propres appareils.
+    let own = ServerEvent::PresenceUpdate {
+        user_id,
+        status: eff.status,
+        status_text: eff.status_text,
+    };
+    let _ = state.realtime.deliver_to_user(user_id, &own).await;
+
+    // Vers les autres : le statut seul.
+    let audience = match friend_repo::presence_audience(&state.db, user_id).await {
+        Ok(ids) => ids,
+        Err(err) => {
+            tracing::warn!(%user_id, error = %err, "ws: audience de présence illisible");
+            return;
+        }
+    };
+    let peer_event = ServerEvent::PresenceUpdate {
+        user_id,
+        status: eff.status,
+        status_text: None,
+    };
+    for peer in audience {
+        let _ = state.realtime.deliver_to_user(peer, &peer_event).await;
     }
 }
 

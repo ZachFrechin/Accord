@@ -27,7 +27,7 @@ import {
 import { useConnection } from "@accord/core/realtime/ConnectionProvider";
 import { useConversationsStore } from "@accord/core/stores/useConversationsStore";
 import { useFriendsStore } from "@accord/core/stores/useFriendsStore";
-import { usePresenceStore } from "@accord/core/stores/usePresenceStore";
+import { presenceOf as presenceFrom, usePresenceStore } from "@accord/core/stores/usePresenceStore";
 
 import { Avatar } from "../ui/Avatar";
 import { Conversation } from "./Conversation";
@@ -52,13 +52,12 @@ function Messages({ onOpen }: { onOpen: (id: string) => void }) {
   const [groupName, setGroupName] = useState("");
   const [busy, setBusy] = useState(false);
   const friends = useFriendsStore((s) => s.friends);
-  const presences = usePresenceStore((s) => s.statuses);
+  const presenceState = usePresenceStore();
 
   // La présence d'un ami arrive avec la liste d'amis ; celle des autres passe
   // par le flux temps réel. Sans ce repli, un interlocuteur qui n'est pas notre
   // ami paraîtrait éternellement hors ligne.
-  const presenceOf = (userId: string) =>
-    friends.find((f) => f.user_id === userId)?.presence ?? presences[userId] ?? "OFFLINE";
+  const presenceOf = (userId: string) => presenceFrom(presenceState, userId);
 
   useEffect(() => {
     void refreshConversations();
