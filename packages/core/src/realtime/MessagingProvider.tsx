@@ -140,7 +140,24 @@ export function MessagingProvider({
     const levelTimer = setInterval(checkLevel, 120_000);
 
     void (async () => {
-      const identity = await ensureIdentity(instance.id);
+      // L'identité de cet appareil : sa clé privée vient du trousseau du système.
+      // Si cette lecture échoue, TOUT s'arrête ici — le runtime n'est jamais
+      // installé, et chaque action part ensuite dans le vide sans un mot :
+      // conversations vides, envoi qui échoue instantanément, aucune requête au
+      // serveur. Le symptôme ne désigne rien, il faut donc le nommer.
+      let identity;
+      try {
+        identity = await ensureIdentity(instance.id);
+      } catch (e) {
+        console.error("identité de l'appareil illisible — l'application ne peut pas démarrer", e);
+        toast({
+          title: "Coffre sécurisé inaccessible",
+          description:
+            "Impossible de lire la clé de cet appareil. Redémarrez Accord ; si cela persiste, déconnectez-vous puis reconnectez-vous.",
+        });
+        useConversationsStore.getState().setError(true);
+        return;
+      }
       // Publish the device public key (retry a few times): without it, peers
       // cannot wrap message keys to this device and inbound messages become
       // undecryptable.
