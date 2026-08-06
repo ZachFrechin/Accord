@@ -126,4 +126,28 @@ describe("ApiClient token flow", () => {
     expect(secureStore.get("i")).toBeNull();
     expect(localStorage.getItem("accord.rt.i")).toBeNull();
   });
+
+  // Le contraire du test précédent, et le plus important des deux : une panne
+  // serveur ne doit PAS détruire la session. Elle l'était, et comme le jeton
+  // était effacé du trousseau, la déconnexion survivait au retour du serveur —
+  // « on se fait perma déconnecter ». Un redéploiement suffisait.
+  it("garde la session quand le serveur est en panne (5xx)", async () => {
+    const { secureStore, ApiClient } = await freshModules();
+    secureStore.set("i", { accessToken: "A0", refreshToken: "R0" });
+
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === `${BASE}/auth/refresh`) return jsonResponse(503, { error: { code: "unavailable" } });
+      if (url === `${BASE}/data`) return jsonResponse(401, { error: { code: "unauthorized" } });
+      throw new Error(`unexpected ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const onAuthLost = vi.fn();
+    const client = new ApiClient("i", BASE, onAuthLost);
+
+    await expect(client.request("/data")).rejects.toThrow();
+    expect(onAuthLost).not.toHaveBeenCalled();
+    // Le jeton survit : au retour du serveur, la session repart sans reconnexion.
+    expect(secureStore.get("i")?.refreshToken).toBe("R0");
+  });
 });

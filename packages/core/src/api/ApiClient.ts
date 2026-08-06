@@ -412,9 +412,22 @@ export class ApiClient {
       body: JSON.stringify({ refresh_token: tokens.refreshToken }),
     });
     if (!res.ok) {
-      secureStore.clear(this.instanceId);
-      this.onAuthLost();
-      return null;
+      // SEULE une réponse d'authentification détruit la session. Tout le reste —
+      // 502 d'un répartiteur, 503 pendant un redéploiement, 500 passager — veut
+      // dire « le serveur a un problème », pas « votre session est morte ».
+      //
+      // Confondre les deux déconnectait tout le monde, définitivement, au
+      // moindre hoquet du serveur : la session était effacée du trousseau, donc
+      // irrécupérable même une fois le serveur revenu. C'est ce que les
+      // utilisateurs décrivaient comme « on se fait perma déconnecter ».
+      if (res.status === 401 || res.status === 403) {
+        secureStore.clear(this.instanceId);
+        this.onAuthLost();
+        return null;
+      }
+      // Panne passagère : on garde le jeton et on laisse l'appelant réessayer.
+      // Le jeton n'a PAS été consommé — le serveur n'a rien fait tourner.
+      throw new Error(`refresh indisponible (HTTP ${res.status})`);
     }
     const data = (await res.json()) as TokenResponse;
     secureStore.set(this.instanceId, {
