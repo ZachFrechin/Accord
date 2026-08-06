@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from "react";
 
+import { presenceOf as presenceFrom, usePresenceStore } from "@accord/core/stores/usePresenceStore";
 import type { LevelDto, ProfileDto } from "@accord/core/api/ApiClient";
 import { GAME_LABELS, faceitRankLabel, lolRankLabel, lolTierImg } from "@accord/core/lib/games";
 import { levelProgress, rankForLevel } from "@accord/core/lib/levels";
@@ -36,6 +37,7 @@ export function ProfileSheet({
   onOpenConversation?: (conversationId: string) => void;
 }) {
   const { client } = useConnection();
+  const presenceState = usePresenceStore();
   const [profile, setProfile] = useState<ProfileDto | null>(null);
   const [level, setLevel] = useState<LevelDto | null>(null);
   const [games, setGames] = useState<GameRow[]>([]);
@@ -69,7 +71,12 @@ export function ProfileSheet({
         )}
 
         <div className="pcard__head">
-          <Avatar name={name} size={76} src={profile?.avatar_url} />
+          <Avatar
+            name={name}
+            size={76}
+            src={profile?.avatar_url}
+            presence={userId ? presenceFrom(presenceState, userId) : undefined}
+          />
           <div className="pcard__id">
             <span className="pcard__name">
               {name}

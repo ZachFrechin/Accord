@@ -30,6 +30,7 @@ import {
 } from "@accord/core/stores/messagingActions";
 import { useConnection } from "@accord/core/realtime/ConnectionProvider";
 import { useConversationsStore } from "@accord/core/stores/useConversationsStore";
+import { presenceOf as presenceFrom, usePresenceStore } from "@accord/core/stores/usePresenceStore";
 import { activeInstance, useInstanceStore } from "@accord/core/stores/useInstanceStore";
 import { useMessagesStore } from "@accord/core/stores/useMessagesStore";
 
@@ -66,6 +67,11 @@ export function Conversation({
 }) {
   const { client } = useConnection();
   const title = useConversationsStore((s) => s.titles[conversationId] ?? "Conversation");
+  const dmPeer = useConversationsStore((s) => s.peers[conversationId]);
+  const groupAvatar = useConversationsStore(
+    (s) => s.conversations.find((c) => c.id === conversationId)?.avatar_url ?? null,
+  );
+  const presenceState = usePresenceStore();
   const kind = useConversationsStore(
     (s) => s.conversations.find((c) => c.id === conversationId)?.kind,
   );
@@ -185,7 +191,13 @@ export function Conversation({
         <button type="button" className="iconbtn iconbtn--ghost" onClick={onBack} aria-label="Retour">
           <Icon name="arrow-left" size={22} />
         </button>
-        <Avatar name={title} size={34} />
+        <Avatar
+          name={title}
+          size={34}
+          src={groupAvatar ?? dmPeer?.avatarUrl}
+          // Un groupe n'a pas d'état de présence.
+          presence={dmPeer ? presenceFrom(presenceState, dmPeer.userId) : undefined}
+        />
         <button
           type="button"
           className="chatbar__id"

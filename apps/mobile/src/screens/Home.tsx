@@ -174,7 +174,7 @@ function Messages({ onOpen }: { onOpen: (id: string) => void }) {
                     )
                   }
                 >
-                  <Avatar name={name} size={36} src={f.avatar_url} />
+                  <Avatar name={name} size={36} src={f.avatar_url} presence={presenceOf(f.user_id)} />
                   <span className="picker__name">{name}</span>
                   {on && <Icon name="check" size={18} />}
                 </button>
@@ -198,6 +198,8 @@ function Messages({ onOpen }: { onOpen: (id: string) => void }) {
 function Friends({ onOpen }: { onOpen: (id: string) => void }) {
   const friends = useFriendsStore((s) => s.friends);
   const incoming = useFriendsStore((s) => s.incoming);
+  const presenceState = usePresenceStore();
+  const presenceOf = (userId: string) => presenceFrom(presenceState, userId);
   const [addOpen, setAddOpen] = useState(false);
   const [peek, setPeek] = useState<{ id: string; name: string } | null>(null);
   const [handle, setHandle] = useState("");
@@ -250,7 +252,7 @@ function Friends({ onOpen }: { onOpen: (id: string) => void }) {
           const name = f.display_name?.trim() || f.username;
           return (
             <li key={f.user_id} className="conv conv--static">
-              <Avatar name={name} size={46} src={f.avatar_url} />
+              <Avatar name={name} size={46} src={f.avatar_url} presence={presenceOf(f.user_id)} />
               <span className="conv__body">
                 <span className="conv__title">{name}</span>
                 <span className="conv__sub">@{f.username}</span>
@@ -294,7 +296,7 @@ function Friends({ onOpen }: { onOpen: (id: string) => void }) {
                     setPeek({ id: f.user_id, name });
                   }}
                 >
-                  <Avatar name={name} size={46} src={f.avatar_url} />
+                  <Avatar name={name} size={46} src={f.avatar_url} presence={presenceOf(f.user_id)} />
                 </span>
                 <span className="conv__body">
                   <span className="conv__title">{name}</span>
