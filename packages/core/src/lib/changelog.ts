@@ -17,6 +17,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.16.3",
+    date: "2026-08-06",
+    title: "Vos conversations chargent, quoi qu'il arrive",
+    notes: [
+      "La liste des conversations ne dépend plus du chiffrement pour s'afficher. Elle était chargée APRÈS la mise en route du moteur de chiffrement : quand celui-ci restait bloqué, l'application n'appelait plus le serveur du tout — conversations vides, envoi impossible, appels indisponibles, et pas le moindre message d'erreur.",
+      "Le moteur de chiffrement a désormais un délai maximum. Bloqué, il renonce au lieu de figer l'application, et réessaie à la reconnexion suivante.",
+    ],
+  },
+  {
     version: "0.16.2",
     date: "2026-08-06",
     title: "Conversations qui ne chargent plus : le correctif",

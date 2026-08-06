@@ -1604,19 +1604,23 @@ export async function onMessageCreated(conversationId: string, messageId?: strin
 /** Full re-sync from REST — run on (re)connect (READY) since the socket does not
  * replay events missed while disconnected. */
 export async function resyncAll(): Promise<void> {
-  // Reprendre les invitations MLS en attente à CHAQUE reconnexion. Sans ça, un
-  // appareil dont le démarrage a échoué une fois restait hors de ses groupes
-  // définitivement — la boîte d'invitations n'était lue qu'au lancement.
-  if (rt) {
-    const joined = await mls
-      .joinPendingWelcomes(rt.client, rt.instanceId, rt.identity.deviceId)
-      .catch((e) => {
-        console.warn("MLS: reprise des invitations impossible", e);
-        return [] as string[];
-      });
-    for (const groupId of joined) await onMlsFrame(groupId).catch(() => {});
-  }
+  // Les listes d'abord, et sans dépendre du chiffrement : elles n'ont besoin
+  // d'aucune clé. Les faire suivre une opération MLS — donc un appel natif qui
+  // peut ne jamais rendre la main — revenait à parier l'affichage entier sur
+  // lui.
   await Promise.all([refreshFriends().catch(() => {}), refreshConversations().catch(() => {})]);
+
+  // Puis la reprise des invitations en attente, en arrière-plan. Sans elle, un
+  // appareil dont le démarrage a échoué une fois restait hors de ses groupes
+  // définitivement : la boîte d'invitations n'était lue qu'au lancement.
+  if (rt) {
+    void mls
+      .joinPendingWelcomes(rt.client, rt.instanceId, rt.identity.deviceId)
+      .then(async (joined) => {
+        for (const groupId of joined) await onMlsFrame(groupId).catch(() => {});
+      })
+      .catch((e) => console.warn("MLS : reprise des invitations impossible", e));
+  }
   const activeId = useConversationsStore.getState().activeId;
   if (activeId) await loadMessages(activeId).catch(() => {});
 }

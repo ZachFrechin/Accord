@@ -48,6 +48,22 @@ import { useConnection } from "./ConnectionProvider";
 /** Ce dont le câblage a besoin d'un moteur d'appel. L'application qui en a un
  * (le desktop) le fournit ; celle qui n'en a pas encore (mobile V1) l'omet, et
  * les événements d'appel sont alors simplement ignorés. */
+/** Au-delà, on considère que l'appel natif ne répondra pas. Large à dessein :
+ * un premier démarrage MLS sur une grosse boîte d'invitations prend du temps,
+ * et abandonner trop tôt priverait l'appareil de ses groupes. */
+const MLS_BOOTSTRAP_TIMEOUT_MS = 30_000;
+
+/** Renonce si la promesse n'a pas abouti à temps. Un appel natif bloqué ne
+ * rejette jamais : sans plafond, tout ce qui suit attend indéfiniment. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} : aucune réponse après ${ms} ms`)), ms),
+    ),
+  ]);
+}
+
 export interface CallSink {
   activeCallId(): string | null;
   isIdle(): boolean;
@@ -183,10 +199,33 @@ export function MessagingProvider({
       // device is addable, then route every re-joined group into the store. Native
       // (Tauri) only; the MLS engine lives in the Rust layer. A dev handle exposes
       // the runtime + enable action for manual E2E.
+      // La liste des conversations part MAINTENANT, avant le chiffrement et sans
+      // l'attendre. Elle en était la suite : le moteur MLS est natif, et un appel
+      // natif qui ne rend jamais la main — verrou pris, invite système sans
+      // réponse — bloquait tout ce qui venait après. Résultat : aucune requête au
+      // serveur, aucune conversation, et pas la moindre erreur, puisqu'un blocage
+      // n'est pas une exception et qu'aucun `catch` ne l'attrape.
+      //
+      // Ces deux choses n'ont aucune raison d'être enchaînées : lire sa liste de
+      // conversations ne demande aucune clé.
+      const listsLoaded = Promise.all([
+        refreshFriends().catch(() => useFriendsStore.getState().setError(true)),
+        refreshConversations().catch(() => {
+          useConversationsStore.getState().setError(true);
+        }),
+      ]);
+
       if (isTauri()) {
         const identityLabel = `${account.userId}:${identity.deviceId}`;
         try {
-          const joined = await bootstrapMls(client, instance.id, identity.deviceId, identityLabel);
+          // Plafond de temps : un moteur natif bloqué doit renoncer, pas figer
+          // l'application. Le rattrapage des invitations rejouera à la prochaine
+          // reconnexion.
+          const joined = await withTimeout(
+            bootstrapMls(client, instance.id, identity.deviceId, identityLabel),
+            MLS_BOOTSTRAP_TIMEOUT_MS,
+            "démarrage MLS",
+          );
           if (cancelled) return;
           for (const groupId of joined) {
             // Drain each group's backlog into the store BEFORE the ratchet keys are
@@ -209,14 +248,7 @@ export function MessagingProvider({
         }
       }
 
-      await Promise.all([
-        refreshFriends().catch(() => useFriendsStore.getState().setError(true)),
-        refreshConversations().catch(() => {
-          // Surface a distinct error+retry state instead of stranding on skeletons
-          // OR falling through to the "empty account" state on a network failure.
-          useConversationsStore.getState().setError(true);
-        }),
-      ]);
+      await listsLoaded;
 
       // Key-transparency watchdog (Phase 3 · Lot 6): confirm the current signed log
       // head extends the one we last trusted. It records a "tampered" status on a
