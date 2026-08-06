@@ -125,7 +125,16 @@ export async function bootstrapMls(
   deviceId: string,
   identity: string,
 ): Promise<string[]> {
-  await ensureMlsKeyPackages(client, instanceId, deviceId, identity);
+  // Les deux étapes n'ont RIEN à voir l'une avec l'autre : publier des paquets
+  // de clés permet aux autres de m'ajouter PLUS TARD, consommer les invitations
+  // me permet de lire MAINTENANT. Elles étaient enchaînées, si bien qu'un échec
+  // de la première — un aléa réseau, une identité native qui refuse de
+  // s'initialiser — laissait l'appareil hors de ses groupes : messages
+  // illisibles, envois refusés, appels chiffrés indisponibles. Et rien ne
+  // réessayait.
+  await ensureMlsKeyPackages(client, instanceId, deviceId, identity).catch((e) =>
+    console.warn("MLS: publication des paquets de clés impossible (on continue)", e),
+  );
   return joinPendingWelcomes(client, instanceId, deviceId);
 }
 

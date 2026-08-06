@@ -1604,6 +1604,18 @@ export async function onMessageCreated(conversationId: string, messageId?: strin
 /** Full re-sync from REST — run on (re)connect (READY) since the socket does not
  * replay events missed while disconnected. */
 export async function resyncAll(): Promise<void> {
+  // Reprendre les invitations MLS en attente à CHAQUE reconnexion. Sans ça, un
+  // appareil dont le démarrage a échoué une fois restait hors de ses groupes
+  // définitivement — la boîte d'invitations n'était lue qu'au lancement.
+  if (rt) {
+    const joined = await mls
+      .joinPendingWelcomes(rt.client, rt.instanceId, rt.identity.deviceId)
+      .catch((e) => {
+        console.warn("MLS: reprise des invitations impossible", e);
+        return [] as string[];
+      });
+    for (const groupId of joined) await onMlsFrame(groupId).catch(() => {});
+  }
   await Promise.all([refreshFriends().catch(() => {}), refreshConversations().catch(() => {})]);
   const activeId = useConversationsStore.getState().activeId;
   if (activeId) await loadMessages(activeId).catch(() => {});
