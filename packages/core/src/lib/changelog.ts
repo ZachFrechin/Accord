@@ -17,6 +17,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.16.1",
+    date: "2026-08-06",
+    title: "Déconnexions, présence et groupes — les correctifs",
+    notes: [
+      "Une panne passagère du serveur ne vous déconnecte plus. Elle effaçait votre session pour de bon : il fallait se reconnecter à la main, et chaque redémarrage du serveur déconnectait tout le monde.",
+      "Une personne ajoutée à un groupe existant peut enfin y écrire et y appeler. Elle rejoignait la conversation sans recevoir les clés de chiffrement, donc sans pouvoir rien lire ni envoyer.",
+      "La présence est corrigée des deux côtés : les changements en ligne / hors ligne arrivent maintenant en direct, et l'état de chacun est connu dès l'ouverture au lieu d'attendre le premier changement.",
+      "Les pastilles de présence sont plus grandes et visibles partout — y compris dans la liste des conversations, et en gris quand la personne est hors ligne.",
+      "Si le coffre sécurisé de l'appareil devient illisible, Accord le dit désormais au lieu de rester silencieusement inerte.",
+      "Le logo perd son fond gris et son halo.",
+      "Sur Android : les appels vocaux et vidéo arrivent, chiffrés de bout en bout comme sur ordinateur.",
+    ],
+  },
+  {
     version: "0.16.0",
     date: "2026-08-03",
     title: "Fermer sans quitter, et un panel d'administration complet",
