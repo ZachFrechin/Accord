@@ -17,6 +17,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.16.2",
+    date: "2026-08-06",
+    title: "Conversations qui ne chargent plus : le correctif",
+    notes: [
+      "Un appareil pouvait rester définitivement hors de ses conversations chiffrées : messages qui ne chargent pas, envoi qui échoue, « appel chiffré indisponible ». Les invitations au groupe n'étaient lues qu'au lancement, et un seul échec au démarrage suffisait à laisser l'appareil dehors pour de bon.",
+      "Elles sont maintenant reprises à chaque reconnexion : un appareil resté dehors se rattrape tout seul, sans réinstallation.",
+    ],
+  },
+  {
     version: "0.16.1",
     date: "2026-08-06",
     title: "Déconnexions, présence et groupes — les correctifs",
