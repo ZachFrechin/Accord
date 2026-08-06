@@ -910,3 +910,111 @@ body { font-weight: var(--weight-user-base, 400); }
 .avatar__dot[data-status="ONLINE"] { background: var(--status-good); }
 .avatar__dot[data-status="AWAY"] { background: var(--status-warn); }
 .avatar__dot[data-status="DND"] { background: var(--status-danger); }
+
+/* ── Appel ─────────────────────────────────────────────────────────────────── */
+/* Plein écran et au-dessus de tout : en appel on ne fait rien d'autre, et une
+   interface qui laisserait voir la conversation derrière inviterait à toucher
+   des choses au lieu de parler. */
+.call {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-app);
+  padding: calc(env(safe-area-inset-top) + var(--space-4)) var(--space-3)
+    calc(env(safe-area-inset-bottom) + var(--space-4));
+}
+.call__head { text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.call__title { font-size: var(--text-lg); font-weight: var(--weight-bold); }
+.call__sub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+/* La grille s'adapte au nombre de personnes : une seule occupe tout l'écran,
+   au-delà on passe en deux colonnes. */
+.call__grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  grid-template-columns: 1fr;
+}
+.call__grid[data-count="2"],
+.call__grid[data-count="3"],
+.call__grid[data-count="4"] { grid-template-columns: 1fr 1fr; }
+
+.call-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  overflow: hidden;
+  border: 2px solid transparent;
+}
+/* Qui parle est cerclé d'accent : sur un téléphone tenu à distance, c'est le
+   seul repère lisible pour suivre une conversation à plusieurs. */
+.call-tile[data-speaking="true"] { border-color: var(--accent); }
+.call-tile__video { width: 100%; height: 100%; object-fit: cover; }
+.call-tile__name {
+  position: absolute;
+  left: var(--space-2);
+  bottom: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  font-size: var(--text-xs);
+}
+
+/* Boutons ronds et larges : atteignables au pouce, d'une seule main. */
+.call__actions { display: flex; justify-content: center; gap: var(--space-3); }
+.call-btn {
+  width: 62px;
+  height: 62px;
+  border: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--bg-elevated);
+  color: var(--text-1);
+}
+.call-btn:active { background: var(--bg-inset); }
+/* Coupé = barré visuellement, pas seulement grisé : un micro « un peu plus
+   pâle » ne se remarque pas quand on parle dans le vide. */
+.call-btn[data-off="true"] { background: var(--bg-inset); color: var(--text-3); position: relative; }
+.call-btn[data-off="true"]::after {
+  content: "";
+  position: absolute;
+  width: 2px;
+  height: 34px;
+  background: var(--status-danger);
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+.call-btn--hangup { background: var(--status-danger); color: #fff; }
+
+/* Sonnerie : le visage en grand, deux boutons éloignés l'un de l'autre pour
+   qu'on ne raccroche pas en voulant décrocher. */
+.call--ringing { justify-content: space-between; }
+.call__ring {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+.call__actions { gap: var(--space-6); }
+.call-btn--accept { background: var(--status-good); color: #fff; }

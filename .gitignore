@@ -46,7 +46,13 @@ Thumbs.db
 .remember/
 # Projet Android généré par `tauri android init` (regénérable, contient des
 # artefacts Gradle) — seules les sources et la config de l'app sont suivies.
-apps/mobile/src-tauri/gen/android/
+# Projet Android : le SQUELETTE est suivi (manifeste, gradle, ressources) pour
+# que les permissions d'appel et les icônes survivent à un clone neuf — sans
+# quoi une compilation depuis zéro produirait une application incapable
+# d'accéder au micro. Tauri place ses propres .gitignore à l'intérieur, qui
+# excluent déjà les sorties de compilation, local.properties et les trousseaux
+# de signature.
+apps/mobile/src-tauri/gen/apple/
 apps/mobile/src-tauri/target/
 apps/mobile/dist/
 apps/mobile/node_modules/

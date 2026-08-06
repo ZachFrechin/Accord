@@ -14,7 +14,7 @@ import {
   requestNotificationPermission,
 } from "@accord/core/lib/notifications";
 import { Icon } from "@accord/core/ui/Icon";
-import { MessagingProvider } from "@accord/core/realtime/MessagingProvider";
+import { MessagingProvider } from "../realtime/MessagingProvider";
 import {
   acceptFriend,
   createGroup,
@@ -30,6 +30,7 @@ import { useFriendsStore } from "@accord/core/stores/useFriendsStore";
 import { presenceOf as presenceFrom, usePresenceStore } from "@accord/core/stores/usePresenceStore";
 
 import { Avatar } from "../ui/Avatar";
+import { Call, IncomingCall } from "./Call";
 import { Conversation } from "./Conversation";
 import { Profile } from "./Profile";
 import { ProfileSheet } from "../ui/ProfileSheet";
@@ -423,6 +424,8 @@ export function Home() {
           </>
         )}
       </div>
+      <Call />
+      <IncomingCall />
     </MessagingProvider>
   );
 }

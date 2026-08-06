@@ -31,6 +31,8 @@ import {
 import { useConnection } from "@accord/core/realtime/ConnectionProvider";
 import { useConversationsStore } from "@accord/core/stores/useConversationsStore";
 import { presenceOf as presenceFrom, usePresenceStore } from "@accord/core/stores/usePresenceStore";
+
+import { useCallStore } from "../stores/useCallStore";
 import { activeInstance, useInstanceStore } from "@accord/core/stores/useInstanceStore";
 import { useMessagesStore } from "@accord/core/stores/useMessagesStore";
 
@@ -72,6 +74,7 @@ export function Conversation({
     (s) => s.conversations.find((c) => c.id === conversationId)?.avatar_url ?? null,
   );
   const presenceState = usePresenceStore();
+  const startCall = useCallStore((st) => st.start);
   const kind = useConversationsStore(
     (s) => s.conversations.find((c) => c.id === conversationId)?.kind,
   );
@@ -210,6 +213,22 @@ export function Conversation({
           <span className="chatbar__sub">
             {kind === "group" ? "Groupe · chiffré" : "Chiffré de bout en bout"}
           </span>
+        </button>
+        <button
+          type="button"
+          className="iconbtn iconbtn--ghost"
+          aria-label="Appel vocal"
+          onClick={() => void startCall(conversationId)}
+        >
+          <Icon name="phone" size={19} />
+        </button>
+        <button
+          type="button"
+          className="iconbtn iconbtn--ghost"
+          aria-label="Appel vidéo"
+          onClick={() => void startCall(conversationId, { video: true })}
+        >
+          <Icon name="video-camera" size={19} />
         </button>
         <button
           type="button"
