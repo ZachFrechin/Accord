@@ -4,6 +4,7 @@
 //! security-sensitive pieces (password hashing, token signing) have a single,
 //! auditable home.
 
+pub mod call_sound_cleanup;
 pub mod games;
 pub mod livekit;
 pub mod mailer;

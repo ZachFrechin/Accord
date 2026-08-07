@@ -3,6 +3,7 @@
 
 pub mod admin_repo;
 pub mod attachment_repo;
+pub mod call_sound_asset_repo;
 pub mod conversation_repo;
 pub mod device_key_repo;
 pub mod friend_repo;

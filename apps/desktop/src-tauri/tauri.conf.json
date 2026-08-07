@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' customprotocol: asset:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data: blob: http: https:; font-src 'self' asset: data:; connect-src ipc: http: https: ws: wss:; frame-src http: https:; media-src 'self' blob: http: https:; worker-src 'self' blob:"
     },
     "trayIcon": {
       "iconPath": "icons/32x32.png",

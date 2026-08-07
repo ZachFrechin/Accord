@@ -34,6 +34,7 @@ import { useMessagesStore } from "./useMessagesStore";
 import { isTauri } from "../lib/isTauri";
 import { VIEWER_MARK } from "../lib/popout";
 import { useMediaSettingsStore } from "./useMediaSettingsStore";
+import { useCallMediaStore } from "./useCallMediaStore";
 import {
   endCall,
   heartbeatCall,
@@ -529,10 +530,12 @@ export const useCallStore = create<CallState>((set, get) => {
         audioBlocked: !room.canPlaybackAudio,
       });
       startHeartbeat(conversationId); // keep our server-roster entry alive
+      void useCallMediaStore.getState().start(conversationId, creds.call_id);
     },
 
     leaveCall: () => {
       const { conversationId } = get();
+      useCallMediaStore.getState().stop();
       stopHeartbeat();
       // Leave the server roster: peers get CALL_PARTICIPANT_LEFT, or CALL_END if we
       // were the last one (which also dismisses any still-ringing prompt).

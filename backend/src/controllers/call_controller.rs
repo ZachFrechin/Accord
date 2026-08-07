@@ -5,6 +5,8 @@
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::response::{Html, IntoResponse, Response};
 use chrono::Utc;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -12,10 +14,10 @@ use uuid::Uuid;
 
 use crate::domain::{livekit, xp};
 use crate::error::ApiError;
-use crate::middleware::auth::AuthUser;
+use crate::middleware::{auth::AuthUser, rate_limit};
 use crate::realtime::call_state::{self, CALL_TTL_SECS};
 use crate::realtime::protocol::ServerEvent;
-use crate::repositories::{conversation_repo, xp_repo};
+use crate::repositories::{call_sound_asset_repo, conversation_repo, xp_repo};
 use crate::state::AppState;
 
 /// A minted call token's lifetime. LiveKit disconnects a participant when their
@@ -25,6 +27,8 @@ use crate::state::AppState;
 /// conversation's SFU room, and the media is E2EE (MLS-keyed), so a leaked token
 /// buys a blind ghost participant, never plaintext.
 const TOKEN_TTL_SECS: i64 = 6 * 60 * 60;
+const MAX_MEDIA_CIPHERTEXT_CHARS: usize = 88_000;
+const MAX_SOUND_CIPHERTEXT_CHARS: usize = 12_000;
 
 /// The LiveKit participant identity for a (user, device): one per device so the
 /// same user on two devices doesn't self-evict from the SFU room.
@@ -264,6 +268,7 @@ pub async fn join(
         "room": room,
         "token": token,
         "participants": outcome.participants,
+        "call_media_enabled": state.config.call_media.enabled,
     })))
 }
 
@@ -375,7 +380,353 @@ pub async fn call_state_get(
             "active": true,
             "call_id": cs.call_id,
             "participants": cs.participants,
+            "call_media_enabled": state.config.call_media.enabled,
         }))),
-        None => Ok(Json(json!({ "active": false, "participants": [] }))),
+        None => Ok(Json(json!({
+            "active": false,
+            "participants": [],
+            "call_media_enabled": state.config.call_media.enabled,
+        }))),
     }
+}
+
+fn require_call_media(state: &AppState) -> Result<(), ApiError> {
+    if state.config.call_media.enabled {
+        Ok(())
+    } else {
+        Err(ApiError::NotFound("call media is disabled".to_string()))
+    }
+}
+
+fn media_device(query: &CallTokenQuery) -> Result<&str, ApiError> {
+    query
+        .device
+        .as_deref()
+        .filter(|device| !device.is_empty() && device.len() <= 128)
+        .ok_or_else(|| ApiError::Validation("device is required".to_string()))
+}
+
+async fn require_active_call_device(
+    state: &AppState,
+    conversation_id: Uuid,
+    caller: Uuid,
+    device: &str,
+    requested_call_id: Option<Uuid>,
+) -> Result<call_state::CallState, ApiError> {
+    if !conversation_repo::is_member(&state.db, conversation_id, caller).await? {
+        return Err(ApiError::Forbidden("not a member".to_string()));
+    }
+    if !call_state::participant_is_live(&state.redis, conversation_id, caller, device).await? {
+        return Err(ApiError::Forbidden(
+            "this device is not an active call participant".to_string(),
+        ));
+    }
+    let call = call_state::state(&state.redis, conversation_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("no active call".to_string()))?;
+    if requested_call_id.is_some_and(|id| id != call.call_id) {
+        return Err(ApiError::Conflict("call has changed".to_string()));
+    }
+    Ok(call)
+}
+
+async fn fan_to_call_participants(state: &AppState, participants: &[Uuid], event: &ServerEvent) {
+    for user_id in participants {
+        let _ = state.realtime.deliver_to_user(*user_id, event).await;
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MediaPutBody {
+    call_id: Uuid,
+    expected_revision: u64,
+    ciphertext: String,
+    nonce: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SoundTriggerBody {
+    call_id: Uuid,
+    event_id: Uuid,
+    scheduled_at_ms: i64,
+    #[serde(default)]
+    blob_id: Option<Uuid>,
+    ciphertext: String,
+    nonce: String,
+}
+
+/// Read opaque collaborative-media state, authorized by exact call device.
+pub async fn media_get(
+    State(state): State<AppState>,
+    caller: AuthUser,
+    Path(conversation_id): Path<Uuid>,
+    Query(query): Query<CallTokenQuery>,
+) -> Result<Json<Value>, ApiError> {
+    require_call_media(&state)?;
+    let device = media_device(&query)?;
+    let call =
+        require_active_call_device(&state, conversation_id, caller.user_id, device, None).await?;
+    let media = call_state::media_state(&state.redis, conversation_id).await?;
+    Ok(Json(json!({
+        "call_id": call.call_id,
+        "state": media,
+        "server_now_ms": call_state::now_ms(),
+    })))
+}
+
+/// Atomic revisioned update. Stale writers receive 409 plus the current opaque
+/// state so they can reconcile without trusting another client's plaintext.
+pub async fn media_put(
+    State(state): State<AppState>,
+    caller: AuthUser,
+    Path(conversation_id): Path<Uuid>,
+    Query(query): Query<CallTokenQuery>,
+    Json(body): Json<MediaPutBody>,
+) -> Result<Response, ApiError> {
+    require_call_media(&state)?;
+    let device = media_device(&query)?;
+    if body.ciphertext.is_empty()
+        || body.ciphertext.len() > MAX_MEDIA_CIPHERTEXT_CHARS
+        || body.nonce.is_empty()
+        || body.nonce.len() > 64
+    {
+        return Err(ApiError::Validation(
+            "invalid encrypted media payload".to_string(),
+        ));
+    }
+    let call = require_active_call_device(
+        &state,
+        conversation_id,
+        caller.user_id,
+        device,
+        Some(body.call_id),
+    )
+    .await?;
+    rate_limit::check(
+        &state.redis,
+        &format!(
+            "rl:call-media-state:{}:{}:{}",
+            body.call_id, caller.user_id, device
+        ),
+        60,
+        state.config.call_media.state_mutations_per_minute,
+    )
+    .await?;
+
+    match call_state::compare_and_swap_media(
+        &state.redis,
+        call_state::MediaCasUpdate {
+            conversation_id,
+            user_id: caller.user_id,
+            device,
+            call_id: body.call_id,
+            expected_revision: body.expected_revision,
+            ciphertext: body.ciphertext,
+            nonce: body.nonce,
+            ttl_secs: CALL_TTL_SECS,
+        },
+    )
+    .await?
+    {
+        call_state::MediaCasOutcome::Applied(media) => {
+            let event = ServerEvent::CallMediaState {
+                conversation_id,
+                call_id: media.call_id,
+                revision: media.revision,
+                ciphertext: media.ciphertext.clone(),
+                nonce: media.nonce.clone(),
+                updated_at_ms: media.updated_at_ms,
+            };
+            fan_to_call_participants(&state, &call.participants, &event).await;
+            tracing::info!(
+                conversation_id = %conversation_id,
+                revision = media.revision,
+                "call media mutation applied"
+            );
+            Ok((StatusCode::OK, Json(json!({ "state": media }))).into_response())
+        }
+        call_state::MediaCasOutcome::Conflict(current) => {
+            tracing::info!(conversation_id = %conversation_id, "call media revision conflict");
+            Ok((
+                StatusCode::CONFLICT,
+                Json(json!({ "state": current, "server_now_ms": call_state::now_ms() })),
+            )
+                .into_response())
+        }
+        call_state::MediaCasOutcome::NotInCall => Err(ApiError::Forbidden(
+            "this device is not an active call participant".to_string(),
+        )),
+        call_state::MediaCasOutcome::WrongCall => {
+            Err(ApiError::Conflict("call has changed".to_string()))
+        }
+    }
+}
+
+/// Broadcast one encrypted scheduled sound trigger to the current call roster.
+pub async fn sound_trigger(
+    State(state): State<AppState>,
+    caller: AuthUser,
+    Path(conversation_id): Path<Uuid>,
+    Query(query): Query<CallTokenQuery>,
+    Json(body): Json<SoundTriggerBody>,
+) -> Result<Json<Value>, ApiError> {
+    require_call_media(&state)?;
+    let device = media_device(&query)?;
+    if body.ciphertext.is_empty()
+        || body.ciphertext.len() > MAX_SOUND_CIPHERTEXT_CHARS
+        || body.nonce.is_empty()
+        || body.nonce.len() > 64
+    {
+        return Err(ApiError::Validation(
+            "invalid encrypted sound payload".to_string(),
+        ));
+    }
+    let now = call_state::now_ms();
+    if body.scheduled_at_ms < now - 2_000 || body.scheduled_at_ms > now + 10_000 {
+        return Err(ApiError::Validation("invalid sound schedule".to_string()));
+    }
+    let call = require_active_call_device(
+        &state,
+        conversation_id,
+        caller.user_id,
+        device,
+        Some(body.call_id),
+    )
+    .await?;
+    rate_limit::check(
+        &state.redis,
+        &format!(
+            "rl:call-sound:{}:{}:{}",
+            body.call_id, caller.user_id, device
+        ),
+        60,
+        state.config.call_media.sound_triggers_per_minute,
+    )
+    .await?;
+    if !call_state::register_media_event(&state.redis, body.call_id, body.event_id, 600).await? {
+        return Ok(Json(json!({ "status": "duplicate", "server_now_ms": now })));
+    }
+    if let Some(blob_id) = body.blob_id
+        && !call_sound_asset_repo::touch(&state.db, conversation_id, blob_id).await?
+    {
+        return Err(ApiError::Forbidden(
+            "sound blob is not owned by this conversation".to_string(),
+        ));
+    }
+    let event = ServerEvent::CallSoundTrigger {
+        conversation_id,
+        call_id: body.call_id,
+        event_id: body.event_id,
+        scheduled_at_ms: body.scheduled_at_ms,
+        blob_id: body.blob_id,
+        ciphertext: body.ciphertext,
+        nonce: body.nonce,
+    };
+    fan_to_call_participants(&state, &call.participants, &event).await;
+    tracing::info!(conversation_id = %conversation_id, custom = body.blob_id.is_some(), "call sound triggered");
+    Ok(Json(json!({ "status": "scheduled", "server_now_ms": now })))
+}
+
+const YOUTUBE_BRIDGE_HTML: &str = r#"<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html,body,#player{width:100%;height:100%;min-width:200px;min-height:200px;margin:0;background:#090b10;overflow:hidden}</style>
+</head><body><div id="player"></div>
+<script nonce="__NONCE__" src="https://www.youtube.com/iframe_api"></script>
+<script nonce="__NONCE__">
+(() => {
+  'use strict';
+  const channel = new URLSearchParams(location.search).get('channel') || '';
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(channel)) return;
+  let player = null;
+  let parentOrigin = null;
+  let suppressUntil = 0;
+  let observedAt = 0;
+  let observedPosition = 0;
+  const send = (type, detail = {}) => {
+    if (parentOrigin) parent.postMessage({source:'accord-youtube-bridge', channel, type, ...detail}, parentOrigin);
+  };
+  window.onYouTubeIframeAPIReady = () => {
+    player = new YT.Player('player', {
+      width: '100%', height: '100%',
+      playerVars: {origin: location.origin, playsinline: 1, enablejsapi: 1},
+      events: {
+        onReady: () => send('READY'),
+        onStateChange: (event) => send('STATE_CHANGE', {
+          state: event.data,
+          positionSeconds: Number(player.getCurrentTime()) || 0,
+          remotelyApplied: Date.now() < suppressUntil
+        }),
+        onError: (event) => send('ERROR', {code: event.data})
+      }
+    });
+  };
+  setInterval(() => {
+    if (!player || typeof player.getCurrentTime !== 'function') return;
+    const now = Date.now();
+    const position = Number(player.getCurrentTime()) || 0;
+    const playing = player.getPlayerState() === 1;
+    const predicted = observedPosition + (playing && observedAt ? (now - observedAt) / 1000 : 0);
+    if (observedAt && now >= suppressUntil && Math.abs(position - predicted) > 1.5) {
+      send('USER_SEEK', {positionSeconds: position});
+    }
+    observedAt = now;
+    observedPosition = position;
+  }, 500);
+  addEventListener('message', (event) => {
+    if (event.source !== parent) return;
+    const data = event.data;
+    if (!data || data.source !== 'accord-parent' || data.channel !== channel) return;
+    if (parentOrigin && event.origin !== parentOrigin) return;
+    parentOrigin ||= event.origin;
+    if (data.type === 'HELLO') { send('HELLO_ACK'); return; }
+    if (!player) return;
+    if (data.type === 'LOAD' && /^[A-Za-z0-9_-]{11}$/.test(data.videoId || '')) {
+      suppressUntil = Date.now() + 1000;
+      player.cueVideoById({videoId: data.videoId, startSeconds: Math.max(0, Number(data.positionSeconds) || 0)});
+    } else if (data.type === 'PLAY') {
+      suppressUntil = Date.now() + 1000; player.playVideo();
+      setTimeout(() => { if (player.getPlayerState() !== 1) send('AUTOPLAY_BLOCKED'); }, 700);
+    } else if (data.type === 'PAUSE') { suppressUntil = Date.now() + 1000; player.pauseVideo(); }
+    else if (data.type === 'SEEK') { suppressUntil = Date.now() + 1000; player.seekTo(Math.max(0, Number(data.positionSeconds) || 0), true); }
+    else if (data.type === 'VOLUME') player.setVolume(Math.max(0, Math.min(100, Number(data.volume) || 0)));
+    else if (data.type === 'MUTE') player.mute();
+    else if (data.type === 'UNMUTE') player.unMute();
+    else if (data.type === 'GET_STATE') send('STATE', {state: player.getPlayerState(), positionSeconds: Number(player.getCurrentTime()) || 0});
+  });
+})();
+</script></body></html>"#;
+
+/// Public instance-origin YouTube IFrame bridge. It carries no authentication or
+/// call data and is intentionally isolated from the main Tauri webview.
+pub async fn youtube_bridge(State(state): State<AppState>) -> Result<Response, ApiError> {
+    require_call_media(&state)?;
+    let nonce = Uuid::new_v4().simple().to_string();
+    let mut headers = HeaderMap::new();
+    let csp = format!(
+        "default-src 'none'; script-src 'nonce-{nonce}' https://www.youtube.com https://s.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; connect-src https://www.youtube.com https://*.youtube.com https://*.googlevideo.com; img-src https: data:; style-src 'unsafe-inline'; frame-ancestors *"
+    );
+    headers.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_str(&csp)
+            .map_err(|e| ApiError::Internal(anyhow::anyhow!("bridge CSP: {e}")))?,
+    );
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        "permissions-policy",
+        HeaderValue::from_static(
+            "autoplay=(self \"https://www.youtube.com\"), fullscreen=(self \"https://www.youtube.com\")",
+        ),
+    );
+    Ok((
+        headers,
+        Html(YOUTUBE_BRIDGE_HTML.replace("__NONCE__", &nonce)),
+    )
+        .into_response())
 }

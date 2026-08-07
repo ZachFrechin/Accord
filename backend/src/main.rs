@@ -118,6 +118,14 @@ async fn main() -> anyhow::Result<()> {
         Err(err) => tracing::warn!(error = %err, "email disabled: could not build SMTP mailer"),
     }
 
+    // Custom soundboard blobs use a rolling 30-day expiry. Every replica may run
+    // this retry-safe worker: the DB predicate and idempotent object DELETE make
+    // concurrent cleanup harmless.
+    tokio::spawn(domain::call_sound_cleanup::run_worker(
+        state.db.clone(),
+        state.config.storage.clone(),
+    ));
+
     // 5. Router with the full middleware stack. Capture the shutdown token first
     //    so the graceful-shutdown future can close live WebSocket tasks.
     let shutdown_token = state.shutdown.clone();

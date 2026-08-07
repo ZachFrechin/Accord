@@ -11,6 +11,7 @@ import { useCallStore } from "../../stores/useCallStore";
 import { useConversationsStore } from "../../stores/useConversationsStore";
 import { Icon } from "../ui";
 import { MicGlyph } from "./MicGlyph";
+import { SharedCallMedia } from "./SharedCallMedia";
 import "./call.css";
 
 export function CallPip() {
@@ -37,6 +38,7 @@ export function CallPip() {
 
   return (
     <div className="call-pip" data-status={status}>
+      {status === "in-call" && <SharedCallMedia compact />}
       <button type="button" className="call-pip__main" onClick={goToCall} title="Revenir à l'appel">
         <span className="call-pip__dot" aria-hidden />
         <span className="call-pip__title">{title ?? "Appel"}</span>

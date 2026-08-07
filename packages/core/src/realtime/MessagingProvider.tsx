@@ -78,6 +78,24 @@ export interface CallSink {
   incomingCallId(): string | null;
   renameIncoming(fromName: string): void;
   dismissIncoming(callId: string): void;
+  reconcileMedia?(): void;
+  onMediaState?(event: {
+    conversationId: string;
+    callId: string;
+    revision: number;
+    ciphertext: string;
+    nonce: string;
+    updatedAtMs: number;
+  }): void;
+  onSoundTrigger?(event: {
+    conversationId: string;
+    callId: string;
+    eventId: string;
+    scheduledAtMs: number;
+    blobId?: string;
+    ciphertext: string;
+    nonce: string;
+  }): void;
 }
 
 let callSink: CallSink | null = null;
@@ -261,6 +279,10 @@ export function MessagingProvider({
       // from REST on every (re)connect.
       ws.on("READY", () => {
         void resyncAll();
+        callSink?.reconcileMedia?.();
+      }),
+      ws.on("RESET", () => {
+        callSink?.reconcileMedia?.();
       }),
       ws.on("MESSAGE_CREATED", (e) => {
         if (e.type === "MESSAGE_CREATED") void onMessageCreated(e.conversation_id, e.message_id);
@@ -278,7 +300,9 @@ export function MessagingProvider({
       // decrypt it and merge the recovered messages into the store. Native only.
       ws.on("MLS_FRAME", (e) => {
         if (e.type === "MLS_FRAME" && isTauri()) {
-          void onMlsFrame(e.conversation_id).catch(() => {});
+          void onMlsFrame(e.conversation_id)
+            .catch(() => {})
+            .finally(() => callSink?.reconcileMedia?.());
         }
       }),
       ws.on("TYPING", (e) => {
@@ -332,6 +356,29 @@ export function MessagingProvider({
         if (e.type !== "CALL_PARTICIPANT_LEFT") return;
         useOngoingCallsStore.getState().participantLeft(e.conversation_id, e.call_id, e.user_id);
         void teardownIfCallDone(e.conversation_id, e.call_id);
+      }),
+      ws.on("CALL_MEDIA_STATE", (e) => {
+        if (e.type !== "CALL_MEDIA_STATE") return;
+        callSink?.onMediaState?.({
+          conversationId: e.conversation_id,
+          callId: e.call_id,
+          revision: e.revision,
+          ciphertext: e.ciphertext,
+          nonce: e.nonce,
+          updatedAtMs: e.updated_at_ms,
+        });
+      }),
+      ws.on("CALL_SOUND_TRIGGER", (e) => {
+        if (e.type !== "CALL_SOUND_TRIGGER") return;
+        callSink?.onSoundTrigger?.({
+          conversationId: e.conversation_id,
+          callId: e.call_id,
+          eventId: e.event_id,
+          scheduledAtMs: e.scheduled_at_ms,
+          blobId: e.blob_id ?? undefined,
+          ciphertext: e.ciphertext,
+          nonce: e.nonce,
+        });
       }),
     ];
 

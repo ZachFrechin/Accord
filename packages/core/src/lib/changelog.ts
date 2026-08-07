@@ -17,6 +17,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.17.0",
+    date: "2026-08-07",
+    title: "Musique partagée et soundboard pendant les appels",
+    notes: [
+      "Les appels sur ordinateur accueillent maintenant une file YouTube collaborative : ajoutez une vidéo, réorganisez la liste et pilotez lecture, pause, avance et passage à la suivante pour tout le monde.",
+      "Une soundboard accompagne l'appel avec huit sons intégrés et jusqu'à 100 extraits personnels, chiffrés et partagés uniquement dans la conversation.",
+      "La musique et les effets disposent chacun de leur propre volume et mode muet. Si la lecture automatique est bloquée, un bouton permet d'activer le son partagé sans interrompre l'appel.",
+      "Le lecteur YouTube reste toujours visible lorsqu'il joue, signale les vidéos privées ou indisponibles et demande votre accord avant le premier chargement.",
+    ],
+  },
+  {
     version: "0.16.3",
     date: "2026-08-06",
     title: "Vos conversations chargent, quoi qu'il arrive",

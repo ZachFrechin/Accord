@@ -12,6 +12,7 @@ import {
   type CallSink,
 } from "@accord/core/realtime/MessagingProvider";
 import { useCallStore } from "../stores/useCallStore";
+import { useCallMediaStore } from "../stores/useCallMediaStore";
 import { useToast } from "../components/ui";
 
 export function MessagingProvider({ children }: { children: ReactNode }) {
@@ -31,6 +32,9 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
         if (cur) useCallStore.getState().setIncoming({ ...cur, fromName });
       },
       dismissIncoming: (callId) => useCallStore.getState().dismissIncoming(callId),
+      reconcileMedia: () => void useCallMediaStore.getState().reconcile(),
+      onMediaState: (event) => useCallMediaStore.getState().applyMediaState(event),
+      onSoundTrigger: (event) => useCallMediaStore.getState().applySoundTrigger(event),
     }),
     [],
   );

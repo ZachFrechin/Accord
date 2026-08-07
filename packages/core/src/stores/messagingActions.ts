@@ -12,6 +12,7 @@
 import type { ApiClient, MessageDto } from "../api/ApiClient";
 import type { DeviceIdentity } from "../lib/deviceIdentity";
 import * as messaging from "../lib/messaging";
+import { deriveCallMediaSyncKey } from "../lib/callMedia";
 import { type AddTarget, type SyncedMessage, MlsDivergenceError } from "../lib/mls/mlsGroup";
 import { mlsEngine } from "../lib/mls/MlsEngine";
 import { isTauri } from "../lib/isTauri";
@@ -1245,6 +1246,62 @@ export async function downloadAttachment(ref: messaging.AttachmentRef): Promise<
 export async function requestCallKey(conversationId: string): Promise<Uint8Array | null> {
   if (!rt) return null;
   return mls.callMediaKey(rt.instanceId, conversationId);
+}
+export async function callMediaContext(
+  conversationId: string,
+  callId: string,
+): Promise<{
+  key: CryptoKey;
+  epoch: number;
+  deviceId: string;
+  userId: string;
+  baseUrl: string;
+} | null> {
+  if (!rt) return null;
+  const callKey = await mls.callMediaKey(rt.instanceId, conversationId);
+  if (!callKey) return null;
+  const epoch = await mlsEngine.groupEpoch(rt.instanceId, conversationId);
+  return {
+    key: await deriveCallMediaSyncKey(callKey, conversationId, callId, epoch),
+    epoch,
+    deviceId: rt.identity.deviceId,
+    userId: rt.myUserId,
+    baseUrl: rt.client.baseUrl,
+  };
+}
+export async function getCallMediaState(conversationId: string) {
+  if (!rt) return null;
+  return rt.client.callMediaState(conversationId, rt.identity.deviceId);
+}
+export async function putCallMediaState(
+  conversationId: string,
+  body: { call_id: string; expected_revision: number; ciphertext: string; nonce: string },
+) {
+  if (!rt) return null;
+  return rt.client.callMediaPut(conversationId, rt.identity.deviceId, body);
+}
+export async function sendCallSoundTrigger(
+  conversationId: string,
+  body: {
+    call_id: string;
+    event_id: string;
+    scheduled_at_ms: number;
+    blob_id?: string;
+    ciphertext: string;
+    nonce: string;
+  },
+) {
+  if (!rt) return null;
+  return rt.client.callSoundTrigger(conversationId, rt.identity.deviceId, body);
+}
+export async function uploadCallSound(
+  conversationId: string,
+  wav: Blob,
+  label: string,
+): Promise<messaging.AttachmentRef | null> {
+  if (!rt) return null;
+  const file = new File([wav], `${label || "sound"}.wav`, { type: "audio/wav" });
+  return messaging.encryptAndUpload(rt.client, conversationId, file);
 }
 /** Signal a call ended / declined (Phase 4, ring lifecycle). Best-effort. */
 export async function endCall(conversationId: string, callId: string): Promise<void> {

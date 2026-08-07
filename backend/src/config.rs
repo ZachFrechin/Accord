@@ -515,6 +515,38 @@ impl Default for LiveKitConfig {
     }
 }
 
+/// Collaborative call music/soundboard rollout controls. Turning this off hides
+/// support from new clients without affecting voice/video calls.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CallMediaConfig {
+    #[serde(default = "default_call_media_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_call_media_state_per_minute")]
+    pub state_mutations_per_minute: u64,
+    #[serde(default = "default_call_sound_per_minute")]
+    pub sound_triggers_per_minute: u64,
+}
+
+fn default_call_media_enabled() -> bool {
+    true
+}
+fn default_call_media_state_per_minute() -> u64 {
+    60
+}
+fn default_call_sound_per_minute() -> u64 {
+    30
+}
+
+impl Default for CallMediaConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_call_media_enabled(),
+            state_mutations_per_minute: default_call_media_state_per_minute(),
+            sound_triggers_per_minute: default_call_sound_per_minute(),
+        }
+    }
+}
+
 /// Game-integration API keys (profile ranks). An EMPTY key disables that
 /// game's linking with a clear client-side message — nothing else breaks.
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -561,6 +593,8 @@ pub struct AppConfig {
     pub storage: StorageConfig,
     #[serde(default)]
     pub livekit: LiveKitConfig,
+    #[serde(default)]
+    pub call_media: CallMediaConfig,
     #[serde(default)]
     pub games: GamesConfig,
     #[serde(default)]

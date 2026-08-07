@@ -43,6 +43,13 @@ api_secret = "accord_dev_secret"
 # URL de signaling handee aux clients.
 url = "ws://localhost:7880"
 
+# Shared call music and soundboard. Operators can disable this independently of
+# voice/video with CALL_MEDIA__ENABLED=false during staged rollout.
+[call_media]
+enabled = true
+state_mutations_per_minute = 60
+sound_triggers_per_minute = 30
+
 [push]
 # Notifications push mobiles. Compte de service Firebase PROPRE a chaque
 # instance — a fournir via PUSH__FCM_CREDENTIALS (le JSON lui-meme ou un

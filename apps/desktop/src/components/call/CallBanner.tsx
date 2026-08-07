@@ -20,6 +20,7 @@ import { Avatar } from "../messaging/Avatar";
 import { Icon, Popover } from "../ui";
 import { CameraGlyph } from "./CameraGlyph";
 import { MicGlyph } from "./MicGlyph";
+import { SharedCallMedia } from "./SharedCallMedia";
 import "./call.css";
 
 /** A participant's live video, attached to a real <video> via the LiveKit track.
@@ -435,6 +436,7 @@ export function CallBanner() {
           })}
         </div>
       )}
+      {status === "in-call" && <SharedCallMedia />}
     </div>
   );
 }

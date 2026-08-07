@@ -135,6 +135,29 @@ pub enum ServerEvent {
         call_id: Uuid,
         user_id: Uuid,
     },
+    /// Opaque, revisioned collaborative media state. Only active call devices
+    /// receive it; clients decrypt it with an MLS-exporter-derived sync key.
+    CallMediaState {
+        conversation_id: Uuid,
+        call_id: Uuid,
+        revision: u64,
+        ciphertext: String,
+        nonce: String,
+        updated_at_ms: i64,
+    },
+    /// A scheduled soundboard effect. `blob_id` is intentionally the only
+    /// custom-asset metadata visible to the backend; label/key/playback metadata
+    /// remain inside `ciphertext`.
+    CallSoundTrigger {
+        conversation_id: Uuid,
+        call_id: Uuid,
+        event_id: Uuid,
+        scheduled_at_ms: i64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        blob_id: Option<Uuid>,
+        ciphertext: String,
+        nonce: String,
+    },
 }
 
 /// Client → server frames.

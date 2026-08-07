@@ -55,6 +55,10 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health/live", get(health::live))
         .route("/health/ready", get(health::ready))
+        .route(
+            "/integrations/youtube/player",
+            get(call_controller::youtube_bridge),
+        )
         .route("/.well-known/jwks.json", get(auth_controller::jwks))
         .route("/auth/register", post(auth_controller::register))
         .route("/auth/verify-email", post(auth_controller::verify_email))
@@ -233,6 +237,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/conversations/{conversation_id}/call",
             get(call_controller::call_state_get),
+        )
+        .route(
+            "/conversations/{conversation_id}/call/media",
+            get(call_controller::media_get).put(call_controller::media_put),
+        )
+        .route(
+            "/conversations/{conversation_id}/call/media/sounds",
+            post(call_controller::sound_trigger),
         )
         .route(
             "/conversations/{conversation_id}/protocol",

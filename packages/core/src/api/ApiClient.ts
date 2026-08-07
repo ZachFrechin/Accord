@@ -180,6 +180,20 @@ export interface SessionDto {
   current: boolean;
 }
 
+export interface CallMediaWireState {
+  call_id: string;
+  revision: number;
+  ciphertext: string;
+  nonce: string;
+  updated_at_ms: number;
+}
+
+export interface CallMediaStateResponse {
+  call_id: string;
+  state: CallMediaWireState | null;
+  server_now_ms: number;
+}
+
 // ── Messaging DTOs (mirror the backend JSON shapes) ──────────────────────────
 
 export interface FriendUser {
@@ -902,8 +916,54 @@ export class ApiClient {
   /** The conversation's live call (for discovering an in-progress call to join). */
   callGetState(
     conversationId: string,
-  ): Promise<{ active: boolean; call_id?: string; participants: string[] }> {
+  ): Promise<{
+    active: boolean;
+    call_id?: string;
+    participants: string[];
+    call_media_enabled?: boolean;
+  }> {
     return this.request(`/conversations/${conversationId}/call`);
+  }
+  /** Opaque encrypted collaborative media state for this exact call device. */
+  callMediaState(conversationId: string, device: string): Promise<CallMediaStateResponse> {
+    return this.request(
+      `/conversations/${conversationId}/call/media?device=${encodeURIComponent(device)}`,
+    );
+  }
+  /** Revision compare-and-swap. A 409 means the caller must GET and reconcile. */
+  callMediaPut(
+    conversationId: string,
+    device: string,
+    body: {
+      call_id: string;
+      expected_revision: number;
+      ciphertext: string;
+      nonce: string;
+    },
+  ): Promise<{ state: CallMediaWireState }> {
+    return this.send(
+      "PUT",
+      `/conversations/${conversationId}/call/media?device=${encodeURIComponent(device)}`,
+      body,
+    );
+  }
+  callSoundTrigger(
+    conversationId: string,
+    device: string,
+    body: {
+      call_id: string;
+      event_id: string;
+      scheduled_at_ms: number;
+      blob_id?: string;
+      ciphertext: string;
+      nonce: string;
+    },
+  ): Promise<{ status: string; server_now_ms: number }> {
+    return this.send(
+      "POST",
+      `/conversations/${conversationId}/call/media/sounds?device=${encodeURIComponent(device)}`,
+      body,
+    );
   }
   /** Read any user's public profile. */
   getProfile(userId: string): Promise<ProfileDto> {
