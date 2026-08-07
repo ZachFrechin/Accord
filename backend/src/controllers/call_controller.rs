@@ -629,8 +629,8 @@ pub async fn sound_trigger(
 
 const YOUTUBE_BRIDGE_HTML: &str = r#"<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>html,body,#player{width:100%;height:100%;min-width:200px;min-height:200px;margin:0;background:#090b10;overflow:hidden}</style>
-</head><body><div id="player"></div>
+<style>html,body,#player{width:100%;height:100%;min-width:200px;min-height:200px;margin:0;background:#090b10;overflow:hidden}body{position:relative}#enable{position:absolute;inset:auto 50% 18px auto;transform:translateX(50%);z-index:2;max-width:calc(100% - 24px);padding:10px 14px;border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(9,11,16,.92);color:#fff;font:600 13px system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}#enable[hidden]{display:none}</style>
+</head><body><div id="player"></div><button id="enable" type="button" hidden>Activer la lecture sur cet appareil</button>
 <script nonce="__NONCE__" src="https://www.youtube.com/iframe_api"></script>
 <script nonce="__NONCE__">
 (() => {
@@ -642,20 +642,36 @@ const YOUTUBE_BRIDGE_HTML: &str = r#"<!doctype html>
   let suppressUntil = 0;
   let observedAt = 0;
   let observedPosition = 0;
+  const enable = document.getElementById('enable');
   const send = (type, detail = {}) => {
     if (parentOrigin) parent.postMessage({source:'accord-youtube-bridge', channel, type, ...detail}, parentOrigin);
   };
+  const verifyPlayback = () => setTimeout(() => {
+    if (!player || player.getPlayerState() === 1) return;
+    enable.hidden = false;
+    send('AUTOPLAY_BLOCKED');
+  }, 900);
+  enable.addEventListener('click', () => {
+    if (!player) return;
+    suppressUntil = Date.now() + 1800;
+    enable.hidden = true;
+    player.playVideo();
+    verifyPlayback();
+  });
   window.onYouTubeIframeAPIReady = () => {
     player = new YT.Player('player', {
       width: '100%', height: '100%',
       playerVars: {origin: location.origin, playsinline: 1, enablejsapi: 1},
       events: {
         onReady: () => send('READY'),
-        onStateChange: (event) => send('STATE_CHANGE', {
-          state: event.data,
-          positionSeconds: Number(player.getCurrentTime()) || 0,
-          remotelyApplied: Date.now() < suppressUntil
-        }),
+        onStateChange: (event) => {
+          if (event.data === 1) enable.hidden = true;
+          send('STATE_CHANGE', {
+            state: event.data,
+            positionSeconds: Number(player.getCurrentTime()) || 0,
+            remotelyApplied: Date.now() < suppressUntil
+          });
+        },
         onError: (event) => send('ERROR', {code: event.data})
       }
     });
@@ -681,13 +697,16 @@ const YOUTUBE_BRIDGE_HTML: &str = r#"<!doctype html>
     if (data.type === 'HELLO') { send('HELLO_ACK'); return; }
     if (!player) return;
     if (data.type === 'LOAD' && /^[A-Za-z0-9_-]{11}$/.test(data.videoId || '')) {
-      suppressUntil = Date.now() + 1000;
-      player.cueVideoById({videoId: data.videoId, startSeconds: Math.max(0, Number(data.positionSeconds) || 0)});
+      const request = {videoId: data.videoId, startSeconds: Math.max(0, Number(data.positionSeconds) || 0)};
+      const shouldPlay = data.playing !== false;
+      suppressUntil = Date.now() + 1800;
+      enable.hidden = true;
+      if (shouldPlay) { player.loadVideoById(request); verifyPlayback(); }
+      else player.cueVideoById(request);
     } else if (data.type === 'PLAY') {
-      suppressUntil = Date.now() + 1000; player.playVideo();
-      setTimeout(() => { if (player.getPlayerState() !== 1) send('AUTOPLAY_BLOCKED'); }, 700);
-    } else if (data.type === 'PAUSE') { suppressUntil = Date.now() + 1000; player.pauseVideo(); }
-    else if (data.type === 'SEEK') { suppressUntil = Date.now() + 1000; player.seekTo(Math.max(0, Number(data.positionSeconds) || 0), true); }
+      suppressUntil = Date.now() + 1800; player.playVideo(); verifyPlayback();
+    } else if (data.type === 'PAUSE') { suppressUntil = Date.now() + 1800; enable.hidden = true; player.pauseVideo(); }
+    else if (data.type === 'SEEK') { suppressUntil = Date.now() + 1800; player.seekTo(Math.max(0, Number(data.positionSeconds) || 0), true); }
     else if (data.type === 'VOLUME') player.setVolume(Math.max(0, Math.min(100, Number(data.volume) || 0)));
     else if (data.type === 'MUTE') player.mute();
     else if (data.type === 'UNMUTE') player.unMute();
@@ -729,4 +748,17 @@ pub async fn youtube_bridge(State(state): State<AppState>) -> Result<Response, A
         Html(YOUTUBE_BRIDGE_HTML.replace("__NONCE__", &nonce)),
     )
         .into_response())
+}
+
+#[cfg(test)]
+mod youtube_bridge_tests {
+    use super::YOUTUBE_BRIDGE_HTML;
+
+    #[test]
+    fn shared_video_load_starts_playback_and_exposes_a_local_recovery_action() {
+        assert!(YOUTUBE_BRIDGE_HTML.contains("player.loadVideoById(request)"));
+        assert!(YOUTUBE_BRIDGE_HTML.contains("data.playing !== false"));
+        assert!(YOUTUBE_BRIDGE_HTML.contains("Activer la lecture sur cet appareil"));
+        assert!(!YOUTUBE_BRIDGE_HTML.contains("Authorization"));
+    }
 }

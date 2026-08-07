@@ -17,6 +17,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.17.1",
+    date: "2026-08-07",
+    title: "Une console d’appel plus claire et vraiment synchronisée",
+    notes: [
+      "YouTube et la soundboard s’ouvrent désormais dans deux panneaux distincts : l’appel reste lisible et les outils n’encombrent plus l’écran en même temps.",
+      "Les intitulés, icônes, files d’attente et sons personnels restent dans leurs cadres, y compris dans une fenêtre étroite.",
+      "La première vidéo démarre maintenant comme une lecture partagée, avec la même position de référence pour tous les membres du vocal.",
+      "Si YouTube bloque la lecture automatique sur un appareil, une action claire permet de l’activer localement sans désynchroniser le reste du groupe.",
+    ],
+  },
+  {
     version: "0.17.0",
     date: "2026-08-07",
     title: "Musique partagée et soundboard pendant les appels",

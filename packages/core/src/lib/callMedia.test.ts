@@ -38,10 +38,14 @@ describe("shared media state", () => {
     state = reduceSharedMedia(state, {
       type: "enqueue",
       item: { id: "a", videoId: "dQw4w9WgXcQ", contributedBy: "user-a" },
+      serverNowMs: 1_500,
     });
-    state = reduceSharedMedia(state, { type: "play", positionSeconds: 4, serverNowMs: 2_000 });
     expect(state.currentItemId).toBe("a");
+    expect(state.status).toBe("playing");
+    expect(state.anchorServerTimeMs).toBe(1_500);
     expect(state.queue[0].contributedBy).toBe("user-a");
+
+    state = reduceSharedMedia(state, { type: "play", positionSeconds: 4, serverNowMs: 2_000 });
     expect(expectedMediaPositionSeconds(state, 3_000, 0)).toBe(5);
     expect(validateSharedMediaState(state)).toEqual(state);
   });

@@ -22,7 +22,7 @@ export interface SharedMediaStateV1 {
 }
 
 export type SharedMediaAction =
-  | { type: "enqueue"; item: SharedMediaItemV1 }
+  | { type: "enqueue"; item: SharedMediaItemV1; serverNowMs: number }
   | { type: "remove"; itemId: string }
   | { type: "reorder"; itemId: string; toIndex: number }
   | { type: "play"; positionSeconds: number; serverNowMs: number }
@@ -79,10 +79,14 @@ export function reduceSharedMedia(
       if (state.queue.length >= MAX_SHARED_MEDIA_QUEUE) return state;
       if (state.queue.some((item) => item.id === action.item.id)) return state;
       const queue = [...state.queue, action.item];
+      const startsPlayback = state.currentItemId === null;
       return {
         ...state,
         queue,
         currentItemId: state.currentItemId ?? action.item.id,
+        status: startsPlayback ? "playing" : state.status,
+        anchorPositionSeconds: startsPlayback ? 0 : state.anchorPositionSeconds,
+        anchorServerTimeMs: startsPlayback ? action.serverNowMs : state.anchorServerTimeMs,
       };
     }
     case "remove": {
