@@ -132,8 +132,10 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    ports:
-      - "8090:8090"
+    # Caddy shares this network and resolves every `backend` replica through
+    # Docker DNS. Publishing a fixed host port prevents `--scale backend=2`.
+    expose:
+      - "8090"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8090/health/ready"]
       interval: 10s
