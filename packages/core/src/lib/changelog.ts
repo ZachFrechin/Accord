@@ -17,6 +17,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.17.2",
+    date: "2026-08-09",
+    title: "Le lecteur partagé enchaîne enfin sans écran noir",
+    notes: [
+      "Passer à la vidéo suivante, retirer la vidéo en cours ou en ajouter une nouvelle recharge maintenant le bon média au lieu de laisser le lecteur noir.",
+      "Les événements retardés d’une ancienne vidéo ne peuvent plus faire avancer ou arrêter la nouvelle file par erreur.",
+      "Les sons personnels sont préparés dès leur import ou leur survol, puis démarrent avec une attente réduite et sans ajouter le temps de téléchargement une seconde fois.",
+    ],
+  },
+  {
     version: "0.17.1",
     date: "2026-08-07",
     title: "Une console d’appel plus claire et vraiment synchronisée",

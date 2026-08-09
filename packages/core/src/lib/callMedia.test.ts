@@ -11,6 +11,7 @@ import {
   expectedMediaPositionSeconds,
   isYoutubeBridgeMessage,
   parseYouTubeVideoId,
+  remainingSoundDelayMs,
   reduceSharedMedia,
   shouldDropSoundEvent,
   validateSharedMediaState,
@@ -55,6 +56,27 @@ describe("shared media state", () => {
     expect(driftCorrectionSeconds(10, 11.49)).toBeNull();
     expect(driftCorrectionSeconds(10, 11.51)).toBe(11.51);
   });
+
+  it("keeps playback running and re-anchors when the current item is removed", () => {
+    let state = emptySharedMediaState(7, 1_000);
+    state = reduceSharedMedia(state, {
+      type: "enqueue",
+      item: { id: "a", videoId: "dQw4w9WgXcQ", contributedBy: "user-a" },
+      serverNowMs: 1_100,
+    });
+    state = reduceSharedMedia(state, {
+      type: "enqueue",
+      item: { id: "b", videoId: "M7lc1UVf-VE", contributedBy: "user-b" },
+      serverNowMs: 1_200,
+    });
+
+    state = reduceSharedMedia(state, { type: "remove", itemId: "a", serverNowMs: 2_000 });
+
+    expect(state.currentItemId).toBe("b");
+    expect(state.status).toBe("playing");
+    expect(state.anchorPositionSeconds).toBe(0);
+    expect(state.anchorServerTimeMs).toBe(2_000);
+  });
 });
 
 describe("encrypted call media", () => {
@@ -89,5 +111,10 @@ describe("event validation", () => {
     expect(dedupe.accept("event", 1_001)).toBe(false);
     expect(shouldDropSoundEvent(1_000, 3_001)).toBe(true);
     expect(shouldDropSoundEvent(1_000, 3_000)).toBe(false);
+  });
+
+  it("recomputes a custom sound delay after download and decoding", () => {
+    expect(remainingSoundDelayMs(5_000, 3_200, 300)).toBe(1_500);
+    expect(remainingSoundDelayMs(5_000, 4_900, 300)).toBe(0);
   });
 });

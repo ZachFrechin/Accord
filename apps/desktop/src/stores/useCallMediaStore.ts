@@ -3,12 +3,14 @@ import { create } from "zustand";
 import type { CallMediaWireState } from "@accord/core/api/ApiClient";
 import { ApiError } from "@accord/core/api/http";
 import {
+  CALL_CUSTOM_SOUND_LEAD_MS,
   EventDeduplicator,
   decryptCallMediaJson,
   emptySharedMediaState,
   encryptCallMediaJson,
   estimateServerClockOffsetMs,
   expectedMediaPositionSeconds,
+  remainingSoundDelayMs,
   reduceSharedMedia,
   shouldDropSoundEvent,
   validateSharedMediaState,
@@ -104,6 +106,7 @@ interface CallMediaState {
   applySoundTrigger: (event: IncomingSoundTrigger) => void;
   mutate: (action: SharedMediaAction) => Promise<void>;
   triggerBuiltin: (soundId: SoundPayloadBuiltin["soundId"]) => Promise<void>;
+  prepareCustom: (clip: PersonalSoundClip) => Promise<PersonalSoundClip | null>;
   triggerCustom: (clip: PersonalSoundClip) => Promise<void>;
   setMusicVolume: (volume: number) => void;
   setMusicMuted: (muted: boolean) => void;
@@ -120,6 +123,8 @@ let mutationChain: Promise<void> = Promise.resolve();
 let audioContext: AudioContext | null = null;
 let overlappingEffects = 0;
 const decodedSounds = new Map<string, AudioBuffer>();
+const decodedSoundPromises = new Map<string, Promise<AudioBuffer | null>>();
+const soundPreparationPromises = new Map<string, Promise<AttachmentRef | null>>();
 const soundEvents = new EventDeduplicator();
 
 function localNumber(key: string, fallback: number): number {
@@ -189,7 +194,8 @@ function playBuiltin(soundId: SoundPayloadBuiltin["soundId"], delayMs: number, v
 
 async function playCustom(
   attachment: AttachmentRef,
-  delayMs: number,
+  scheduledAtMs: number,
+  serverClockOffsetMs: number,
   volume: number,
 ): Promise<void> {
   if (overlappingEffects >= 3) return;
@@ -213,7 +219,60 @@ async function playCustom(
     source.disconnect();
     gain.disconnect();
   };
+  const delayMs = remainingSoundDelayMs(scheduledAtMs, Date.now(), serverClockOffsetMs);
   source.start(context.currentTime + Math.max(0, delayMs) / 1_000);
+}
+
+async function cacheLocalSoundBuffer(
+  clip: PersonalSoundClip,
+  attachment: AttachmentRef,
+): Promise<AudioBuffer | null> {
+  const blobId = attachment.blob_id;
+  const cached = decodedSounds.get(blobId);
+  if (cached) return cached;
+  const existing = decodedSoundPromises.get(blobId);
+  if (existing) return existing;
+  const pending = (async () => {
+    try {
+      const context = contextForSound();
+      const buffer = await context.decodeAudioData(await clip.wav.arrayBuffer());
+      decodedSounds.set(blobId, buffer);
+      return buffer;
+    } catch {
+      return null;
+    } finally {
+      decodedSoundPromises.delete(blobId);
+    }
+  })();
+  decodedSoundPromises.set(blobId, pending);
+  return pending;
+}
+
+async function prepareCustomAttachment(
+  clip: PersonalSoundClip,
+  conversationId: string,
+): Promise<AttachmentRef | null> {
+  const cached = clip.attachments[conversationId];
+  if (cached) {
+    await cacheLocalSoundBuffer(clip, cached);
+    return cached;
+  }
+  const cacheKey = `${conversationId}:${clip.id}`;
+  const existing = soundPreparationPromises.get(cacheKey);
+  if (existing) return existing;
+  const pending = (async () => {
+    try {
+      const attachment = await uploadCallSound(conversationId, clip.wav, clip.label);
+      if (!attachment) return null;
+      await cachePersonalSoundAttachment(clip.id, conversationId, attachment);
+      await cacheLocalSoundBuffer(clip, attachment);
+      return attachment;
+    } finally {
+      soundPreparationPromises.delete(cacheKey);
+    }
+  })();
+  soundPreparationPromises.set(cacheKey, pending);
+  return pending;
 }
 
 function wireEvent(state: CallMediaWireState, conversationId: string): IncomingMediaState {
@@ -385,7 +444,12 @@ export const useCallMediaStore = create<CallMediaState>((set, get) => ({
       if (payload.v !== 1 || get().effectsMuted) return;
       const delay = event.scheduledAtMs - (Date.now() + get().serverClockOffsetMs);
       if (payload.kind === "builtin") playBuiltin(payload.soundId, delay, get().effectsVolume);
-      else void playCustom(payload.attachment, delay, get().effectsVolume);
+      else void playCustom(
+        payload.attachment,
+        event.scheduledAtMs,
+        get().serverClockOffsetMs,
+        get().effectsVolume,
+      );
     }).catch(() => {});
   },
 
@@ -441,18 +505,25 @@ export const useCallMediaStore = create<CallMediaState>((set, get) => ({
     });
   },
 
+  prepareCustom: async (clip) => {
+    const current = get();
+    if (!current.conversationId || !current.callId || !mediaContext) return null;
+    const attachment = await prepareCustomAttachment(clip, current.conversationId);
+    if (!attachment || get().conversationId !== current.conversationId) return null;
+    return {
+      ...clip,
+      attachments: { ...clip.attachments, [current.conversationId]: attachment },
+    };
+  },
+
   triggerCustom: async (clip) => {
     const current = get();
     if (!current.conversationId || !current.callId || !mediaContext) return;
-    let attachment: AttachmentRef | undefined = clip.attachments[current.conversationId];
-    const usedCachedAttachment = !!attachment;
-    if (!attachment) {
-      attachment = (await uploadCallSound(current.conversationId, clip.wav, clip.label)) ?? undefined;
-      if (!attachment) return;
-      await cachePersonalSoundAttachment(clip.id, current.conversationId, attachment);
-    }
+    const usedCachedAttachment = !!clip.attachments[current.conversationId];
+    const attachment = await prepareCustomAttachment(clip, current.conversationId);
+    if (!attachment) return;
     const transmit = async (ref: AttachmentRef) => {
-      const scheduledAtMs = Date.now() + current.serverClockOffsetMs + 2_000;
+      const scheduledAtMs = Date.now() + current.serverClockOffsetMs + CALL_CUSTOM_SOUND_LEAD_MS;
       const encrypted = await encryptCallMediaJson(
         mediaContext!.key,
         { v: 1, kind: "custom", attachment: ref, label: clip.label } satisfies SoundPayloadCustom,
@@ -482,6 +553,7 @@ export const useCallMediaStore = create<CallMediaState>((set, get) => ({
       const fresh = await uploadCallSound(current.conversationId, clip.wav, clip.label);
       if (!fresh) return;
       await cachePersonalSoundAttachment(clip.id, current.conversationId, fresh);
+      await cacheLocalSoundBuffer(clip, fresh);
       await transmit(fresh);
     }
   },

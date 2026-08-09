@@ -3,6 +3,7 @@ import { fromBase64, toBase64, utf8ToBytes } from "./crypto";
 export const MAX_SHARED_MEDIA_QUEUE = 50;
 export const CALL_MEDIA_DRIFT_SEEK_SECONDS = 1.5;
 export const CALL_SOUND_LATE_DROP_MS = 2_000;
+export const CALL_CUSTOM_SOUND_LEAD_MS = 1_000;
 
 export interface SharedMediaItemV1 {
   id: string;
@@ -23,7 +24,7 @@ export interface SharedMediaStateV1 {
 
 export type SharedMediaAction =
   | { type: "enqueue"; item: SharedMediaItemV1; serverNowMs: number }
-  | { type: "remove"; itemId: string }
+  | { type: "remove"; itemId: string; serverNowMs: number }
   | { type: "reorder"; itemId: string; toIndex: number }
   | { type: "play"; positionSeconds: number; serverNowMs: number }
   | { type: "pause"; positionSeconds: number; serverNowMs: number }
@@ -94,12 +95,16 @@ export function reduceSharedMedia(
       if (index < 0) return state;
       const queue = state.queue.filter((item) => item.id !== action.itemId);
       const removedCurrent = state.currentItemId === action.itemId;
+      const nextItemId = removedCurrent
+        ? (queue[Math.min(index, queue.length - 1)]?.id ?? null)
+        : state.currentItemId;
       return {
         ...state,
         queue,
-        currentItemId: removedCurrent ? (queue[Math.min(index, queue.length - 1)]?.id ?? null) : state.currentItemId,
-        status: removedCurrent ? "paused" : state.status,
+        currentItemId: nextItemId,
+        status: removedCurrent && !nextItemId ? "paused" : state.status,
         anchorPositionSeconds: removedCurrent ? 0 : state.anchorPositionSeconds,
+        anchorServerTimeMs: removedCurrent ? action.serverNowMs : state.anchorServerTimeMs,
       };
     }
     case "reorder": {
@@ -263,6 +268,14 @@ export function isYoutubeBridgeMessage(
 
 export function shouldDropSoundEvent(scheduledAtMs: number, serverNowMs: number): boolean {
   return serverNowMs - scheduledAtMs > CALL_SOUND_LATE_DROP_MS;
+}
+
+export function remainingSoundDelayMs(
+  scheduledAtMs: number,
+  localNowMs: number,
+  serverClockOffsetMs: number,
+): number {
+  return Math.max(0, scheduledAtMs - (localNowMs + serverClockOffsetMs));
 }
 
 export class EventDeduplicator {

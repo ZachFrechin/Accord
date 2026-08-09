@@ -40,7 +40,9 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
   const playerHidden = useCallMediaStore((s) => s.playerHidden);
   const mutate = useCallMediaStore((s) => s.mutate);
   const triggerBuiltin = useCallMediaStore((s) => s.triggerBuiltin);
+  const prepareCustom = useCallMediaStore((s) => s.prepareCustom);
   const triggerCustom = useCallMediaStore((s) => s.triggerCustom);
+  const mediaConversationId = useCallMediaStore((s) => s.conversationId);
   const participants = useCallStore((s) => s.participants);
   const names = useCallStore((s) => s.names);
   const myUserId = useInstanceStore((s) => activeInstance(s)?.account?.userId ?? null);
@@ -48,12 +50,14 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
   const [consent, setConsent] = useState<Consent>(savedConsent);
   const [input, setInput] = useState("");
   const [clips, setClips] = useState<PersonalSoundClip[]>([]);
+  const [preparingClipIds, setPreparingClipIds] = useState<Set<string>>(() => new Set());
   const [importError, setImportError] = useState<string | null>(null);
   const [bridgeReady, setBridgeReady] = useState(false);
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const channelRef = useRef(crypto.randomUUID().replaceAll("-", ""));
-  const loadedVideoRef = useRef<string | null>(null);
+  const loadedItemRef = useRef<string | null>(null);
+  const bridgeProtocolVersionRef = useRef(1);
 
   const current = shared?.queue.find((item) => item.id === shared.currentItemId) ?? null;
   const bridgeOrigin = useMemo(() => {
@@ -86,19 +90,34 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
         source: iframeRef.current?.contentWindow ?? null,
         channel: channelRef.current,
       })) return;
-      if (event.data.type === "READY" || event.data.type === "HELLO_ACK") {
+      if (event.data.type === "READY") {
+        bridgeProtocolVersionRef.current = Math.max(1, Number(event.data.protocolVersion) || 1);
         setBridgeReady(true);
+      } else if (event.data.type === "HELLO_ACK") {
+        const protocolVersion = Math.max(1, Number(event.data.protocolVersion) || 1);
+        bridgeProtocolVersionRef.current = protocolVersion;
+        if (protocolVersion < 2) {
+          const source = event.source;
+          window.setTimeout(() => {
+            if (iframeRef.current?.contentWindow === source) setBridgeReady(true);
+          }, 500);
+        }
       } else if (event.data.type === "AUTOPLAY_BLOCKED") {
+        if (event.data.mediaItemId && event.data.mediaItemId !== current?.id) return;
         useCallMediaStore.getState().setAudioBlocked(true);
       } else if (event.data.type === "ERROR") {
+        if (event.data.mediaItemId && event.data.mediaItemId !== current?.id) return;
         useCallMediaStore.getState().setYoutubeError(Number(event.data.code));
       } else if (event.data.type === "USER_SEEK") {
+        if (event.data.mediaItemId && event.data.mediaItemId !== current?.id) return;
         void mutate({
           type: "seek",
           positionSeconds: Math.max(0, Number(event.data.positionSeconds) || 0),
           serverNowMs: Date.now() + serverClockOffsetMs,
         });
       } else if (event.data.type === "STATE_CHANGE") {
+        if (event.data.mediaItemId && event.data.mediaItemId !== current?.id) return;
+        if (event.data.videoId && event.data.videoId !== current?.videoId) return;
         const position = Math.max(0, Number(event.data.positionSeconds) || 0);
         const serverNowMs = Date.now() + serverClockOffsetMs;
         const state = Number(event.data.state);
@@ -111,6 +130,9 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
           if (myUserId && leader === myUserId) void mutate({ type: "skip", serverNowMs });
         }
       } else if (event.data.type === "STATE") {
+        if (event.data.mediaItemId && event.data.mediaItemId !== current?.id) return;
+        const state = Number(event.data.state);
+        if (state !== 1 && state !== 2) return;
         const actual = Number(event.data.positionSeconds) || 0;
         const correction = driftCorrectionSeconds(actual, currentExpectedPositionSeconds());
         if (correction !== null) post("SEEK", { positionSeconds: correction });
@@ -118,26 +140,37 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
     };
     addEventListener("message", onMessage);
     return () => removeEventListener("message", onMessage);
-  }, [bridgeOrigin, mutate, myUserId, participants, serverClockOffsetMs]);
+  }, [bridgeOrigin, current?.id, current?.videoId, mutate, myUserId, participants, serverClockOffsetMs]);
+
+  useEffect(() => {
+    if (current) return;
+    loadedItemRef.current = null;
+    bridgeProtocolVersionRef.current = 1;
+    setBridgeReady(false);
+  }, [current?.id]);
 
   useEffect(() => {
     if (!bridgeReady || !current || playerHidden) return;
     const positionSeconds = currentExpectedPositionSeconds();
     const playing = shared?.status === "playing";
-    if (loadedVideoRef.current !== current.videoId) {
-      loadedVideoRef.current = current.videoId;
+    if (loadedItemRef.current !== current.id) {
+      loadedItemRef.current = current.id;
       useCallMediaStore.getState().setYoutubeError(null);
-      post("LOAD", { videoId: current.videoId, positionSeconds, playing });
-      const compatibilityRetry = window.setTimeout(
-        () => post(playing ? "PLAY" : "PAUSE"),
-        300,
-      );
-      return () => window.clearTimeout(compatibilityRetry);
+      post("LOAD", {
+        mediaItemId: current.id,
+        videoId: current.videoId,
+        positionSeconds,
+        playing,
+      });
+      if (playing && bridgeProtocolVersionRef.current < 2) {
+        const compatibilityRetry = window.setTimeout(() => post("PLAY"), 900);
+        return () => window.clearTimeout(compatibilityRetry);
+      }
     } else {
       post("SEEK", { positionSeconds });
       post(playing ? "PLAY" : "PAUSE");
     }
-  }, [bridgeReady, current?.videoId, playerHidden, shared?.status, shared?.anchorServerTimeMs]);
+  }, [bridgeReady, current?.id, current?.videoId, playerHidden, shared?.status, shared?.anchorServerTimeMs]);
 
   useEffect(() => {
     if (!bridgeReady || playerHidden) return;
@@ -172,6 +205,25 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
     setOpenPanel("youtube");
   };
 
+  const prepareClip = async (clip: PersonalSoundClip) => {
+    if (!mediaConversationId || clip.attachments[mediaConversationId] || preparingClipIds.has(clip.id)) return;
+    setPreparingClipIds((ids) => new Set(ids).add(clip.id));
+    try {
+      const prepared = await prepareCustom(clip);
+      if (prepared) {
+        setClips((items) => items.map((item) => item.id === prepared.id ? prepared : item));
+      }
+    } catch {
+      setImportError("Le son est conservé localement, mais sa préparation pour l’appel a échoué.");
+    } finally {
+      setPreparingClipIds((ids) => {
+        const next = new Set(ids);
+        next.delete(clip.id);
+        return next;
+      });
+    }
+  };
+
   const importClip = async (file: File | undefined) => {
     if (!file) return;
     setImportError(null);
@@ -179,6 +231,7 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
       const clip = await normalizePersonalSound(file);
       await savePersonalSound(clip);
       setClips(await listPersonalSounds());
+      void prepareClip(clip);
     } catch (error) {
       setImportError(error instanceof Error ? error.message : "Import impossible");
     }
@@ -187,13 +240,15 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
   const hidePlayer = () => {
     post("PAUSE");
     setBridgeReady(false);
-    loadedVideoRef.current = null;
+    loadedItemRef.current = null;
+    bridgeProtocolVersionRef.current = 1;
     useCallMediaStore.getState().setPlayerHidden(true);
   };
 
   const reopenPlayer = () => {
     setBridgeReady(false);
-    loadedVideoRef.current = null;
+    loadedItemRef.current = null;
+    bridgeProtocolVersionRef.current = 1;
     useCallMediaStore.getState().setPlayerHidden(false);
   };
 
@@ -218,6 +273,8 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
           referrerPolicy="strict-origin-when-cross-origin"
           onLoad={() => {
             setBridgeReady(false);
+            loadedItemRef.current = null;
+            bridgeProtocolVersionRef.current = 1;
             post("HELLO");
           }}
         />
@@ -346,7 +403,7 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
                   <span className="shared-media__queue-actions">
                     <button type="button" aria-label="Monter dans la file" onClick={() => void mutate({ type: "reorder", itemId: item.id, toIndex: index - 1 })} disabled={index === 0}>↑</button>
                     <button type="button" aria-label="Descendre dans la file" onClick={() => void mutate({ type: "reorder", itemId: item.id, toIndex: index + 1 })} disabled={index === (shared?.queue.length ?? 0) - 1}>↓</button>
-                    <button type="button" onClick={() => void mutate({ type: "remove", itemId: item.id })} aria-label="Retirer de la file"><Icon name="x" size={12} /></button>
+                    <button type="button" onClick={() => void mutate({ type: "remove", itemId: item.id, serverNowMs: Date.now() + serverClockOffsetMs })} aria-label="Retirer de la file"><Icon name="x" size={12} /></button>
                   </span>
                 </li>
               ))}
@@ -372,7 +429,14 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
               {BUILTIN_SOUNDS.map((sound) => <button type="button" key={sound.id} title={sound.label} onClick={() => void triggerBuiltin(sound.id)}><span>{sound.label}</span></button>)}
               {clips.map((clip) => (
                 <span className="shared-media__custom" key={clip.id}>
-                  <button type="button" title={clip.label} onClick={() => void triggerCustom(clip)}><span>{clip.label}</span></button>
+                  <button
+                    type="button"
+                    title={preparingClipIds.has(clip.id) ? `${clip.label} — préparation en cours` : clip.label}
+                    data-preparing={preparingClipIds.has(clip.id)}
+                    onPointerEnter={() => void prepareClip(clip)}
+                    onFocus={() => void prepareClip(clip)}
+                    onClick={() => void triggerCustom(clip)}
+                  ><span>{preparingClipIds.has(clip.id) ? "Préparation…" : clip.label}</span></button>
                   <button type="button" aria-label={`Supprimer ${clip.label}`} onClick={() => void deletePersonalSound(clip.id).then(() => listPersonalSounds()).then(setClips)}><Icon name="x" size={10} /></button>
                 </span>
               ))}

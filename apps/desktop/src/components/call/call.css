@@ -550,6 +550,11 @@
 .shared-media__sound-grid button > span { display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shared-media__custom { position: relative; display: flex; }
 .shared-media__custom > button:first-child { flex: 1; }
+.shared-media__custom > button:first-child[data-preparing="true"] {
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+  cursor: progress;
+}
 .shared-media__custom > button:last-child { position: absolute; top: -4px; right: -4px; padding: 0; width: 19px; height: 19px; border-radius: 50%; }
 .shared-media__import { align-self: flex-start; }
 .shared-media__import input { display: none; }
