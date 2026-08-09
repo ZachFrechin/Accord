@@ -145,6 +145,16 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
   }, [bridgeOrigin, current?.id, current?.videoId, mutate, myUserId, participants, serverClockOffsetMs]);
 
   useEffect(() => {
+    if (consent !== "accepted" || !bridgeOrigin || !current || playerHidden || bridgeReady) return;
+    // A conversation switch can mount a cached iframe before React installs the
+    // message listener. Repeat HELLO until READY so that first lost message can
+    // never strand the replacement player on a black frame.
+    post("HELLO");
+    const timer = window.setInterval(() => post("HELLO"), 500);
+    return () => window.clearInterval(timer);
+  }, [bridgeOrigin, bridgeReady, consent, current?.id, playerHidden]);
+
+  useEffect(() => {
     if (current) return;
     loadedItemRef.current = null;
     bridgeProtocolVersionRef.current = 1;

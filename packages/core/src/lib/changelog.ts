@@ -17,6 +17,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.17.4",
+    date: "2026-08-09",
+    title: "La musique survit aux changements de conversation",
+    notes: [
+      "Passer de la conversation du vocal à une autre conversation ne laisse plus le mini-lecteur YouTube sur un écran noir.",
+      "Le nouveau lecteur répète automatiquement sa connexion au bridge jusqu’à recevoir une réponse, même lorsque la page YouTube est déjà en cache.",
+      "Le lecteur partagé reprend la vidéo courante et sa position après chaque changement de conversation.",
+    ],
+  },
+  {
     version: "0.17.3",
     date: "2026-08-09",
     title: "La file YouTube se vide correctement",

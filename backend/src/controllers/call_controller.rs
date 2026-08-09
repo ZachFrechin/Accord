@@ -631,7 +631,6 @@ const YOUTUBE_BRIDGE_HTML: &str = r#"<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>html,body,#player{width:100%;height:100%;min-width:200px;min-height:200px;margin:0;background:#090b10;overflow:hidden}body{position:relative}#enable{position:absolute;inset:auto 50% 18px auto;transform:translateX(50%);z-index:2;max-width:calc(100% - 24px);padding:10px 14px;border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(9,11,16,.92);color:#fff;font:600 13px system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}#enable[hidden]{display:none}</style>
 </head><body><div id="player"></div><button id="enable" type="button" hidden>Activer la lecture sur cet appareil</button>
-<script nonce="__NONCE__" src="https://www.youtube.com/iframe_api"></script>
 <script nonce="__NONCE__">
 (() => {
   'use strict';
@@ -667,6 +666,7 @@ const YOUTUBE_BRIDGE_HTML: &str = r#"<!doctype html>
     verifyPlayback();
   });
   window.onYouTubeIframeAPIReady = () => {
+    if (player) return;
     player = new YT.Player('player', {
       width: '100%', height: '100%',
       playerVars: {origin: location.origin, playsinline: 1, enablejsapi: 1},
@@ -739,7 +739,9 @@ const YOUTUBE_BRIDGE_HTML: &str = r#"<!doctype html>
     else if (data.type === 'GET_STATE') send('STATE', {state: player.getPlayerState(), positionSeconds: Number(player.getCurrentTime()) || 0, ...mediaDetail()});
   });
 })();
-</script></body></html>"#;
+</script>
+<script nonce="__NONCE__" src="https://www.youtube.com/iframe_api"></script>
+</body></html>"#;
 
 /// Public instance-origin YouTube IFrame bridge. It carries no authentication or
 /// call data and is intentionally isolated from the main Tauri webview.
@@ -764,6 +766,10 @@ pub async fn youtube_bridge(State(state): State<AppState>) -> Result<Response, A
         HeaderValue::from_static("nosniff"),
     );
     headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store, max-age=0"),
+    );
+    headers.insert(
         "permissions-policy",
         HeaderValue::from_static(
             "autoplay=(self \"https://www.youtube.com\"), fullscreen=(self \"https://www.youtube.com\")",
@@ -786,8 +792,19 @@ mod youtube_bridge_tests {
         assert!(YOUTUBE_BRIDGE_HTML.contains("data.playing !== false"));
         assert!(YOUTUBE_BRIDGE_HTML.contains("protocolVersion: 2"));
         assert!(YOUTUBE_BRIDGE_HTML.contains("if (playerReady) send('READY'"));
+        assert!(YOUTUBE_BRIDGE_HTML.contains("if (player) return"));
         assert!(YOUTUBE_BRIDGE_HTML.contains("playerVideoId !== activeVideoId"));
         assert!(YOUTUBE_BRIDGE_HTML.contains("Activer la lecture sur cet appareil"));
+        let callback = YOUTUBE_BRIDGE_HTML
+            .find("window.onYouTubeIframeAPIReady")
+            .expect("YouTube callback");
+        let api_script = YOUTUBE_BRIDGE_HTML
+            .find("src=\"https://www.youtube.com/iframe_api\"")
+            .expect("YouTube API script");
+        assert!(
+            callback < api_script,
+            "callback must exist before the cached API executes"
+        );
         assert!(!YOUTUBE_BRIDGE_HTML.contains("Authorization"));
     }
 }
