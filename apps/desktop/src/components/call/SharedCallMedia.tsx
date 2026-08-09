@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  activeSharedMediaQueue,
   driftCorrectionSeconds,
   isYoutubeBridgeMessage,
   parseYouTubeVideoId,
@@ -59,7 +60,8 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
   const loadedItemRef = useRef<string | null>(null);
   const bridgeProtocolVersionRef = useRef(1);
 
-  const current = shared?.queue.find((item) => item.id === shared.currentItemId) ?? null;
+  const visibleQueue = useMemo(() => shared ? activeSharedMediaQueue(shared) : [], [shared]);
+  const current = visibleQueue[0] ?? null;
   const bridgeOrigin = useMemo(() => {
     try {
       return bridgeUrl ? new URL(bridgeUrl).origin : null;
@@ -292,7 +294,7 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
     ? "Désactivé sur cet appareil"
     : current
       ? shared?.status === "playing" ? "Lecture partagée" : "En pause"
-      : (shared?.queue.length ?? 0) > 0 ? `${shared?.queue.length} dans la file` : "Ajouter une vidéo";
+      : visibleQueue.length > 0 ? `${visibleQueue.length} dans la file` : "Ajouter une vidéo";
   const soundCount = BUILTIN_SOUNDS.length + clips.length;
 
   return (
@@ -313,7 +315,7 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
           >
             <span className="shared-media__launcher-icon"><Icon name="play" size={20} /></span>
             <span className="shared-media__launcher-copy"><strong>YouTube</strong><small>{youtubeStatus}</small></span>
-            <span className="shared-media__launcher-count">{shared?.queue.length ?? 0}</span>
+            <span className="shared-media__launcher-count">{visibleQueue.length}</span>
           </button>
           <button
             type="button"
@@ -366,7 +368,7 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
           <div id="shared-media-youtube" className="shared-media__panel shared-media__music">
             <div className="shared-media__heading">
               <span><strong>File YouTube</strong><small>Partagée avec le vocal</small></span>
-              <b>{shared?.queue.length ?? 0}<small>/50</small></b>
+              <b>{visibleQueue.length}<small>/50</small></b>
             </div>
             {consent === "accepted" ? (
               <div className="shared-media__add">
@@ -395,19 +397,19 @@ export function SharedCallMedia({ compact = false }: { compact?: boolean }) {
             </label>
 
             <ol className="shared-media__queue">
-              {shared?.queue.map((item, index) => (
-                <li key={item.id} data-current={item.id === shared.currentItemId} aria-current={item.id === shared.currentItemId ? "true" : undefined}>
+              {visibleQueue.map((item, index) => (
+                <li key={item.id} data-current={item.id === shared?.currentItemId} aria-current={item.id === shared?.currentItemId ? "true" : undefined}>
                   <span className="shared-media__queue-index">{index + 1}</span>
                   <span className="shared-media__queue-copy"><strong>Vidéo {index + 1}</strong><code>{item.videoId}</code></span>
                   <small title={names[item.contributedBy] ?? "Membre"}>{item.contributedBy === myUserId ? "Vous" : names[item.contributedBy] ?? "Membre"}</small>
                   <span className="shared-media__queue-actions">
-                    <button type="button" aria-label="Monter dans la file" onClick={() => void mutate({ type: "reorder", itemId: item.id, toIndex: index - 1 })} disabled={index === 0}>↑</button>
-                    <button type="button" aria-label="Descendre dans la file" onClick={() => void mutate({ type: "reorder", itemId: item.id, toIndex: index + 1 })} disabled={index === (shared?.queue.length ?? 0) - 1}>↓</button>
+                    <button type="button" aria-label="Monter dans la file" onClick={() => void mutate({ type: "reorder", itemId: item.id, toIndex: index - 1 })} disabled={index <= 1}>↑</button>
+                    <button type="button" aria-label="Descendre dans la file" onClick={() => void mutate({ type: "reorder", itemId: item.id, toIndex: index + 1 })} disabled={index === 0 || index === visibleQueue.length - 1}>↓</button>
                     <button type="button" onClick={() => void mutate({ type: "remove", itemId: item.id, serverNowMs: Date.now() + serverClockOffsetMs })} aria-label="Retirer de la file"><Icon name="x" size={12} /></button>
                   </span>
                 </li>
               ))}
-              {(shared?.queue.length ?? 0) === 0 && <li className="shared-media__empty">Collez un lien pour lancer la première vidéo chez tout le monde.</li>}
+              {visibleQueue.length === 0 && <li className="shared-media__empty">Collez un lien pour lancer la première vidéo chez tout le monde.</li>}
             </ol>
           </div>
         )}

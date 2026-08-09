@@ -17,6 +17,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.17.3",
+    date: "2026-08-09",
+    title: "La file YouTube se vide correctement",
+    notes: [
+      "Chaque appui sur Suivant retire maintenant la vidéo terminée de la file au lieu de la conserver en arrière-plan.",
+      "Après la dernière vidéo, le lecteur se ferme proprement et la prochaine vidéo ajoutée repart dans une file neuve, sans écran noir.",
+      "La vidéo en cours reste en tête de file et ne peut plus être déplacée par les boutons de réorganisation.",
+    ],
+  },
+  {
     version: "0.17.2",
     date: "2026-08-09",
     title: "Le lecteur partagé enchaîne enfin sans écran noir",

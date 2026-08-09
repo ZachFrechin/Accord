@@ -71,33 +71,44 @@ export function parseYouTubeVideoId(input: string): string | null {
   return candidate && /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : null;
 }
 
+export function activeSharedMediaQueue(state: SharedMediaStateV1): SharedMediaItemV1[] {
+  const currentIndex = state.queue.findIndex((item) => item.id === state.currentItemId);
+  return currentIndex >= 0 ? state.queue.slice(currentIndex) : [];
+}
+
 export function reduceSharedMedia(
   state: SharedMediaStateV1,
   action: SharedMediaAction,
 ): SharedMediaStateV1 {
+  // Older clients kept already-played items before the current one. Normalize
+  // every mutation so the queue always means "current + upcoming".
+  const activeQueue = activeSharedMediaQueue(state);
+
   switch (action.type) {
     case "enqueue": {
-      if (state.queue.length >= MAX_SHARED_MEDIA_QUEUE) return state;
-      if (state.queue.some((item) => item.id === action.item.id)) return state;
-      const queue = [...state.queue, action.item];
-      const startsPlayback = state.currentItemId === null;
+      const startsPlayback = activeQueue.length === 0;
+      const queue = startsPlayback ? [] : activeQueue;
+      if (queue.length >= MAX_SHARED_MEDIA_QUEUE) return state;
+      if (queue.some((item) => item.id === action.item.id)) return state;
+      const nextQueue = [...queue, action.item];
       return {
         ...state,
-        queue,
-        currentItemId: state.currentItemId ?? action.item.id,
+        queue: nextQueue,
+        currentItemId: startsPlayback ? action.item.id : state.currentItemId,
         status: startsPlayback ? "playing" : state.status,
         anchorPositionSeconds: startsPlayback ? 0 : state.anchorPositionSeconds,
         anchorServerTimeMs: startsPlayback ? action.serverNowMs : state.anchorServerTimeMs,
       };
     }
     case "remove": {
-      const index = state.queue.findIndex((item) => item.id === action.itemId);
-      if (index < 0) return state;
-      const queue = state.queue.filter((item) => item.id !== action.itemId);
       const removedCurrent = state.currentItemId === action.itemId;
-      const nextItemId = removedCurrent
-        ? (queue[Math.min(index, queue.length - 1)]?.id ?? null)
-        : state.currentItemId;
+      const queue = removedCurrent
+        ? activeQueue.slice(1)
+        : activeQueue.filter((item) => item.id !== action.itemId);
+      if (!removedCurrent && queue.length === activeQueue.length) {
+        return activeQueue.length === state.queue.length ? state : { ...state, queue: activeQueue };
+      }
+      const nextItemId = removedCurrent ? (queue[0]?.id ?? null) : state.currentItemId;
       return {
         ...state,
         queue,
@@ -108,27 +119,41 @@ export function reduceSharedMedia(
       };
     }
     case "reorder": {
-      const from = state.queue.findIndex((item) => item.id === action.itemId);
-      if (from < 0) return state;
-      const queue = [...state.queue];
+      const from = activeQueue.findIndex((item) => item.id === action.itemId);
+      if (from <= 0) {
+        return activeQueue.length === state.queue.length ? state : { ...state, queue: activeQueue };
+      }
+      const queue = [...activeQueue];
       const [item] = queue.splice(from, 1);
-      queue.splice(Math.max(0, Math.min(action.toIndex, queue.length)), 0, item);
+      queue.splice(Math.max(1, Math.min(action.toIndex, queue.length)), 0, item);
       return { ...state, queue };
     }
     case "play":
     case "pause":
     case "seek":
+      if (activeQueue.length === 0) {
+        return {
+          ...state,
+          queue: [],
+          currentItemId: null,
+          status: "paused",
+          anchorPositionSeconds: 0,
+          anchorServerTimeMs: action.serverNowMs,
+        };
+      }
       return {
         ...state,
+        queue: activeQueue,
         status: action.type === "pause" ? "paused" : action.type === "play" ? "playing" : state.status,
         anchorPositionSeconds: Math.max(0, action.positionSeconds),
         anchorServerTimeMs: action.serverNowMs,
       };
     case "skip": {
-      const current = state.queue.findIndex((item) => item.id === state.currentItemId);
-      const next = current >= 0 ? state.queue[current + 1] : state.queue[0];
+      const queue = activeQueue.slice(1);
+      const next = queue[0];
       return {
         ...state,
+        queue,
         currentItemId: next?.id ?? null,
         status: next ? "playing" : "paused",
         anchorPositionSeconds: 0,

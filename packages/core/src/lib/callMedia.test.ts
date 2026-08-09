@@ -76,6 +76,88 @@ describe("shared media state", () => {
     expect(state.status).toBe("playing");
     expect(state.anchorPositionSeconds).toBe(0);
     expect(state.anchorServerTimeMs).toBe(2_000);
+    expect(state.queue.map((item) => item.id)).toEqual(["b"]);
+  });
+
+  it("consumes played items and starts with a clean queue after the last video", () => {
+    let state = emptySharedMediaState(7, 1_000);
+    for (const [id, videoId] of [
+      ["a", "dQw4w9WgXcQ"],
+      ["b", "M7lc1UVf-VE"],
+      ["c", "aqz-KE-bpKQ"],
+    ]) {
+      state = reduceSharedMedia(state, {
+        type: "enqueue",
+        item: { id, videoId, contributedBy: `user-${id}` },
+        serverNowMs: 1_100,
+      });
+    }
+
+    state = reduceSharedMedia(state, { type: "skip", serverNowMs: 2_000 });
+    expect(state.queue.map((item) => item.id)).toEqual(["b", "c"]);
+    expect(state.currentItemId).toBe("b");
+
+    state = reduceSharedMedia(state, { type: "skip", serverNowMs: 3_000 });
+    expect(state.queue.map((item) => item.id)).toEqual(["c"]);
+    expect(state.currentItemId).toBe("c");
+
+    state = reduceSharedMedia(state, { type: "skip", serverNowMs: 4_000 });
+    expect(state.queue).toEqual([]);
+    expect(state.currentItemId).toBeNull();
+    expect(state.status).toBe("paused");
+
+    state = reduceSharedMedia(state, { type: "play", positionSeconds: 12, serverNowMs: 4_500 });
+    expect(state.currentItemId).toBeNull();
+    expect(state.status).toBe("paused");
+    expect(state.anchorPositionSeconds).toBe(0);
+
+    state = reduceSharedMedia(state, {
+      type: "enqueue",
+      item: { id: "d", videoId: "ysz5S6PUM-U", contributedBy: "user-d" },
+      serverNowMs: 5_000,
+    });
+    expect(state.queue.map((item) => item.id)).toEqual(["d"]);
+    expect(state.currentItemId).toBe("d");
+    expect(state.status).toBe("playing");
+  });
+
+  it("repairs an exhausted queue left behind by an older client", () => {
+    const legacyState = {
+      ...emptySharedMediaState(7, 1_000),
+      queue: [
+        { id: "a", videoId: "dQw4w9WgXcQ", contributedBy: "user-a" },
+        { id: "b", videoId: "M7lc1UVf-VE", contributedBy: "user-b" },
+      ],
+    };
+
+    const state = reduceSharedMedia(legacyState, {
+      type: "enqueue",
+      item: { id: "c", videoId: "aqz-KE-bpKQ", contributedBy: "user-c" },
+      serverNowMs: 2_000,
+    });
+
+    expect(state.queue.map((item) => item.id)).toEqual(["c"]);
+    expect(state.currentItemId).toBe("c");
+    expect(state.status).toBe("playing");
+  });
+
+  it("keeps the current video first when the queue is reordered", () => {
+    let state = emptySharedMediaState(7, 1_000);
+    for (const [id, videoId] of [
+      ["a", "dQw4w9WgXcQ"],
+      ["b", "M7lc1UVf-VE"],
+      ["c", "aqz-KE-bpKQ"],
+    ]) {
+      state = reduceSharedMedia(state, {
+        type: "enqueue",
+        item: { id, videoId, contributedBy: `user-${id}` },
+        serverNowMs: 1_100,
+      });
+    }
+
+    expect(reduceSharedMedia(state, { type: "reorder", itemId: "a", toIndex: 2 })).toEqual(state);
+    state = reduceSharedMedia(state, { type: "reorder", itemId: "b", toIndex: 0 });
+    expect(state.queue.map((item) => item.id)).toEqual(["a", "b", "c"]);
   });
 });
 
